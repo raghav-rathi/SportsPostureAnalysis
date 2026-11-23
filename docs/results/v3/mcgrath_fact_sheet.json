@@ -1,0 +1,629 @@
+{
+  "schema_version": "1.0.0",
+  "bowler_id": "Glenn_McGrath_Reel_SideOn",
+  "bowling_arm": "right",
+  "action_class": "unknown",
+  "pose_backend": "nlf_l_multi_smpl24",
+  "audit": {
+    "video_path": "data/reference_reel.mp4",
+    "width": 720,
+    "height": 1280,
+    "fps": 25.0,
+    "num_frames": 65,
+    "duration_s": 2.6,
+    "median_laplacian_var": 201.93,
+    "blur_grade": "crisp",
+    "fps_grade": "low_25",
+    "est_arm_deg_per_frame": 92.0,
+    "est_ball_m_per_frame": 1.556,
+    "warnings": [
+      "Frame rate is 25.0 fps (~92.0 deg bowling-arm sweep per frame); release-instant kinematics carry elevated temporal quantization error. Record at 120-240 fps slow-motion outdoors for precision analysis."
+    ]
+  },
+  "calibration": {
+    "method": "motion_gravity_self_cal",
+    "camera_matrix_K": [
+      [
+        691.5535657096198,
+        0.0,
+        360.0
+      ],
+      [
+        0.0,
+        691.5535657096198,
+        640.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "rotation_matrix_R": [
+      [
+        -0.9406462474823514,
+        0.3182809996049408,
+        -0.11782123063289894
+      ],
+      [
+        -0.3076115456931566,
+        -0.9462179988857877,
+        -0.10023290647707796
+      ],
+      [
+        -0.14338679874255542,
+        -0.058040536481456934,
+        0.9879633202054146
+      ]
+    ],
+    "translation_t": [
+      -0.24263069779363905,
+      0.8566444112583929,
+      3.7974766444230093
+    ],
+    "camera_position_world_m": [
+      0.5797920753964241,
+      1.1082046833243284,
+      -3.6944907222722643
+    ],
+    "azimuth_deg": -98.92,
+    "elevation_deg": 2.42,
+    "px_per_meter_at_crease": 184.76,
+    "reprojection_error_px": null,
+    "view_class": "side_on_left",
+    "is_metric_calibrated": false,
+    "is_panning_camera": true,
+    "calibration_notes": [
+      "Gravity axis: pre-delivery upright bowler torso gravity.",
+      "Geometric pan override: pelvis camera displacement (1.09 m) is nearly orthogonal to in-frame anatomical stride (spread=1.10 m); locking +X to stride axis.",
+      "Panning camera detected: calibrated +X delivery axis from in-frame anatomical stride (spread=1.10 m)."
+    ]
+  },
+  "events": {
+    "runup_start_frame": 33,
+    "bfc": {
+      "frame_float": 41.5,
+      "frame_idx": 42,
+      "timestamp_s": 1.66,
+      "timing_uncertainty_ms": 20.0,
+      "confidence": 0.58,
+      "detection_method": "rear_ankle_ground_minimum"
+    },
+    "ffc": {
+      "frame_float": 53.446,
+      "frame_idx": 53,
+      "timestamp_s": 2.1379,
+      "timing_uncertainty_ms": 20.0,
+      "confidence": 0.85,
+      "detection_method": "front_foot_ground_touchdown"
+    },
+    "uah": {
+      "frame_float": 53.446,
+      "frame_idx": 53,
+      "timestamp_s": 2.1379,
+      "timing_uncertainty_ms": 20.0,
+      "confidence": 0.48,
+      "detection_method": "humerus_horizontal_nearest_in_ffc_br"
+    },
+    "br": {
+      "frame_float": 56.509,
+      "frame_idx": 57,
+      "timestamp_s": 2.2604,
+      "timing_uncertainty_ms": 20.0,
+      "confidence": 0.58,
+      "detection_method": "overhead_extended_circumduction_peak"
+    },
+    "ft_peak": {
+      "frame_float": 62.0,
+      "frame_idx": 62,
+      "timestamp_s": 2.48,
+      "timing_uncertainty_ms": 20.0,
+      "confidence": 0.72,
+      "detection_method": "post_release_trunk_flexion_peak"
+    },
+    "delivery_stride_duration_ms": 477.9,
+    "ffc_to_br_duration_ms": 122.5,
+    "is_complete_delivery": true,
+    "event_warnings": []
+  },
+  "workload_context": {
+    "age_years": null,
+    "sex": "male",
+    "bowls_per_week": null,
+    "recent_growth_spurt": null,
+    "known_pace_kph": null
+  },
+  "metrics": {
+    "runup_speed_mps": {
+      "key": "runup_speed_mps",
+      "label": "Run-Up Approach Speed",
+      "unit": "m/s",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 0.64,
+      "sigma_projective": 0.63,
+      "sigma_temporal": 0.05,
+      "sigma_epistemic": 0.09,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: camera panning cancels ground-referenced translation without MCC Law 7 pitch calibration; record from a static tripod or supply pitch crease landmarks.",
+      "empirical_reference": "Elite male fast bowlers: ~5.2–6.6 m/s (strong positive predictor of ball speed)",
+      "literature_source": "Worthington, King, & Ranson (2013), J. Applied Biomechanics"
+    },
+    "stride_length_pct_stature": {
+      "key": "stride_length_pct_stature",
+      "label": "Delivery Stride Length",
+      "unit": "% stature",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 8.94,
+      "sigma_projective": 6.3,
+      "sigma_temporal": 2.31,
+      "sigma_epistemic": 5.92,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: camera panning cancels ground-referenced translation without MCC Law 7 pitch calibration; record from a static tripod or supply pitch crease landmarks.",
+      "empirical_reference": "Typical fast bowling stride: ~72–88% of stature (1.30–1.65 m)",
+      "literature_source": "Portus et al. (2004); Worthington et al. (2013)"
+    },
+    "front_knee_ffc_deg": {
+      "key": "front_knee_ffc_deg",
+      "label": "Front Knee Angle at FFC",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 19.05,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 1.26,
+      "sigma_epistemic": 18.8,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: total 1-sigma uncertainty (+-19.1 deg) exceeds scientific reliability limit (11.0 deg) due to view/FPS/blur constraints.",
+      "empirical_reference": "Typical FFC contact angle: ~150–170 deg (180 deg = fully straight)",
+      "literature_source": "Portus et al. (2004), Sports Biomechanics"
+    },
+    "front_knee_br_deg": {
+      "key": "front_knee_br_deg",
+      "label": "Front Knee Angle at Ball Release",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 16.36,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 1.27,
+      "sigma_epistemic": 16.07,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: total 1-sigma uncertainty (+-16.4 deg) exceeds scientific reliability limit (11.0 deg) due to view/FPS/blur constraints.",
+      "empirical_reference": "Faster bowlers maintain straighter braced front knee (~158–178 deg at BR)",
+      "literature_source": "Worthington, King, & Ranson (2013), J. Applied Biomechanics"
+    },
+    "front_knee_change_deg": {
+      "key": "front_knee_change_deg",
+      "label": "Front Knee Bracing Change (FFC->BR)",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 19.09,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 1.79,
+      "sigma_epistemic": 18.8,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: total 1-sigma uncertainty (+-19.1 deg) exceeds scientific reliability limit (12.5 deg) due to view/FPS/blur constraints.",
+      "empirical_reference": "Positive (+) = extender/bracer; near 0 = braced; <=-10 deg = flexing/collapsing",
+      "literature_source": "Portus et al. (2004), Sports Biomechanics"
+    },
+    "trunk_flexion_ffc_deg": {
+      "key": "trunk_flexion_ffc_deg",
+      "label": "Upper-Trunk Forward Flexion at FFC",
+      "unit": "deg",
+      "value": 22.35,
+      "ci_low": 7.8,
+      "ci_high": 36.9,
+      "sigma_total": 7.42,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 0.41,
+      "sigma_epistemic": 6.86,
+      "observability": "moderate",
+      "suppressed": false,
+      "suppression_reason": null,
+      "empirical_reference": "Typical FFC upright/slight-forward posture: ~5–20 deg forward of vertical",
+      "literature_source": "Worthington et al. (2013)"
+    },
+    "trunk_flexion_br_deg": {
+      "key": "trunk_flexion_br_deg",
+      "label": "Upper-Trunk Forward Flexion at BR",
+      "unit": "deg",
+      "value": 30.22,
+      "ci_low": 16.44,
+      "ci_high": 44.0,
+      "sigma_total": 7.03,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 0.61,
+      "sigma_epistemic": 6.42,
+      "observability": "high",
+      "suppressed": false,
+      "suppression_reason": null,
+      "empirical_reference": "Typical elite release trunk flexion: ~35–55 deg forward of vertical",
+      "literature_source": "Worthington et al. (2013)"
+    },
+    "trunk_flexion_delta_deg": {
+      "key": "trunk_flexion_delta_deg",
+      "label": "Trunk Forward Flexion Range (FFC->BR)",
+      "unit": "deg",
+      "value": 7.87,
+      "ci_low": -6.73,
+      "ci_high": 22.47,
+      "sigma_total": 7.45,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 0.73,
+      "sigma_epistemic": 6.86,
+      "observability": "high",
+      "suppressed": false,
+      "suppression_reason": null,
+      "empirical_reference": "Greater forward trunk flexion FFC->BR (~25–42 deg) drives higher ball speed",
+      "literature_source": "Worthington, King, & Ranson (2013), J. Applied Biomechanics"
+    },
+    "thorax_lat_flex_ffc_deg": {
+      "key": "thorax_lat_flex_ffc_deg",
+      "label": "Thorax Contralateral Lateral Flexion at FFC",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 17.9,
+      "sigma_projective": 16.5,
+      "sigma_temporal": 0.95,
+      "sigma_epistemic": 6.86,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: camera azimuth (-99 deg, view=side_on_left) cannot reliably resolve coronal (front/rear) kinematics; film from a behind-the-bowler (~0 deg) angle.",
+      "empirical_reference": "Moderate pre-release side-flexion (~12–28 deg); excessive early bend elevates load",
+      "literature_source": "Alway et al. (2021), MSSE; Bayne et al. (2016), JSMS"
+    },
+    "thorax_lat_flex_br_deg": {
+      "key": "thorax_lat_flex_br_deg",
+      "label": "Thorax Contralateral Lateral Flexion at BR",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 17.73,
+      "sigma_projective": 16.5,
+      "sigma_temporal": 0.87,
+      "sigma_epistemic": 6.42,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: camera azimuth (-99 deg, view=side_on_left) cannot reliably resolve coronal (front/rear) kinematics; film from a behind-the-bowler (~0 deg) angle.",
+      "empirical_reference": "Uninjured elite norm: ~32–44 deg (40+-8 deg); elevated LBSI risk around >=48–50 deg",
+      "literature_source": "Bayne, Elliott, Campbell, & Alderson (2016), JSMS"
+    },
+    "pelvis_alignment_bfc_deg": {
+      "key": "pelvis_alignment_bfc_deg",
+      "label": "Pelvis Alignment at BFC",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 14.46,
+      "sigma_projective": 11.8,
+      "sigma_temporal": 0.32,
+      "sigma_epistemic": 8.34,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: total 1-sigma uncertainty (+-14.5 deg) exceeds scientific reliability limit (14.0 deg) due to view/FPS/blur constraints.",
+      "empirical_reference": "AIS convention: <=205 deg side-on, 205–245 deg semi, >245 deg front-on",
+      "literature_source": "Portus et al. (2004), Sports Biomechanics"
+    },
+    "shoulder_alignment_bfc_deg": {
+      "key": "shoulder_alignment_bfc_deg",
+      "label": "Shoulder Alignment at BFC",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 14.4,
+      "sigma_projective": 11.8,
+      "sigma_temporal": 0.4,
+      "sigma_epistemic": 8.25,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: total 1-sigma uncertainty (+-14.4 deg) exceeds scientific reliability limit (14.0 deg) due to view/FPS/blur constraints.",
+      "empirical_reference": "AIS convention: <=205 deg side-on, 205–245 deg semi, >245 deg front-on",
+      "literature_source": "Portus et al. (2004), Sports Biomechanics"
+    },
+    "shoulder_counter_rotation_deg": {
+      "key": "shoulder_counter_rotation_deg",
+      "label": "Shoulder Counter-Rotation (SCR, BFC->FFC)",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 14.44,
+      "sigma_projective": 11.8,
+      "sigma_temporal": 1.1,
+      "sigma_epistemic": 8.25,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: total 1-sigma uncertainty (+-14.4 deg) exceeds scientific reliability limit (13.5 deg) due to view/FPS/blur constraints.",
+      "empirical_reference": "<25-30 deg = non-mixed alignment; >=30 deg defines mixed action linked to LBSI",
+      "literature_source": "Portus et al. (2004), Sports Biomechanics"
+    },
+    "hip_shoulder_sep_bfc_deg": {
+      "key": "hip_shoulder_sep_bfc_deg",
+      "label": "Hip-Shoulder Separation at BFC",
+      "unit": "deg",
+      "value": 24.79,
+      "ci_low": -1.39,
+      "ci_high": 50.98,
+      "sigma_total": 13.36,
+      "sigma_projective": 11.8,
+      "sigma_temporal": 0.21,
+      "sigma_epistemic": 6.26,
+      "observability": "low",
+      "suppressed": false,
+      "suppression_reason": null,
+      "empirical_reference": "BFC misalignment >=30 deg with counter-rotation indicates mixed action loading",
+      "literature_source": "Portus et al. (2004), Sports Biomechanics"
+    },
+    "max_hip_shoulder_sep_deg": {
+      "key": "max_hip_shoulder_sep_deg",
+      "label": "Peak Dynamic Hip-Shoulder Separation",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 14.52,
+      "sigma_projective": 11.8,
+      "sigma_temporal": 5.7,
+      "sigma_epistemic": 6.26,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: total 1-sigma uncertainty (+-14.5 deg) exceeds scientific reliability limit (14.5 deg) due to view/FPS/blur constraints.",
+      "empirical_reference": "Well-timed late separation (~25–50 deg) supports stretch-shortening momentum transfer",
+      "literature_source": "Portus et al. (2004); Worthington et al. (2013)"
+    },
+    "delayed_arm_ffc_deg": {
+      "key": "delayed_arm_ffc_deg",
+      "label": "Delayed Bowling Arm Angle Behind Vertical at FFC",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 21.34,
+      "sigma_projective": 4.0,
+      "sigma_temporal": 1.44,
+      "sigma_epistemic": 20.91,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: 25.0 fps causes ~92 deg bowling-arm sweep per frame; high-velocity arm kinematics require >=100 fps (ideally 120-240 fps).",
+      "empirical_reference": "Larger delay behind vertical (~125–165 deg at FFC) strongly predicts higher ball speed",
+      "literature_source": "Worthington, King, & Ranson (2013), J. Applied Biomechanics"
+    },
+    "rear_hip_bfc_deg": {
+      "key": "rear_hip_bfc_deg",
+      "label": "Rear Hip Angle at BFC",
+      "unit": "deg",
+      "value": 149.92,
+      "ci_low": 137.06,
+      "ci_high": 162.78,
+      "sigma_total": 6.56,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 0.22,
+      "sigma_epistemic": 5.93,
+      "observability": "high",
+      "suppressed": false,
+      "suppression_reason": null,
+      "empirical_reference": "Key upstream lumbopelvic control predictor in prospective LBSI regression model",
+      "literature_source": "Alway, Felton, Brooke-Wavell, Peirce, & King (2021), MSSE"
+    },
+    "pelvic_drop_ffc_deg": {
+      "key": "pelvic_drop_ffc_deg",
+      "label": "Contralateral/Ipsilateral Pelvic Tilt at FFC",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 21.46,
+      "sigma_projective": 16.5,
+      "sigma_temporal": 0.2,
+      "sigma_epistemic": 13.72,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: camera azimuth (-99 deg, view=side_on_left) cannot reliably resolve coronal (front/rear) kinematics; film from a behind-the-bowler (~0 deg) angle.",
+      "empirical_reference": "Controlled level pelvis (|tilt| <10 deg) reduces asymmetrical lumbar shear loading",
+      "literature_source": "Alway et al. (2021), MSSE"
+    },
+    "non_bowling_arm_elev_ffc_deg": {
+      "key": "non_bowling_arm_elev_ffc_deg",
+      "label": "Non-Bowling (Front) Arm Elevation at FFC",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 27.84,
+      "sigma_projective": 2.8,
+      "sigma_temporal": 3.23,
+      "sigma_epistemic": 27.51,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: high 3D joint localization uncertainty (0.17 m) due to occlusion or motion blur.",
+      "empirical_reference": "High front-arm anchor (>15 deg above horizontal at FFC) supports trunk alignment before pull",
+      "literature_source": "Middleton et al.; Worthington et al."
+    },
+    "peak_arm_angular_vel_dps": {
+      "key": "peak_arm_angular_vel_dps",
+      "label": "Peak Bowling Arm Angular Velocity",
+      "unit": "deg/s",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 364.31,
+      "sigma_projective": 180.0,
+      "sigma_temporal": 92.38,
+      "sigma_epistemic": 302.97,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: 25.0 fps causes ~92 deg bowling-arm sweep per frame; high-velocity arm kinematics require >=100 fps (ideally 120-240 fps).",
+      "empirical_reference": "Elite fast bowlers peak ~2,000–2,570 deg/s (35–45 rad/s) near ball release",
+      "literature_source": "Fast-bowling 3D biomechanics literature"
+    },
+    "release_height_m": {
+      "key": "release_height_m",
+      "label": "Ball Release Height",
+      "unit": "m",
+      "value": 1.97,
+      "ci_low": 1.66,
+      "ci_high": 2.28,
+      "sigma_total": 0.16,
+      "sigma_projective": 0.07,
+      "sigma_temporal": 0.03,
+      "sigma_epistemic": 0.14,
+      "observability": "low",
+      "suppressed": false,
+      "suppression_reason": null,
+      "empirical_reference": "Typically ~1.05–1.18x bowler stature (~1.95–2.20 m for 1.85 m bowler)",
+      "literature_source": "Fast-bowling kinematics norms"
+    },
+    "follow_through_drift_deg": {
+      "key": "follow_through_drift_deg",
+      "label": "Follow-Through Lateral Drift Angle",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": 17.03,
+      "sigma_projective": 16.5,
+      "sigma_temporal": 0.46,
+      "sigma_epistemic": 4.19,
+      "observability": "unmeasurable",
+      "suppressed": true,
+      "suppression_reason": "Suppressed: camera azimuth (-99 deg, view=side_on_left) cannot reliably resolve coronal (front/rear) kinematics; film from a behind-the-bowler (~0 deg) angle.",
+      "empirical_reference": "Driving momentum near target line (|drift| <12-15 deg) reduces lateral braking shear",
+      "literature_source": "Coaching & momentum-conservation principles"
+    },
+    "icc_elbow_legality_verdict": {
+      "key": "icc_elbow_legality_verdict",
+      "label": "ICC 15-Degree Elbow Legality Verdict",
+      "unit": "deg",
+      "value": null,
+      "ci_low": null,
+      "ci_high": null,
+      "sigma_total": null,
+      "sigma_projective": null,
+      "sigma_temporal": null,
+      "sigma_epistemic": null,
+      "observability": "refused",
+      "suppressed": true,
+      "suppression_reason": "Permanently refused: even dual-camera markerless OpenCap exhibits 22.7 deg RMSE on cricket elbow flexion (Abraham et al., 2025/2026), exceeding the entire 15-degree ICC threshold. Authoritative legality testing requires an ICC-accredited >=250 Hz 3D optical lab.",
+      "empirical_reference": "ICC limit: <=15 deg active elbow extension strictly between UAH and BR",
+      "literature_source": "Elliott, Alderson, & Denver (2007); Abraham, Feros, & Fox (2025/2026)"
+    }
+  },
+  "kinetic_efficiency": {
+    "name": "Kinetic & Pace Efficiency",
+    "score": 23.3,
+    "ci_half_width": 28.0,
+    "status_label": "Developing (Major Energy Leaks)",
+    "contributing_metrics": [
+      "trunk_flexion_delta_deg"
+    ],
+    "missing_or_suppressed_metrics": [
+      "front_knee_br_deg",
+      "front_knee_change_deg",
+      "delayed_arm_ffc_deg",
+      "runup_speed_mps",
+      "max_hip_shoulder_sep_deg"
+    ],
+    "summary": "Scored 23.3 +- 28.0 / 100 based on 1 observable performance predictors (trunk_flexion_delta_deg)."
+  },
+  "lumbar_load_screening": {
+    "name": "Mechanical Load & Durability Screening",
+    "score": null,
+    "ci_half_width": null,
+    "status_label": "Insufficient Observable Evidence",
+    "contributing_metrics": [
+      "rear_hip_bfc_deg"
+    ],
+    "missing_or_suppressed_metrics": [
+      "thorax_lat_flex_br_deg",
+      "thorax_lat_flex_ffc_deg",
+      "shoulder_counter_rotation_deg",
+      "pelvic_drop_ffc_deg",
+      "follow_through_drift_deg"
+    ],
+    "summary": "Primary spinal-loading views (coronal lateral flexion, pelvic drop, or transverse SCR) were not reliably observable from this camera angle. Add a behind-the-bowler or 45-degree clip."
+  },
+  "repeatability": null,
+  "quadrant": {
+    "kinetic_efficiency_x": 23.3,
+    "kinetic_efficiency_ci": 28.0,
+    "durability_safety_y": null,
+    "durability_safety_ci": null,
+    "quadrant_label": "Partial Observability (Add Complementary Camera Angle)",
+    "interpretation": "Full 2D Performance-Durability placement requires both sagittal (side-on) kinetic evidence and coronal/transverse (rear or 45-deg) spinal-load evidence."
+  },
+  "strengths": [],
+  "limiters": [
+    {
+      "category": "limiter",
+      "title": "Limited Forward Trunk Flexion (FFC -> BR)",
+      "evidence_metrics": [
+        "trunk_flexion_delta_deg"
+      ],
+      "biomechanical_mechanism": "Forward trunk flexion range (7.9 deg) is below elite fast-bowling ranges (~25-42 deg), reducing linear-to-angular momentum transfer into the bowling shoulder.",
+      "actionable_recommendation": "Pair a braced front leg with dynamic chest-drive drills through release."
+    }
+  ],
+  "capture_upgrades": [
+    {
+      "category": "capture_upgrade",
+      "title": "Switch Smartphone to 120–240 fps Slow-Motion",
+      "evidence_metrics": [
+        "peak_arm_angular_vel_dps",
+        "delayed_arm_ffc_deg"
+      ],
+      "biomechanical_mechanism": "Current clip is 25.0 fps (~92 deg arm sweep per frame), creating severe temporal aliasing near release.",
+      "actionable_recommendation": "Record outdoors in native 1080p 240 fps slow-motion to reduce timing uncertainty by up to 8x."
+    },
+    {
+      "category": "capture_upgrade",
+      "title": "Use a Static Tripod Showing Pitch Creases",
+      "evidence_metrics": [
+        "runup_speed_mps",
+        "stride_length_pct_stature"
+      ],
+      "biomechanical_mechanism": "Camera panning hides ground-referenced run-up velocity and true BFC-to-FFC stride displacement.",
+      "actionable_recommendation": "Mount the camera on a stationary tripod framing both popping/bowling creases and the bowler's full body."
+    },
+    {
+      "category": "capture_upgrade",
+      "title": "Add a Behind-the-Bowler (Rear) Camera Angle",
+      "evidence_metrics": [
+        "thorax_lat_flex_br_deg",
+        "pelvic_drop_ffc_deg"
+      ],
+      "biomechanical_mechanism": "Side-on cameras cannot accurately resolve coronal lateral spine bend or pelvic drop.",
+      "actionable_recommendation": "Place a tripod phone at waist height behind the umpire/bowler aligned with middle stump."
+    }
+  ],
+  "hard_guardrails": [
+    "ICC 15-degree elbow legality CANNOT be adjudicated from monocular or casual 2D/3D video; accredited >=250 Hz 3D optical lab testing is required.",
+    "Mechanical load screening estimates stress per delivery only and is NOT a medical diagnosis; actual injury risk depends strongly on bowling workload, age/skeletal maturity, and physical capacity."
+  ],
+  "metadata": {
+    "start_frame": 488,
+    "end_frame": 553,
+    "num_tracks_seen": 4,
+    "valid_detection_ratio": 1.0,
+    "estimated_stature_m": 1.807,
+    "background_pan_fraction": 0.0013,
+    "standing_bg_gravity_frames": 0
+  }
+}
