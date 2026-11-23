@@ -1,0 +1,3086 @@
+{
+  "s1_per_metric_coverage": {
+    "stock_pooled_coverage_pct_param_truth": 97.0,
+    "pooled_coverage_pct_all_metrics_reference_truth": 95.3,
+    "metrics_never_scored_by_stock_benchmark": [
+      "stride_length_pct_stature",
+      "front_knee_change_deg",
+      "trunk_flexion_ffc_deg",
+      "trunk_flexion_br_deg",
+      "thorax_lat_flex_ffc_deg",
+      "pelvis_alignment_bfc_deg",
+      "shoulder_alignment_bfc_deg",
+      "hip_shoulder_sep_bfc_deg",
+      "max_hip_shoulder_sep_deg",
+      "rear_hip_bfc_deg",
+      "pelvic_drop_ffc_deg",
+      "non_bowling_arm_elev_ffc_deg",
+      "peak_arm_angular_vel_dps",
+      "release_height_m",
+      "follow_through_drift_deg"
+    ],
+    "per_metric": {
+      "runup_speed_mps": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -0.02,
+        "rmse": 0.17,
+        "median_ci_half_width": 0.75,
+        "rmse_over_reported_sigma": 0.43,
+        "ci95_coverage_pct": 100.0
+      },
+      "stride_length_pct_stature": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": 1.48,
+        "rmse": 6.48,
+        "median_ci_half_width": 8.62,
+        "rmse_over_reported_sigma": 1.47,
+        "ci95_coverage_pct": 82.5
+      },
+      "front_knee_ffc_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -2.57,
+        "rmse": 8.04,
+        "median_ci_half_width": 17.35,
+        "rmse_over_reported_sigma": 0.91,
+        "ci95_coverage_pct": 95.0
+      },
+      "front_knee_br_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -5.58,
+        "rmse": 8.73,
+        "median_ci_half_width": 17.41,
+        "rmse_over_reported_sigma": 0.98,
+        "ci95_coverage_pct": 95.8
+      },
+      "front_knee_change_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -3.02,
+        "rmse": 10.19,
+        "median_ci_half_width": 17.69,
+        "rmse_over_reported_sigma": 1.13,
+        "ci95_coverage_pct": 90.0
+      },
+      "trunk_flexion_ffc_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": 0.54,
+        "rmse": 5.51,
+        "median_ci_half_width": 11.66,
+        "rmse_over_reported_sigma": 0.93,
+        "ci95_coverage_pct": 96.7
+      },
+      "trunk_flexion_br_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -0.59,
+        "rmse": 5.25,
+        "median_ci_half_width": 11.63,
+        "rmse_over_reported_sigma": 0.88,
+        "ci95_coverage_pct": 99.2
+      },
+      "trunk_flexion_delta_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -1.13,
+        "rmse": 7.13,
+        "median_ci_half_width": 11.72,
+        "rmse_over_reported_sigma": 1.19,
+        "ci95_coverage_pct": 92.5
+      },
+      "thorax_lat_flex_ffc_deg": {
+        "trials": 240,
+        "reported": 180,
+        "suppressed_pct": 25.0,
+        "bias": 0.69,
+        "rmse": 4.61,
+        "median_ci_half_width": 14.68,
+        "rmse_over_reported_sigma": 0.62,
+        "ci95_coverage_pct": 97.8
+      },
+      "thorax_lat_flex_br_deg": {
+        "trials": 240,
+        "reported": 180,
+        "suppressed_pct": 25.0,
+        "bias": -0.53,
+        "rmse": 3.54,
+        "median_ci_half_width": 14.68,
+        "rmse_over_reported_sigma": 0.47,
+        "ci95_coverage_pct": 100.0
+      },
+      "pelvis_alignment_bfc_deg": {
+        "trials": 240,
+        "reported": 203,
+        "suppressed_pct": 15.4,
+        "bias": 1.23,
+        "rmse": 11.67,
+        "median_ci_half_width": 24.73,
+        "rmse_over_reported_sigma": 0.92,
+        "ci95_coverage_pct": 93.1
+      },
+      "shoulder_alignment_bfc_deg": {
+        "trials": 240,
+        "reported": 239,
+        "suppressed_pct": 0.4,
+        "bias": 0.14,
+        "rmse": 6.29,
+        "median_ci_half_width": 18.91,
+        "rmse_over_reported_sigma": 0.65,
+        "ci95_coverage_pct": 100.0
+      },
+      "shoulder_counter_rotation_deg": {
+        "trials": 240,
+        "reported": 204,
+        "suppressed_pct": 15.0,
+        "bias": 0.94,
+        "rmse": 6.86,
+        "median_ci_half_width": 18.83,
+        "rmse_over_reported_sigma": 0.71,
+        "ci95_coverage_pct": 98.5
+      },
+      "hip_shoulder_sep_bfc_deg": {
+        "trials": 240,
+        "reported": 204,
+        "suppressed_pct": 15.0,
+        "bias": 1.19,
+        "rmse": 13.12,
+        "median_ci_half_width": 20.72,
+        "rmse_over_reported_sigma": 1.24,
+        "ci95_coverage_pct": 88.7
+      },
+      "max_hip_shoulder_sep_deg": {
+        "trials": 240,
+        "reported": 195,
+        "suppressed_pct": 18.8,
+        "bias": 5.41,
+        "rmse": 13.4,
+        "median_ci_half_width": 23.38,
+        "rmse_over_reported_sigma": 1.12,
+        "ci95_coverage_pct": 88.2
+      },
+      "delayed_arm_ffc_deg": {
+        "trials": 240,
+        "reported": 48,
+        "suppressed_pct": 80.0,
+        "bias": -4.26,
+        "rmse": 10.42,
+        "median_ci_half_width": 14.13,
+        "rmse_over_reported_sigma": 1.45,
+        "ci95_coverage_pct": 95.8
+      },
+      "rear_hip_bfc_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -4.21,
+        "rmse": 8.2,
+        "median_ci_half_width": 13.44,
+        "rmse_over_reported_sigma": 1.2,
+        "ci95_coverage_pct": 94.2
+      },
+      "pelvic_drop_ffc_deg": {
+        "trials": 240,
+        "reported": 72,
+        "suppressed_pct": 70.0,
+        "bias": 0.84,
+        "rmse": 5.73,
+        "median_ci_half_width": 15.72,
+        "rmse_over_reported_sigma": 0.71,
+        "ci95_coverage_pct": 98.6
+      },
+      "non_bowling_arm_elev_ffc_deg": {
+        "trials": 240,
+        "reported": 120,
+        "suppressed_pct": 50.0,
+        "bias": -2.13,
+        "rmse": 12.31,
+        "median_ci_half_width": 17.73,
+        "rmse_over_reported_sigma": 1.36,
+        "ci95_coverage_pct": 97.5
+      },
+      "peak_arm_angular_vel_dps": {
+        "trials": 240,
+        "reported": 48,
+        "suppressed_pct": 80.0,
+        "bias": 132.46,
+        "rmse": 245.4,
+        "median_ci_half_width": 389.35,
+        "rmse_over_reported_sigma": 1.24,
+        "ci95_coverage_pct": 87.5
+      },
+      "release_height_m": {
+        "trials": 240,
+        "reported": 240,
+        "suppressed_pct": 0.0,
+        "bias": -0.02,
+        "rmse": 0.05,
+        "median_ci_half_width": 0.16,
+        "rmse_over_reported_sigma": 0.65,
+        "ci95_coverage_pct": 100.0
+      },
+      "follow_through_drift_deg": {
+        "trials": 240,
+        "reported": 180,
+        "suppressed_pct": 25.0,
+        "bias": -0.38,
+        "rmse": 5.44,
+        "median_ci_half_width": 14.66,
+        "rmse_over_reported_sigma": 0.73,
+        "ci95_coverage_pct": 97.2
+      }
+    },
+    "per_metric_by_view": {
+      "side_on_90": {
+        "runup_speed_mps": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.02,
+          "rmse": 0.12,
+          "median_ci_half_width": 0.75,
+          "rmse_over_reported_sigma": 0.3,
+          "ci95_coverage_pct": 100.0
+        },
+        "stride_length_pct_stature": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 1.46,
+          "rmse": 5.71,
+          "median_ci_half_width": 8.62,
+          "rmse_over_reported_sigma": 1.3,
+          "ci95_coverage_pct": 86.7
+        },
+        "front_knee_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -3.33,
+          "rmse": 7.12,
+          "median_ci_half_width": 17.01,
+          "rmse_over_reported_sigma": 0.82,
+          "ci95_coverage_pct": 96.7
+        },
+        "front_knee_br_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -6.1,
+          "rmse": 8.1,
+          "median_ci_half_width": 17.49,
+          "rmse_over_reported_sigma": 0.91,
+          "ci95_coverage_pct": 93.3
+        },
+        "front_knee_change_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -2.76,
+          "rmse": 9.12,
+          "median_ci_half_width": 17.64,
+          "rmse_over_reported_sigma": 1.01,
+          "ci95_coverage_pct": 91.7
+        },
+        "trunk_flexion_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 1.1,
+          "rmse": 5.04,
+          "median_ci_half_width": 11.56,
+          "rmse_over_reported_sigma": 0.86,
+          "ci95_coverage_pct": 96.7
+        },
+        "trunk_flexion_br_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.76,
+          "rmse": 3.98,
+          "median_ci_half_width": 11.54,
+          "rmse_over_reported_sigma": 0.68,
+          "ci95_coverage_pct": 100.0
+        },
+        "trunk_flexion_delta_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -1.86,
+          "rmse": 5.84,
+          "median_ci_half_width": 11.62,
+          "rmse_over_reported_sigma": 0.98,
+          "ci95_coverage_pct": 96.7
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "thorax_lat_flex_br_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "pelvis_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": -1.4,
+          "rmse": 11.23,
+          "median_ci_half_width": 25.89,
+          "rmse_over_reported_sigma": 0.85,
+          "ci95_coverage_pct": 100.0
+        },
+        "shoulder_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 59,
+          "suppressed_pct": 1.7,
+          "bias": -0.8,
+          "rmse": 7.15,
+          "median_ci_half_width": 26.7,
+          "rmse_over_reported_sigma": 0.52,
+          "ci95_coverage_pct": 100.0
+        },
+        "shoulder_counter_rotation_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": -0.16,
+          "rmse": 6.7,
+          "median_ci_half_width": 23.76,
+          "rmse_over_reported_sigma": 0.55,
+          "ci95_coverage_pct": 100.0
+        },
+        "hip_shoulder_sep_bfc_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": 0.25,
+          "rmse": 13.36,
+          "median_ci_half_width": 24.72,
+          "rmse_over_reported_sigma": 1.06,
+          "ci95_coverage_pct": 91.7
+        },
+        "max_hip_shoulder_sep_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": 4.07,
+          "rmse": 7.54,
+          "median_ci_half_width": 24.95,
+          "rmse_over_reported_sigma": 0.59,
+          "ci95_coverage_pct": 100.0
+        },
+        "delayed_arm_ffc_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": -2.33,
+          "rmse": 5.32,
+          "median_ci_half_width": 12.0,
+          "rmse_over_reported_sigma": 0.87,
+          "ci95_coverage_pct": 95.8
+        },
+        "rear_hip_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -5.06,
+          "rmse": 8.27,
+          "median_ci_half_width": 13.0,
+          "rmse_over_reported_sigma": 1.25,
+          "ci95_coverage_pct": 95.0
+        },
+        "pelvic_drop_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "non_bowling_arm_elev_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -2.06,
+          "rmse": 12.37,
+          "median_ci_half_width": 17.44,
+          "rmse_over_reported_sigma": 1.39,
+          "ci95_coverage_pct": 96.7
+        },
+        "peak_arm_angular_vel_dps": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": 43.27,
+          "rmse": 154.18,
+          "median_ci_half_width": 389.35,
+          "rmse_over_reported_sigma": 0.78,
+          "ci95_coverage_pct": 95.8
+        },
+        "release_height_m": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.03,
+          "rmse": 0.06,
+          "median_ci_half_width": 0.15,
+          "rmse_over_reported_sigma": 0.72,
+          "ci95_coverage_pct": 100.0
+        },
+        "follow_through_drift_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        }
+      },
+      "open_side_45": {
+        "runup_speed_mps": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.02,
+          "rmse": 0.2,
+          "median_ci_half_width": 0.75,
+          "rmse_over_reported_sigma": 0.53,
+          "ci95_coverage_pct": 100.0
+        },
+        "stride_length_pct_stature": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 1.51,
+          "rmse": 7.17,
+          "median_ci_half_width": 8.62,
+          "rmse_over_reported_sigma": 1.63,
+          "ci95_coverage_pct": 78.3
+        },
+        "front_knee_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -1.8,
+          "rmse": 8.86,
+          "median_ci_half_width": 19.27,
+          "rmse_over_reported_sigma": 0.9,
+          "ci95_coverage_pct": 93.3
+        },
+        "front_knee_br_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -5.07,
+          "rmse": 9.33,
+          "median_ci_half_width": 17.1,
+          "rmse_over_reported_sigma": 1.07,
+          "ci95_coverage_pct": 98.3
+        },
+        "front_knee_change_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -3.27,
+          "rmse": 11.16,
+          "median_ci_half_width": 19.61,
+          "rmse_over_reported_sigma": 1.11,
+          "ci95_coverage_pct": 88.3
+        },
+        "trunk_flexion_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.01,
+          "rmse": 5.94,
+          "median_ci_half_width": 14.39,
+          "rmse_over_reported_sigma": 0.81,
+          "ci95_coverage_pct": 96.7
+        },
+        "trunk_flexion_br_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.41,
+          "rmse": 6.26,
+          "median_ci_half_width": 14.41,
+          "rmse_over_reported_sigma": 0.85,
+          "ci95_coverage_pct": 98.3
+        },
+        "trunk_flexion_delta_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.4,
+          "rmse": 8.22,
+          "median_ci_half_width": 14.57,
+          "rmse_over_reported_sigma": 1.11,
+          "ci95_coverage_pct": 88.3
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 1.01,
+          "rmse": 5.6,
+          "median_ci_half_width": 14.68,
+          "rmse_over_reported_sigma": 0.75,
+          "ci95_coverage_pct": 95.0
+        },
+        "thorax_lat_flex_br_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.85,
+          "rmse": 3.91,
+          "median_ci_half_width": 14.68,
+          "rmse_over_reported_sigma": 0.52,
+          "ci95_coverage_pct": 100.0
+        },
+        "pelvis_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.51,
+          "rmse": 10.35,
+          "median_ci_half_width": 24.37,
+          "rmse_over_reported_sigma": 0.83,
+          "ci95_coverage_pct": 95.0
+        },
+        "shoulder_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 0.94,
+          "rmse": 6.86,
+          "median_ci_half_width": 18.06,
+          "rmse_over_reported_sigma": 0.74,
+          "ci95_coverage_pct": 100.0
+        },
+        "shoulder_counter_rotation_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 2.03,
+          "rmse": 7.61,
+          "median_ci_half_width": 17.59,
+          "rmse_over_reported_sigma": 0.85,
+          "ci95_coverage_pct": 95.0
+        },
+        "hip_shoulder_sep_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -1.46,
+          "rmse": 12.11,
+          "median_ci_half_width": 20.03,
+          "rmse_over_reported_sigma": 1.19,
+          "ci95_coverage_pct": 91.7
+        },
+        "max_hip_shoulder_sep_deg": {
+          "trials": 60,
+          "reported": 58,
+          "suppressed_pct": 3.3,
+          "bias": 6.83,
+          "rmse": 14.4,
+          "median_ci_half_width": 22.09,
+          "rmse_over_reported_sigma": 1.28,
+          "ci95_coverage_pct": 86.2
+        },
+        "delayed_arm_ffc_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": -6.19,
+          "rmse": 13.75,
+          "median_ci_half_width": 16.13,
+          "rmse_over_reported_sigma": 1.67,
+          "ci95_coverage_pct": 95.8
+        },
+        "rear_hip_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -3.36,
+          "rmse": 8.12,
+          "median_ci_half_width": 13.45,
+          "rmse_over_reported_sigma": 1.18,
+          "ci95_coverage_pct": 93.3
+        },
+        "pelvic_drop_ffc_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": 1.3,
+          "rmse": 4.74,
+          "median_ci_half_width": 15.72,
+          "rmse_over_reported_sigma": 0.59,
+          "ci95_coverage_pct": 100.0
+        },
+        "non_bowling_arm_elev_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -2.2,
+          "rmse": 12.26,
+          "median_ci_half_width": 19.44,
+          "rmse_over_reported_sigma": 1.24,
+          "ci95_coverage_pct": 98.3
+        },
+        "peak_arm_angular_vel_dps": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": 221.65,
+          "rmse": 310.92,
+          "median_ci_half_width": 389.35,
+          "rmse_over_reported_sigma": 1.57,
+          "ci95_coverage_pct": 79.2
+        },
+        "release_height_m": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.02,
+          "rmse": 0.05,
+          "median_ci_half_width": 0.15,
+          "rmse_over_reported_sigma": 0.66,
+          "ci95_coverage_pct": 100.0
+        },
+        "follow_through_drift_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.03,
+          "rmse": 7.64,
+          "median_ci_half_width": 14.66,
+          "rmse_over_reported_sigma": 1.02,
+          "ci95_coverage_pct": 91.7
+        }
+      },
+      "rear_0": {
+        "runup_speed_mps": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "stride_length_pct_stature": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "front_knee_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "front_knee_br_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "front_knee_change_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "trunk_flexion_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "trunk_flexion_br_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "trunk_flexion_delta_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 0.5,
+          "rmse": 3.47,
+          "median_ci_half_width": 11.36,
+          "rmse_over_reported_sigma": 0.6,
+          "ci95_coverage_pct": 98.3
+        },
+        "thorax_lat_flex_br_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.59,
+          "rmse": 3.47,
+          "median_ci_half_width": 11.36,
+          "rmse_over_reported_sigma": 0.6,
+          "ci95_coverage_pct": 100.0
+        },
+        "pelvis_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 59,
+          "suppressed_pct": 1.7,
+          "bias": 2.57,
+          "rmse": 12.11,
+          "median_ci_half_width": 24.98,
+          "rmse_over_reported_sigma": 0.95,
+          "ci95_coverage_pct": 91.5
+        },
+        "shoulder_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 0.53,
+          "rmse": 5.47,
+          "median_ci_half_width": 18.86,
+          "rmse_over_reported_sigma": 0.57,
+          "ci95_coverage_pct": 100.0
+        },
+        "shoulder_counter_rotation_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 1.0,
+          "rmse": 5.8,
+          "median_ci_half_width": 19.48,
+          "rmse_over_reported_sigma": 0.58,
+          "ci95_coverage_pct": 100.0
+        },
+        "hip_shoulder_sep_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 2.57,
+          "rmse": 13.87,
+          "median_ci_half_width": 20.77,
+          "rmse_over_reported_sigma": 1.31,
+          "ci95_coverage_pct": 86.7
+        },
+        "max_hip_shoulder_sep_deg": {
+          "trials": 60,
+          "reported": 56,
+          "suppressed_pct": 6.7,
+          "bias": 5.12,
+          "rmse": 14.73,
+          "median_ci_half_width": 22.73,
+          "rmse_over_reported_sigma": 1.27,
+          "ci95_coverage_pct": 80.4
+        },
+        "delayed_arm_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "rear_hip_bfc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "pelvic_drop_ffc_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": -0.56,
+          "rmse": 5.02,
+          "median_ci_half_width": 12.7,
+          "rmse_over_reported_sigma": 0.77,
+          "ci95_coverage_pct": 95.8
+        },
+        "non_bowling_arm_elev_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "peak_arm_angular_vel_dps": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "release_height_m": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.03,
+          "rmse": 0.05,
+          "median_ci_half_width": 0.15,
+          "rmse_over_reported_sigma": 0.59,
+          "ci95_coverage_pct": 100.0
+        },
+        "follow_through_drift_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.15,
+          "rmse": 4.04,
+          "median_ci_half_width": 11.35,
+          "rmse_over_reported_sigma": 0.7,
+          "ci95_coverage_pct": 100.0
+        }
+      },
+      "broadcast_elevated": {
+        "runup_speed_mps": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "stride_length_pct_stature": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "front_knee_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "front_knee_br_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "front_knee_change_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "trunk_flexion_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "trunk_flexion_br_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "trunk_flexion_delta_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 0.55,
+          "rmse": 4.52,
+          "median_ci_half_width": 17.3,
+          "rmse_over_reported_sigma": 0.51,
+          "ci95_coverage_pct": 100.0
+        },
+        "thorax_lat_flex_br_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.15,
+          "rmse": 3.19,
+          "median_ci_half_width": 17.29,
+          "rmse_over_reported_sigma": 0.36,
+          "ci95_coverage_pct": 100.0
+        },
+        "pelvis_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 2.7,
+          "rmse": 12.62,
+          "median_ci_half_width": 25.88,
+          "rmse_over_reported_sigma": 0.96,
+          "ci95_coverage_pct": 90.0
+        },
+        "shoulder_alignment_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.12,
+          "rmse": 5.51,
+          "median_ci_half_width": 20.05,
+          "rmse_over_reported_sigma": 0.54,
+          "ci95_coverage_pct": 100.0
+        },
+        "shoulder_counter_rotation_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 0.23,
+          "rmse": 7.11,
+          "median_ci_half_width": 17.45,
+          "rmse_over_reported_sigma": 0.8,
+          "ci95_coverage_pct": 100.0
+        },
+        "hip_shoulder_sep_bfc_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": 2.83,
+          "rmse": 13.23,
+          "median_ci_half_width": 21.82,
+          "rmse_over_reported_sigma": 1.19,
+          "ci95_coverage_pct": 86.7
+        },
+        "max_hip_shoulder_sep_deg": {
+          "trials": 60,
+          "reported": 57,
+          "suppressed_pct": 5.0,
+          "bias": 4.82,
+          "rmse": 12.89,
+          "median_ci_half_width": 23.94,
+          "rmse_over_reported_sigma": 1.06,
+          "ci95_coverage_pct": 93.0
+        },
+        "delayed_arm_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "rear_hip_bfc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "pelvic_drop_ffc_deg": {
+          "trials": 60,
+          "reported": 24,
+          "suppressed_pct": 60.0,
+          "bias": 1.76,
+          "rmse": 7.14,
+          "median_ci_half_width": 18.22,
+          "rmse_over_reported_sigma": 0.77,
+          "ci95_coverage_pct": 100.0
+        },
+        "non_bowling_arm_elev_ffc_deg": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "peak_arm_angular_vel_dps": {
+          "trials": 60,
+          "reported": 0,
+          "suppressed_pct": 100.0,
+          "bias": null,
+          "rmse": null,
+          "median_ci_half_width": null,
+          "rmse_over_reported_sigma": null,
+          "ci95_coverage_pct": null
+        },
+        "release_height_m": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.02,
+          "rmse": 0.05,
+          "median_ci_half_width": 0.24,
+          "rmse_over_reported_sigma": 0.4,
+          "ci95_coverage_pct": 100.0
+        },
+        "follow_through_drift_deg": {
+          "trials": 60,
+          "reported": 60,
+          "suppressed_pct": 0.0,
+          "bias": -0.97,
+          "rmse": 3.75,
+          "median_ci_half_width": 17.23,
+          "rmse_over_reported_sigma": 0.43,
+          "ci95_coverage_pct": 100.0
+        }
+      }
+    }
+  },
+  "s2_event_timing_priors": {
+    "fixed_270_130_ms": {
+      "240": {
+        "bfc_mae_ms": 9.8,
+        "ffc_mae_ms": 5.5,
+        "br_mae_ms": 1.7,
+        "bfc_bias_ms": -9.2,
+        "ffc_bias_ms": 5.5,
+        "br_bias_ms": -0.3,
+        "bfc_err_over_40ms_pct": 0.0,
+        "ffc_err_over_40ms_pct": 0.0,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 14.8,
+        "half_frame_ms_reported_as_uncertainty": 2.1
+      },
+      "120": {
+        "bfc_mae_ms": 12.6,
+        "ffc_mae_ms": 8.3,
+        "br_mae_ms": 1.5,
+        "bfc_bias_ms": -11.4,
+        "ffc_bias_ms": 8.3,
+        "br_bias_ms": -0.1,
+        "bfc_err_over_40ms_pct": 0.0,
+        "ffc_err_over_40ms_pct": 0.0,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 20.3,
+        "half_frame_ms_reported_as_uncertainty": 4.2
+      },
+      "60": {
+        "bfc_mae_ms": 13.5,
+        "ffc_mae_ms": 13.4,
+        "br_mae_ms": 2.7,
+        "bfc_bias_ms": -13.2,
+        "ffc_bias_ms": 13.4,
+        "br_bias_ms": -1.1,
+        "bfc_err_over_40ms_pct": 0.0,
+        "ffc_err_over_40ms_pct": 3.3,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 26.6,
+        "half_frame_ms_reported_as_uncertainty": 8.3
+      },
+      "30": {
+        "bfc_mae_ms": 11.1,
+        "ffc_mae_ms": 8.0,
+        "br_mae_ms": 3.0,
+        "bfc_bias_ms": -6.5,
+        "ffc_bias_ms": 6.1,
+        "br_bias_ms": -0.8,
+        "bfc_err_over_40ms_pct": 1.7,
+        "ffc_err_over_40ms_pct": 3.3,
+        "br_err_over_40ms_pct": 1.7,
+        "stride_duration_mae_ms": 16.1,
+        "half_frame_ms_reported_as_uncertainty": 16.7
+      }
+    },
+    "literature_192pm31_103pm11_ms": {
+      "240": {
+        "bfc_mae_ms": 12.1,
+        "ffc_mae_ms": 6.7,
+        "br_mae_ms": 1.4,
+        "bfc_bias_ms": -10.7,
+        "ffc_bias_ms": 6.7,
+        "br_bias_ms": 0.1,
+        "bfc_err_over_40ms_pct": 1.7,
+        "ffc_err_over_40ms_pct": 0.0,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 17.6,
+        "half_frame_ms_reported_as_uncertainty": 2.1
+      },
+      "120": {
+        "bfc_mae_ms": 11.2,
+        "ffc_mae_ms": 7.3,
+        "br_mae_ms": 1.1,
+        "bfc_bias_ms": -10.7,
+        "ffc_bias_ms": 7.1,
+        "br_bias_ms": -0.1,
+        "bfc_err_over_40ms_pct": 0.0,
+        "ffc_err_over_40ms_pct": 0.0,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 18.2,
+        "half_frame_ms_reported_as_uncertainty": 4.2
+      },
+      "60": {
+        "bfc_mae_ms": 18.4,
+        "ffc_mae_ms": 10.5,
+        "br_mae_ms": 2.0,
+        "bfc_bias_ms": -17.9,
+        "ffc_bias_ms": 9.5,
+        "br_bias_ms": 0.6,
+        "bfc_err_over_40ms_pct": 5.0,
+        "ffc_err_over_40ms_pct": 3.3,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 27.5,
+        "half_frame_ms_reported_as_uncertainty": 8.3
+      },
+      "30": {
+        "bfc_mae_ms": 16.1,
+        "ffc_mae_ms": 14.4,
+        "br_mae_ms": 1.9,
+        "bfc_bias_ms": -14.7,
+        "ffc_bias_ms": 12.4,
+        "br_bias_ms": -1.0,
+        "bfc_err_over_40ms_pct": 6.7,
+        "ffc_err_over_40ms_pct": 5.0,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 28.0,
+        "half_frame_ms_reported_as_uncertainty": 16.7
+      }
+    },
+    "literature_durations_second_arm_pass_left_in_clip": {
+      "60": {
+        "bfc_mae_ms": 20.8,
+        "ffc_mae_ms": 10.3,
+        "br_mae_ms": 1.6,
+        "bfc_bias_ms": -20.7,
+        "ffc_bias_ms": 5.6,
+        "br_bias_ms": 0.0,
+        "bfc_err_over_40ms_pct": 6.7,
+        "ffc_err_over_40ms_pct": 3.3,
+        "br_err_over_40ms_pct": 0.0,
+        "stride_duration_mae_ms": 26.4,
+        "half_frame_ms_reported_as_uncertainty": 8.3
+      },
+      "30": {
+        "bfc_mae_ms": 16.9,
+        "ffc_mae_ms": 87.7,
+        "br_mae_ms": 133.4,
+        "bfc_bias_ms": -9.6,
+        "ffc_bias_ms": 86.3,
+        "br_bias_ms": 131.9,
+        "bfc_err_over_40ms_pct": 6.7,
+        "ffc_err_over_40ms_pct": 43.3,
+        "br_err_over_40ms_pct": 45.0,
+        "stride_duration_mae_ms": 96.8,
+        "half_frame_ms_reported_as_uncertainty": 16.7
+      }
+    }
+  },
+  "s3_generator_artefacts": {
+    "ffc_front_ankle": {
+      "step_across_contact_m": 0.241,
+      "implied_speed_mps": 58.0,
+      "median_neighbouring_step_m": 0.0197,
+      "height_before_contact_m": 0.103,
+      "height_at_contact_m": 0.0
+    },
+    "bfc_rear_ankle": {
+      "step_across_contact_m": 0.075,
+      "implied_speed_mps": 17.9,
+      "median_neighbouring_step_m": 0.0235,
+      "height_before_contact_m": 0.059,
+      "height_at_contact_m": 0.0
+    },
+    "bowling_arm_after_release": {
+      "rotation_in_first_150ms_deg": 209.0,
+      "rotation_by_clip_end_deg": 326.0,
+      "clip_end_after_release_ms": 346.0
+    }
+  },
+  "s4_noise_scale_mismatch": {
+    "true_noise_x0.5": {
+      "stock_7_metric_pooled_coverage_pct": 100.0,
+      "all_metric_pooled_coverage_pct": 99.7,
+      "per_metric_coverage_pct": {
+        "runup_speed_mps": 100.0,
+        "stride_length_pct_stature": 93.3,
+        "front_knee_ffc_deg": 100.0,
+        "front_knee_br_deg": 100.0,
+        "front_knee_change_deg": 100.0,
+        "trunk_flexion_ffc_deg": 100.0,
+        "trunk_flexion_br_deg": 100.0,
+        "trunk_flexion_delta_deg": 100.0,
+        "thorax_lat_flex_ffc_deg": 100.0,
+        "thorax_lat_flex_br_deg": 100.0,
+        "pelvis_alignment_bfc_deg": 100.0,
+        "shoulder_alignment_bfc_deg": 100.0,
+        "shoulder_counter_rotation_deg": 100.0,
+        "hip_shoulder_sep_bfc_deg": 99.5,
+        "max_hip_shoulder_sep_deg": 99.5,
+        "delayed_arm_ffc_deg": 100.0,
+        "rear_hip_bfc_deg": 100.0,
+        "pelvic_drop_ffc_deg": 100.0,
+        "non_bowling_arm_elev_ffc_deg": 100.0,
+        "peak_arm_angular_vel_dps": 100.0,
+        "release_height_m": 100.0,
+        "follow_through_drift_deg": 100.0
+      }
+    },
+    "true_noise_x1.0": {
+      "stock_7_metric_pooled_coverage_pct": 97.0,
+      "all_metric_pooled_coverage_pct": 95.3,
+      "per_metric_coverage_pct": {
+        "runup_speed_mps": 100.0,
+        "stride_length_pct_stature": 82.5,
+        "front_knee_ffc_deg": 95.0,
+        "front_knee_br_deg": 95.8,
+        "front_knee_change_deg": 90.0,
+        "trunk_flexion_ffc_deg": 96.7,
+        "trunk_flexion_br_deg": 99.2,
+        "trunk_flexion_delta_deg": 92.5,
+        "thorax_lat_flex_ffc_deg": 97.8,
+        "thorax_lat_flex_br_deg": 100.0,
+        "pelvis_alignment_bfc_deg": 93.1,
+        "shoulder_alignment_bfc_deg": 100.0,
+        "shoulder_counter_rotation_deg": 98.5,
+        "hip_shoulder_sep_bfc_deg": 88.7,
+        "max_hip_shoulder_sep_deg": 88.2,
+        "delayed_arm_ffc_deg": 95.8,
+        "rear_hip_bfc_deg": 94.2,
+        "pelvic_drop_ffc_deg": 98.6,
+        "non_bowling_arm_elev_ffc_deg": 97.5,
+        "peak_arm_angular_vel_dps": 87.5,
+        "release_height_m": 100.0,
+        "follow_through_drift_deg": 97.2
+      }
+    },
+    "true_noise_x2.0": {
+      "stock_7_metric_pooled_coverage_pct": 76.8,
+      "all_metric_pooled_coverage_pct": 74.4,
+      "per_metric_coverage_pct": {
+        "runup_speed_mps": 99.2,
+        "stride_length_pct_stature": 56.7,
+        "front_knee_ffc_deg": 67.2,
+        "front_knee_br_deg": 51.3,
+        "front_knee_change_deg": 63.9,
+        "trunk_flexion_ffc_deg": 77.5,
+        "trunk_flexion_br_deg": 75.0,
+        "trunk_flexion_delta_deg": 63.3,
+        "thorax_lat_flex_ffc_deg": 85.6,
+        "thorax_lat_flex_br_deg": 88.3,
+        "pelvis_alignment_bfc_deg": 72.4,
+        "shoulder_alignment_bfc_deg": 81.5,
+        "shoulder_counter_rotation_deg": 84.2,
+        "hip_shoulder_sep_bfc_deg": 56.4,
+        "max_hip_shoulder_sep_deg": 53.5,
+        "delayed_arm_ffc_deg": 70.8,
+        "rear_hip_bfc_deg": 65.8,
+        "pelvic_drop_ffc_deg": 84.7,
+        "non_bowling_arm_elev_ffc_deg": 70.0,
+        "peak_arm_angular_vel_dps": 58.3,
+        "release_height_m": 90.0,
+        "follow_through_drift_deg": 82.1
+      }
+    },
+    "true_noise_x3.0": {
+      "stock_7_metric_pooled_coverage_pct": 60.7,
+      "all_metric_pooled_coverage_pct": 58.2,
+      "per_metric_coverage_pct": {
+        "runup_speed_mps": 84.2,
+        "stride_length_pct_stature": 33.3,
+        "front_knee_ffc_deg": 49.1,
+        "front_knee_br_deg": 34.9,
+        "front_knee_change_deg": 46.8,
+        "trunk_flexion_ffc_deg": 53.8,
+        "trunk_flexion_br_deg": 52.1,
+        "trunk_flexion_delta_deg": 42.9,
+        "thorax_lat_flex_ffc_deg": 75.0,
+        "thorax_lat_flex_br_deg": 77.4,
+        "pelvis_alignment_bfc_deg": 60.2,
+        "shoulder_alignment_bfc_deg": 64.6,
+        "shoulder_counter_rotation_deg": 70.3,
+        "hip_shoulder_sep_bfc_deg": 39.4,
+        "max_hip_shoulder_sep_deg": 37.1,
+        "delayed_arm_ffc_deg": 45.8,
+        "rear_hip_bfc_deg": 42.9,
+        "pelvic_drop_ffc_deg": 69.4,
+        "non_bowling_arm_elev_ffc_deg": 50.0,
+        "peak_arm_angular_vel_dps": 52.1,
+        "release_height_m": 75.5,
+        "follow_through_drift_deg": 67.8
+      }
+    }
+  },
+  "s5_world_frame_error": {
+    "none": {
+      "pooled_coverage_pct": 98.5,
+      "per_metric": {
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.18,
+          "rmse": 3.92,
+          "coverage_pct": 98.6,
+          "reported": 72
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "bias": 0.46,
+          "rmse": 3.28,
+          "coverage_pct": 100.0,
+          "reported": 72
+        },
+        "trunk_flexion_br_deg": {
+          "bias": -0.23,
+          "rmse": 4.3,
+          "coverage_pct": 97.9,
+          "reported": 48
+        },
+        "trunk_flexion_delta_deg": {
+          "bias": -0.96,
+          "rmse": 5.52,
+          "coverage_pct": 97.9,
+          "reported": 48
+        },
+        "pelvis_alignment_bfc_deg": {
+          "bias": -0.69,
+          "rmse": 8.09,
+          "coverage_pct": 97.9,
+          "reported": 96
+        },
+        "shoulder_alignment_bfc_deg": {
+          "bias": 0.59,
+          "rmse": 4.83,
+          "coverage_pct": 99.0,
+          "reported": 96
+        },
+        "pelvic_drop_ffc_deg": {
+          "bias": 1.23,
+          "rmse": 6.09,
+          "coverage_pct": 98.6,
+          "reported": 72
+        },
+        "front_knee_br_deg": {
+          "bias": -2.41,
+          "rmse": 7.17,
+          "coverage_pct": 91.7,
+          "reported": 48
+        },
+        "release_height_m": {
+          "bias": 0.0,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "reported": 96
+        },
+        "follow_through_drift_deg": {
+          "bias": 0.18,
+          "rmse": 3.33,
+          "coverage_pct": 100.0,
+          "reported": 72
+        }
+      }
+    },
+    "yaw_5deg": {
+      "pooled_coverage_pct": 97.2,
+      "per_metric": {
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.32,
+          "rmse": 5.33,
+          "coverage_pct": 97.2,
+          "reported": 72
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "bias": 0.35,
+          "rmse": 3.78,
+          "coverage_pct": 100.0,
+          "reported": 72
+        },
+        "trunk_flexion_br_deg": {
+          "bias": -0.45,
+          "rmse": 5.44,
+          "coverage_pct": 93.8,
+          "reported": 48
+        },
+        "trunk_flexion_delta_deg": {
+          "bias": -1.1,
+          "rmse": 5.6,
+          "coverage_pct": 95.8,
+          "reported": 48
+        },
+        "pelvis_alignment_bfc_deg": {
+          "bias": -0.69,
+          "rmse": 9.85,
+          "coverage_pct": 94.8,
+          "reported": 96
+        },
+        "shoulder_alignment_bfc_deg": {
+          "bias": 0.59,
+          "rmse": 7.27,
+          "coverage_pct": 100.0,
+          "reported": 96
+        },
+        "pelvic_drop_ffc_deg": {
+          "bias": 1.24,
+          "rmse": 6.07,
+          "coverage_pct": 100.0,
+          "reported": 72
+        },
+        "front_knee_br_deg": {
+          "bias": -2.41,
+          "rmse": 7.16,
+          "coverage_pct": 91.7,
+          "reported": 48
+        },
+        "release_height_m": {
+          "bias": 0.0,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "reported": 96
+        },
+        "follow_through_drift_deg": {
+          "bias": 0.17,
+          "rmse": 6.08,
+          "coverage_pct": 94.4,
+          "reported": 72
+        }
+      }
+    },
+    "yaw_10deg": {
+      "pooled_coverage_pct": 87.2,
+      "per_metric": {
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.66,
+          "rmse": 7.95,
+          "coverage_pct": 80.6,
+          "reported": 72
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "bias": 0.3,
+          "rmse": 4.87,
+          "coverage_pct": 97.2,
+          "reported": 72
+        },
+        "trunk_flexion_br_deg": {
+          "bias": -1.2,
+          "rmse": 8.0,
+          "coverage_pct": 72.9,
+          "reported": 48
+        },
+        "trunk_flexion_delta_deg": {
+          "bias": -2.02,
+          "rmse": 6.9,
+          "coverage_pct": 85.4,
+          "reported": 48
+        },
+        "pelvis_alignment_bfc_deg": {
+          "bias": -0.69,
+          "rmse": 13.36,
+          "coverage_pct": 85.4,
+          "reported": 96
+        },
+        "shoulder_alignment_bfc_deg": {
+          "bias": 0.59,
+          "rmse": 11.5,
+          "coverage_pct": 90.6,
+          "reported": 96
+        },
+        "pelvic_drop_ffc_deg": {
+          "bias": 1.14,
+          "rmse": 5.98,
+          "coverage_pct": 100.0,
+          "reported": 72
+        },
+        "front_knee_br_deg": {
+          "bias": -2.4,
+          "rmse": 7.15,
+          "coverage_pct": 91.7,
+          "reported": 48
+        },
+        "release_height_m": {
+          "bias": 0.0,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "reported": 96
+        },
+        "follow_through_drift_deg": {
+          "bias": 0.17,
+          "rmse": 10.64,
+          "coverage_pct": 59.7,
+          "reported": 72
+        }
+      }
+    },
+    "yaw_15deg": {
+      "pooled_coverage_pct": 72.1,
+      "per_metric": {
+        "thorax_lat_flex_br_deg": {
+          "bias": -1.23,
+          "rmse": 10.88,
+          "coverage_pct": 56.9,
+          "reported": 72
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "bias": -0.02,
+          "rmse": 5.84,
+          "coverage_pct": 91.7,
+          "reported": 72
+        },
+        "trunk_flexion_br_deg": {
+          "bias": -2.47,
+          "rmse": 11.22,
+          "coverage_pct": 58.3,
+          "reported": 48
+        },
+        "trunk_flexion_delta_deg": {
+          "bias": -2.95,
+          "rmse": 8.08,
+          "coverage_pct": 72.9,
+          "reported": 48
+        },
+        "pelvis_alignment_bfc_deg": {
+          "bias": -0.69,
+          "rmse": 17.6,
+          "coverage_pct": 64.6,
+          "reported": 96
+        },
+        "shoulder_alignment_bfc_deg": {
+          "bias": 0.59,
+          "rmse": 16.18,
+          "coverage_pct": 61.5,
+          "reported": 96
+        },
+        "pelvic_drop_ffc_deg": {
+          "bias": 1.15,
+          "rmse": 5.99,
+          "coverage_pct": 100.0,
+          "reported": 72
+        },
+        "front_knee_br_deg": {
+          "bias": -2.4,
+          "rmse": 7.13,
+          "coverage_pct": 91.7,
+          "reported": 48
+        },
+        "release_height_m": {
+          "bias": 0.0,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "reported": 96
+        },
+        "follow_through_drift_deg": {
+          "bias": 0.17,
+          "rmse": 15.48,
+          "coverage_pct": 22.2,
+          "reported": 72
+        }
+      }
+    },
+    "tilt_fwd_5deg": {
+      "pooled_coverage_pct": 93.9,
+      "per_metric": {
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.29,
+          "rmse": 3.91,
+          "coverage_pct": 98.6,
+          "reported": 72
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "bias": 5.31,
+          "rmse": 8.18,
+          "coverage_pct": 80.6,
+          "reported": 72
+        },
+        "trunk_flexion_br_deg": {
+          "bias": 4.65,
+          "rmse": 6.39,
+          "coverage_pct": 89.6,
+          "reported": 48
+        },
+        "trunk_flexion_delta_deg": {
+          "bias": -5.51,
+          "rmse": 9.88,
+          "coverage_pct": 75.0,
+          "reported": 48
+        },
+        "pelvis_alignment_bfc_deg": {
+          "bias": 0.83,
+          "rmse": 8.54,
+          "coverage_pct": 94.8,
+          "reported": 96
+        },
+        "shoulder_alignment_bfc_deg": {
+          "bias": -1.07,
+          "rmse": 5.7,
+          "coverage_pct": 97.9,
+          "reported": 96
+        },
+        "pelvic_drop_ffc_deg": {
+          "bias": 1.64,
+          "rmse": 6.58,
+          "coverage_pct": 98.6,
+          "reported": 72
+        },
+        "front_knee_br_deg": {
+          "bias": -2.33,
+          "rmse": 7.03,
+          "coverage_pct": 91.7,
+          "reported": 48
+        },
+        "release_height_m": {
+          "bias": -0.0,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "reported": 96
+        },
+        "follow_through_drift_deg": {
+          "bias": 0.09,
+          "rmse": 3.27,
+          "coverage_pct": 100.0,
+          "reported": 72
+        }
+      }
+    },
+    "tilt_side_5deg": {
+      "pooled_coverage_pct": 96.8,
+      "per_metric": {
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.31,
+          "rmse": 5.3,
+          "coverage_pct": 94.4,
+          "reported": 72
+        },
+        "thorax_lat_flex_ffc_deg": {
+          "bias": 0.46,
+          "rmse": 5.85,
+          "coverage_pct": 97.2,
+          "reported": 72
+        },
+        "trunk_flexion_br_deg": {
+          "bias": 0.12,
+          "rmse": 5.06,
+          "coverage_pct": 95.8,
+          "reported": 48
+        },
+        "trunk_flexion_delta_deg": {
+          "bias": -0.61,
+          "rmse": 5.92,
+          "coverage_pct": 91.7,
+          "reported": 48
+        },
+        "pelvis_alignment_bfc_deg": {
+          "bias": -0.89,
+          "rmse": 8.11,
+          "coverage_pct": 99.0,
+          "reported": 96
+        },
+        "shoulder_alignment_bfc_deg": {
+          "bias": 0.53,
+          "rmse": 4.98,
+          "coverage_pct": 99.0,
+          "reported": 96
+        },
+        "pelvic_drop_ffc_deg": {
+          "bias": 1.24,
+          "rmse": 8.25,
+          "coverage_pct": 93.1,
+          "reported": 72
+        },
+        "front_knee_br_deg": {
+          "bias": -2.41,
+          "rmse": 7.17,
+          "coverage_pct": 91.7,
+          "reported": 48
+        },
+        "release_height_m": {
+          "bias": -0.0,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "reported": 96
+        },
+        "follow_through_drift_deg": {
+          "bias": 0.18,
+          "rmse": 3.42,
+          "coverage_pct": 100.0,
+          "reported": 72
+        }
+      }
+    }
+  },
+  "s6_self_calibration_realism": {
+    "stock_straight_4deg_lean": {
+      "side_on_90": {
+        "heading_error_of_x_axis_deg_mean": 4.5,
+        "heading_error_of_x_axis_deg_max": 5.6,
+        "gravity_error_deg_mean": 4.8,
+        "gravity_error_deg_max": 6.9,
+        "pooled_coverage_pct": 93.8,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -0.81,
+            "rmse": 4.31,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 1.09,
+            "rmse": 4.39,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -4.5,
+            "rmse": 8.59,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -2.54,
+            "rmse": 6.83,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -4.78,
+            "rmse": 7.11,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.11,
+            "rmse": 0.13,
+            "coverage_pct": 81.2,
+            "reported": 16
+          }
+        }
+      },
+      "open_side_45": {
+        "heading_error_of_x_axis_deg_mean": 4.7,
+        "heading_error_of_x_axis_deg_max": 6.1,
+        "gravity_error_deg_mean": 6.2,
+        "gravity_error_deg_max": 9.6,
+        "pooled_coverage_pct": 86.6,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -3.09,
+            "rmse": 6.17,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -3.51,
+            "rmse": 4.79,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 1.82,
+            "rmse": 3.23,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -4.56,
+            "rmse": 8.69,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -3.07,
+            "rmse": 7.25,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -5.8,
+            "rmse": 9.31,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.21,
+            "rmse": 0.24,
+            "coverage_pct": 37.5,
+            "reported": 16
+          }
+        }
+      },
+      "rear_0": {
+        "heading_error_of_x_axis_deg_mean": 4.6,
+        "heading_error_of_x_axis_deg_max": 5.2,
+        "gravity_error_deg_mean": 5.0,
+        "gravity_error_deg_max": 7.4,
+        "pooled_coverage_pct": 85.9,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -3.43,
+            "rmse": 5.02,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -4.63,
+            "rmse": 8.91,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -2.02,
+            "rmse": 4.72,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "release_height_m": {
+            "bias": 0.18,
+            "rmse": 0.19,
+            "coverage_pct": 50.0,
+            "reported": 16
+          }
+        }
+      }
+    },
+    "straight_12deg_lean": {
+      "side_on_90": {
+        "heading_error_of_x_axis_deg_mean": 4.4,
+        "heading_error_of_x_axis_deg_max": 5.6,
+        "gravity_error_deg_mean": 8.8,
+        "gravity_error_deg_max": 11.2,
+        "pooled_coverage_pct": 74.0,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -5.72,
+            "rmse": 6.63,
+            "coverage_pct": 62.5,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 1.27,
+            "rmse": 4.53,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -3.39,
+            "rmse": 9.05,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -4.19,
+            "rmse": 8.07,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -4.7,
+            "rmse": 7.02,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.4,
+            "rmse": 0.42,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "open_side_45": {
+        "heading_error_of_x_axis_deg_mean": 4.7,
+        "heading_error_of_x_axis_deg_max": 6.1,
+        "gravity_error_deg_mean": 9.4,
+        "gravity_error_deg_max": 11.7,
+        "pooled_coverage_pct": 81.2,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -2.9,
+            "rmse": 5.68,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -7.16,
+            "rmse": 8.16,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 2.09,
+            "rmse": 3.39,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -3.67,
+            "rmse": 7.09,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -3.01,
+            "rmse": 5.65,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -5.72,
+            "rmse": 9.27,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.46,
+            "rmse": 0.48,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "rear_0": {
+        "heading_error_of_x_axis_deg_mean": 4.6,
+        "heading_error_of_x_axis_deg_max": 5.1,
+        "gravity_error_deg_mean": 6.3,
+        "gravity_error_deg_max": 7.4,
+        "pooled_coverage_pct": 73.4,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -3.25,
+            "rmse": 4.99,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -3.45,
+            "rmse": 9.24,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -1.83,
+            "rmse": 4.42,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "release_height_m": {
+            "bias": 0.27,
+            "rmse": 0.27,
+            "coverage_pct": 6.2,
+            "reported": 16
+          }
+        }
+      }
+    },
+    "straight_18deg_lean": {
+      "side_on_90": {
+        "heading_error_of_x_axis_deg_mean": 4.3,
+        "heading_error_of_x_axis_deg_max": 5.2,
+        "gravity_error_deg_mean": 10.8,
+        "gravity_error_deg_max": 15.7,
+        "pooled_coverage_pct": 72.9,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -8.26,
+            "rmse": 8.86,
+            "coverage_pct": 43.8,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 0.81,
+            "rmse": 3.87,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -4.82,
+            "rmse": 8.51,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -3.93,
+            "rmse": 6.97,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -4.63,
+            "rmse": 6.96,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.54,
+            "rmse": 0.56,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "open_side_45": {
+        "heading_error_of_x_axis_deg_mean": 4.6,
+        "heading_error_of_x_axis_deg_max": 6.1,
+        "gravity_error_deg_mean": 10.7,
+        "gravity_error_deg_max": 14.0,
+        "pooled_coverage_pct": 80.4,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -3.46,
+            "rmse": 5.48,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -8.89,
+            "rmse": 10.19,
+            "coverage_pct": 75.0,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 1.79,
+            "rmse": 3.07,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -4.7,
+            "rmse": 8.71,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -3.34,
+            "rmse": 5.83,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -5.67,
+            "rmse": 9.25,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.55,
+            "rmse": 0.58,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "rear_0": {
+        "heading_error_of_x_axis_deg_mean": 4.5,
+        "heading_error_of_x_axis_deg_max": 5.1,
+        "gravity_error_deg_mean": 6.5,
+        "gravity_error_deg_max": 7.4,
+        "pooled_coverage_pct": 70.3,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -4.02,
+            "rmse": 5.42,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -3.54,
+            "rmse": 9.22,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -2.11,
+            "rmse": 4.88,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "release_height_m": {
+            "bias": 0.26,
+            "rmse": 0.26,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      }
+    },
+    "runup_plus15deg_12deg_lean": {
+      "side_on_90": {
+        "heading_error_of_x_axis_deg_mean": 0.8,
+        "heading_error_of_x_axis_deg_max": 2.2,
+        "gravity_error_deg_mean": 8.8,
+        "gravity_error_deg_max": 11.2,
+        "pooled_coverage_pct": 71.9,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -8.87,
+            "rmse": 9.44,
+            "coverage_pct": 43.8,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": -0.23,
+            "rmse": 4.28,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": 0.4,
+            "rmse": 8.56,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": 0.71,
+            "rmse": 7.08,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -4.69,
+            "rmse": 7.01,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.39,
+            "rmse": 0.41,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "open_side_45": {
+        "heading_error_of_x_axis_deg_mean": 0.7,
+        "heading_error_of_x_axis_deg_max": 1.5,
+        "gravity_error_deg_mean": 9.4,
+        "gravity_error_deg_max": 11.7,
+        "pooled_coverage_pct": 78.6,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -0.11,
+            "rmse": 4.75,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -10.41,
+            "rmse": 11.09,
+            "coverage_pct": 62.5,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 0.44,
+            "rmse": 2.52,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": 2.85,
+            "rmse": 6.12,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": 2.48,
+            "rmse": 5.15,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -5.72,
+            "rmse": 9.26,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.45,
+            "rmse": 0.47,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "rear_0": {
+        "heading_error_of_x_axis_deg_mean": 0.5,
+        "heading_error_of_x_axis_deg_max": 1.6,
+        "gravity_error_deg_mean": 6.3,
+        "gravity_error_deg_max": 7.4,
+        "pooled_coverage_pct": 76.6,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -0.28,
+            "rmse": 3.52,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": 1.37,
+            "rmse": 8.73,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": 3.33,
+            "rmse": 5.19,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "release_height_m": {
+            "bias": 0.26,
+            "rmse": 0.27,
+            "coverage_pct": 6.2,
+            "reported": 16
+          }
+        }
+      }
+    },
+    "runup_minus15deg_12deg_lean": {
+      "side_on_90": {
+        "heading_error_of_x_axis_deg_mean": 9.5,
+        "heading_error_of_x_axis_deg_max": 10.7,
+        "gravity_error_deg_mean": 8.8,
+        "gravity_error_deg_max": 11.2,
+        "pooled_coverage_pct": 79.2,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -2.98,
+            "rmse": 4.71,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 2.38,
+            "rmse": 5.11,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -9.33,
+            "rmse": 12.77,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -9.19,
+            "rmse": 11.25,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -4.7,
+            "rmse": 7.03,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.42,
+            "rmse": 0.44,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "open_side_45": {
+        "heading_error_of_x_axis_deg_mean": 9.8,
+        "heading_error_of_x_axis_deg_max": 11.4,
+        "gravity_error_deg_mean": 9.4,
+        "gravity_error_deg_max": 11.7,
+        "pooled_coverage_pct": 74.1,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -5.89,
+            "rmse": 7.71,
+            "coverage_pct": 68.8,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": -4.39,
+            "rmse": 6.07,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": 3.29,
+            "rmse": 4.52,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -10.23,
+            "rmse": 11.68,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -8.36,
+            "rmse": 9.49,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": -5.72,
+            "rmse": 9.27,
+            "coverage_pct": 87.5,
+            "reported": 16
+          },
+          "release_height_m": {
+            "bias": 0.48,
+            "rmse": 0.49,
+            "coverage_pct": 0.0,
+            "reported": 16
+          }
+        }
+      },
+      "rear_0": {
+        "heading_error_of_x_axis_deg_mean": 9.6,
+        "heading_error_of_x_axis_deg_max": 10.4,
+        "gravity_error_deg_mean": 6.3,
+        "gravity_error_deg_max": 7.4,
+        "pooled_coverage_pct": 59.4,
+        "per_metric": {
+          "thorax_lat_flex_br_deg": {
+            "bias": -6.37,
+            "rmse": 7.52,
+            "coverage_pct": 37.5,
+            "reported": 16
+          },
+          "trunk_flexion_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "trunk_flexion_delta_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "pelvis_alignment_bfc_deg": {
+            "bias": -8.12,
+            "rmse": 11.81,
+            "coverage_pct": 93.8,
+            "reported": 16
+          },
+          "shoulder_alignment_bfc_deg": {
+            "bias": -6.9,
+            "rmse": 8.04,
+            "coverage_pct": 100.0,
+            "reported": 16
+          },
+          "front_knee_br_deg": {
+            "bias": null,
+            "rmse": null,
+            "coverage_pct": null,
+            "reported": 0
+          },
+          "release_height_m": {
+            "bias": 0.27,
+            "rmse": 0.28,
+            "coverage_pct": 6.2,
+            "reported": 16
+          }
+        }
+      }
+    }
+  },
+  "s7_mcc_focal": {
+    "a_unknown_K_fov_grid": {
+      "true_fov_6deg_noise_1px": {
+        "failures": 0,
+        "picked_fov_deg_median": 12.0,
+        "azimuth_abs_err_deg_mean": 0.2,
+        "elevation_abs_err_deg_mean": 0.6,
+        "camera_position_err_pct_of_distance_mean": 52.1
+      },
+      "true_fov_6deg_noise_3px": {
+        "failures": 0,
+        "picked_fov_deg_median": 12.0,
+        "azimuth_abs_err_deg_mean": 0.5,
+        "elevation_abs_err_deg_mean": 1.0,
+        "camera_position_err_pct_of_distance_mean": 55.7
+      },
+      "true_fov_10deg_noise_1px": {
+        "failures": 0,
+        "picked_fov_deg_median": 12.0,
+        "azimuth_abs_err_deg_mean": 0.2,
+        "elevation_abs_err_deg_mean": 0.3,
+        "camera_position_err_pct_of_distance_mean": 20.1
+      },
+      "true_fov_10deg_noise_3px": {
+        "failures": 0,
+        "picked_fov_deg_median": 12.0,
+        "azimuth_abs_err_deg_mean": 0.5,
+        "elevation_abs_err_deg_mean": 0.8,
+        "camera_position_err_pct_of_distance_mean": 26.2
+      },
+      "true_fov_16deg_noise_1px": {
+        "failures": 0,
+        "picked_fov_deg_median": 12.0,
+        "azimuth_abs_err_deg_mean": 0.2,
+        "elevation_abs_err_deg_mean": 0.4,
+        "camera_position_err_pct_of_distance_mean": 32.4
+      },
+      "true_fov_16deg_noise_3px": {
+        "failures": 0,
+        "picked_fov_deg_median": 12.0,
+        "azimuth_abs_err_deg_mean": 0.6,
+        "elevation_abs_err_deg_mean": 0.8,
+        "camera_position_err_pct_of_distance_mean": 36.8
+      },
+      "true_fov_25deg_noise_1px": {
+        "failures": 0,
+        "picked_fov_deg_median": 20.0,
+        "azimuth_abs_err_deg_mean": 0.2,
+        "elevation_abs_err_deg_mean": 0.4,
+        "camera_position_err_pct_of_distance_mean": 23.2
+      },
+      "true_fov_25deg_noise_3px": {
+        "failures": 0,
+        "picked_fov_deg_median": 16.0,
+        "azimuth_abs_err_deg_mean": 0.6,
+        "elevation_abs_err_deg_mean": 1.1,
+        "camera_position_err_pct_of_distance_mean": 72.4
+      },
+      "true_fov_36deg_noise_1px": {
+        "failures": 0,
+        "picked_fov_deg_median": 30.0,
+        "azimuth_abs_err_deg_mean": 0.2,
+        "elevation_abs_err_deg_mean": 0.5,
+        "camera_position_err_pct_of_distance_mean": 19.4
+      },
+      "true_fov_36deg_noise_3px": {
+        "failures": 0,
+        "picked_fov_deg_median": 30.0,
+        "azimuth_abs_err_deg_mean": 0.6,
+        "elevation_abs_err_deg_mean": 1.3,
+        "camera_position_err_pct_of_distance_mean": 42.0
+      },
+      "true_fov_48deg_noise_1px": {
+        "failures": 0,
+        "picked_fov_deg_median": 42.0,
+        "azimuth_abs_err_deg_mean": 0.2,
+        "elevation_abs_err_deg_mean": 0.5,
+        "camera_position_err_pct_of_distance_mean": 15.4
+      },
+      "true_fov_48deg_noise_3px": {
+        "failures": 0,
+        "picked_fov_deg_median": 42.0,
+        "azimuth_abs_err_deg_mean": 0.6,
+        "elevation_abs_err_deg_mean": 1.1,
+        "camera_position_err_pct_of_distance_mean": 22.4
+      },
+      "true_fov_62deg_noise_1px": {
+        "failures": 0,
+        "picked_fov_deg_median": 55.0,
+        "azimuth_abs_err_deg_mean": 0.2,
+        "elevation_abs_err_deg_mean": 0.6,
+        "camera_position_err_pct_of_distance_mean": 13.9
+      },
+      "true_fov_62deg_noise_3px": {
+        "failures": 0,
+        "picked_fov_deg_median": 55.0,
+        "azimuth_abs_err_deg_mean": 0.6,
+        "elevation_abs_err_deg_mean": 1.0,
+        "camera_position_err_pct_of_distance_mean": 14.1
+      }
+    },
+    "b_pose_model_assumes_55deg": {
+      "true_fov_55deg_side_on_90": {
+        "runup_speed_mps": {
+          "bias": 0.0,
+          "rmse": 0.07,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "stride_length_pct_stature": {
+          "bias": 4.05,
+          "rmse": 4.75,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "release_height_m": {
+          "bias": -0.01,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "thorax_lat_flex_br_deg": {
+          "bias": null,
+          "rmse": null,
+          "coverage_pct": null,
+          "suppressed_pct": 100.0,
+          "grades_when_reported": []
+        },
+        "front_knee_br_deg": {
+          "bias": -0.72,
+          "rmse": 3.08,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        }
+      },
+      "true_fov_55deg_open_side_45": {
+        "runup_speed_mps": {
+          "bias": 0.03,
+          "rmse": 0.23,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "stride_length_pct_stature": {
+          "bias": 3.11,
+          "rmse": 4.38,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "release_height_m": {
+          "bias": -0.01,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.14,
+          "rmse": 2.62,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "moderate"
+          ]
+        },
+        "front_knee_br_deg": {
+          "bias": -1.71,
+          "rmse": 5.65,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "moderate"
+          ]
+        }
+      },
+      "true_fov_25deg_side_on_90": {
+        "runup_speed_mps": {
+          "bias": 0.01,
+          "rmse": 0.07,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "stride_length_pct_stature": {
+          "bias": 4.11,
+          "rmse": 4.74,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "release_height_m": {
+          "bias": -0.01,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "thorax_lat_flex_br_deg": {
+          "bias": null,
+          "rmse": null,
+          "coverage_pct": null,
+          "suppressed_pct": 100.0,
+          "grades_when_reported": []
+        },
+        "front_knee_br_deg": {
+          "bias": -0.66,
+          "rmse": 3.06,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        }
+      },
+      "true_fov_25deg_open_side_45": {
+        "runup_speed_mps": {
+          "bias": -1.51,
+          "rmse": 1.53,
+          "coverage_pct": 0.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "stride_length_pct_stature": {
+          "bias": -16.54,
+          "rmse": 16.81,
+          "coverage_pct": 0.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "release_height_m": {
+          "bias": 0.08,
+          "rmse": 0.09,
+          "coverage_pct": 90.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.74,
+          "rmse": 2.85,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "moderate"
+          ]
+        },
+        "front_knee_br_deg": {
+          "bias": -1.72,
+          "rmse": 5.62,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "moderate"
+          ]
+        }
+      },
+      "true_fov_12deg_side_on_90": {
+        "runup_speed_mps": {
+          "bias": 0.01,
+          "rmse": 0.06,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "stride_length_pct_stature": {
+          "bias": 4.13,
+          "rmse": 4.74,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "release_height_m": {
+          "bias": -0.01,
+          "rmse": 0.02,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "thorax_lat_flex_br_deg": {
+          "bias": null,
+          "rmse": null,
+          "coverage_pct": null,
+          "suppressed_pct": 100.0,
+          "grades_when_reported": []
+        },
+        "front_knee_br_deg": {
+          "bias": -0.63,
+          "rmse": 3.05,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        }
+      },
+      "true_fov_12deg_open_side_45": {
+        "runup_speed_mps": {
+          "bias": -2.11,
+          "rmse": 2.13,
+          "coverage_pct": 0.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "stride_length_pct_stature": {
+          "bias": -24.77,
+          "rmse": 24.95,
+          "coverage_pct": 0.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "release_height_m": {
+          "bias": 0.14,
+          "rmse": 0.15,
+          "coverage_pct": 30.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "high"
+          ]
+        },
+        "thorax_lat_flex_br_deg": {
+          "bias": -0.99,
+          "rmse": 3.0,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "moderate"
+          ]
+        },
+        "front_knee_br_deg": {
+          "bias": -1.72,
+          "rmse": 5.6,
+          "coverage_pct": 100.0,
+          "suppressed_pct": 0.0,
+          "grades_when_reported": [
+            "moderate"
+          ]
+        }
+      }
+    }
+  },
+  "s8_unit_reproductions": {
+    "a_transverse_anchor_straddle": {
+      "pelvis_alignment_deg": 93.0,
+      "shoulder_alignment_deg": 447.0,
+      "reported_hip_shoulder_separation_deg": -354.0,
+      "true_separation_deg": 6.0
+    },
+    "b_pan_detector": {
+      "zoom_in_60pct": {
+        "is_panning": false,
+        "pan_fraction_of_width": 0.0006
+      },
+      "vertical_tilt_4px_per_frame": {
+        "is_panning": false,
+        "pan_fraction_of_width": 0.0
+      },
+      "horizontal_pan_4px_per_frame_20_frames": {
+        "is_panning": true,
+        "pan_fraction_of_width": 0.2367
+      },
+      "horizontal_pan_4px_per_frame_300_frames": {
+        "is_panning": false,
+        "pan_fraction_of_width": 0.0001,
+        "true_pan_fraction_of_width": 3.74
+      }
+    }
+  },
+  "s9_decision_reliability": {
+    "cues": {
+      "Controlled Contralateral Trunk Clearance": {
+        "issued": 87,
+        "correct": 76,
+        "should_have_been_issued": 86,
+        "precision_pct": 87.4,
+        "recall_pct": 88.4
+      },
+      "Early Bowling-Arm Circumduction at FFC": {
+        "issued": 1,
+        "correct": 0,
+        "should_have_been_issued": 0,
+        "precision_pct": 0.0,
+        "recall_pct": null
+      },
+      "Effective Forward Trunk Flexion Catapult": {
+        "issued": 66,
+        "correct": 51,
+        "should_have_been_issued": 73,
+        "precision_pct": 77.3,
+        "recall_pct": 69.9
+      },
+      "Elevated Contralateral Lateral Trunk Flexion at Release": {
+        "issued": 45,
+        "correct": 29,
+        "should_have_been_issued": 43,
+        "precision_pct": 64.4,
+        "recall_pct": 67.4
+      },
+      "Elevated Pelvic Tilt / Drop at FFC": {
+        "issued": 6,
+        "correct": 0,
+        "should_have_been_issued": 0,
+        "precision_pct": 0.0,
+        "recall_pct": null
+      },
+      "Excessive Lateral Follow-Through Drift": {
+        "issued": 3,
+        "correct": 0,
+        "should_have_been_issued": 0,
+        "precision_pct": 0.0,
+        "recall_pct": null
+      },
+      "Front-Knee Collapse During Delivery (FFC -> BR)": {
+        "issued": 17,
+        "correct": 2,
+        "should_have_been_issued": 6,
+        "precision_pct": 11.8,
+        "recall_pct": 33.3
+      },
+      "Front-Knee Flexion / Yielding at Release": {
+        "issued": 22,
+        "correct": 0,
+        "should_have_been_issued": 0,
+        "precision_pct": 0.0,
+        "recall_pct": null
+      },
+      "Limited Forward Trunk Flexion (FFC -> BR)": {
+        "issued": 14,
+        "correct": 0,
+        "should_have_been_issued": 0,
+        "precision_pct": 0.0,
+        "recall_pct": null
+      },
+      "Mixed-Action Shoulder Counter-Rotation (>=30 deg)": {
+        "issued": 66,
+        "correct": 48,
+        "should_have_been_issued": 63,
+        "precision_pct": 72.7,
+        "recall_pct": 76.2
+      },
+      "Strong Front-Leg Bracing at Release": {
+        "issued": 40,
+        "correct": 33,
+        "should_have_been_issued": 66,
+        "precision_pct": 82.5,
+        "recall_pct": 50.0
+      },
+      "Well-Delayed Bowling Arm at FFC": {
+        "issued": 24,
+        "correct": 24,
+        "should_have_been_issued": 32,
+        "precision_pct": 100.0,
+        "recall_pct": 75.0
+      }
+    },
+    "label_agreement_pct": {
+      "kinetic_label": 52.5,
+      "durability_label": 79.4,
+      "action_class": 76.7
+    },
+    "label_agreement_n": {
+      "kinetic_label": 120,
+      "durability_label": 180,
+      "action_class": 180
+    },
+    "kinetic_score_abs_diff_median": 5.1,
+    "kinetic_score_abs_diff_p90": 16.9,
+    "durability_score_abs_diff_median": 3.1,
+    "durability_score_abs_diff_p90": 10.6
+  }
+}

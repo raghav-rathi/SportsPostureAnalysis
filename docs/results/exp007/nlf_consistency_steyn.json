@@ -1,0 +1,970 @@
+{
+  "clip": {
+    "file": "uiZN5FHWjJk.mp4",
+    "start": 25,
+    "end": 100,
+    "frames": 75,
+    "width": 1920,
+    "height": 1080,
+    "fps_used": 29.97,
+    "arm": "right",
+    "panning_flag": true,
+    "delivery_window_frames": [
+      34,
+      52
+    ]
+  },
+  "variants": {
+    "base": {
+      "bfc_ffc_br_frames": [
+        37.82,
+        44.119,
+        47.293
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -2.88,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.8,
+      "pelvis_depth_median_m": 4.38,
+      "pelvis_depth_range_m": 1.92,
+      "pelvis_lateral_range_m": 0.23,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 0.0
+    },
+    "flip": {
+      "bfc_ffc_br_frames": [
+        37.819,
+        44.207,
+        47.245
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -7.1,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.813,
+      "pelvis_depth_median_m": 4.4,
+      "pelvis_depth_range_m": 1.89,
+      "pelvis_lateral_range_m": 0.23,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 3.1
+    },
+    "aug5": {
+      "bfc_ffc_br_frames": [
+        37.757,
+        44.237,
+        47.331
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -7.29,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.799,
+      "pelvis_depth_median_m": 4.39,
+      "pelvis_depth_range_m": 1.89,
+      "pelvis_lateral_range_m": 0.23,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 0.6
+    },
+    "half_res": {
+      "bfc_ffc_br_frames": [
+        37.807,
+        44.157,
+        47.304
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -2.81,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.804,
+      "pelvis_depth_median_m": 4.36,
+      "pelvis_depth_range_m": 1.93,
+      "pelvis_lateral_range_m": 0.24,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 0.8
+    },
+    "fov_30": {
+      "bfc_ffc_br_frames": [
+        37.719,
+        44.023,
+        47.215
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -3.11,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.796,
+      "pelvis_depth_median_m": 8.44,
+      "pelvis_depth_range_m": 3.78,
+      "pelvis_lateral_range_m": 0.24,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 1.0
+    },
+    "fov_15": {
+      "bfc_ffc_br_frames": [
+        37.525,
+        43.942,
+        47.201
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -3.17,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.797,
+      "pelvis_depth_median_m": 17.13,
+      "pelvis_depth_range_m": 7.74,
+      "pelvis_lateral_range_m": 0.24,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 1.6
+    },
+    "fov_8": {
+      "bfc_ffc_br_frames": [
+        37.107,
+        43.827,
+        47.191
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -3.18,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.798,
+      "pelvis_depth_median_m": 32.34,
+      "pelvis_depth_range_m": 14.62,
+      "pelvis_lateral_range_m": 0.24,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 1.9
+    },
+    "fov_45.8": {
+      "bfc_ffc_br_frames": [
+        37.776,
+        44.105,
+        47.26
+      ],
+      "br_method": "overhead_extended_circumduction_peak",
+      "azimuth_deg": -2.97,
+      "elevation_deg": -1.0,
+      "view_class": "rear_behind_bowler",
+      "gravity_note": "Gravity axis: gravity from 11 standing upright background pose frames.",
+      "stature_m": 1.798,
+      "pelvis_depth_median_m": 5.38,
+      "pelvis_depth_range_m": 2.38,
+      "pelvis_lateral_range_m": 0.24,
+      "valid_ratio": 1.0,
+      "pelvis_2d_distance_to_base_px_median": 0.4
+    }
+  },
+  "joint_disagreement_delivery_window": {
+    "flip": {
+      "by_group": {
+        "hips": {
+          "root_relative_disagreement_mm_median": 9.4,
+          "root_relative_disagreement_mm_p90": 10.6,
+          "nlf_uncertainty_mm_median": 30.7
+        },
+        "knees": {
+          "root_relative_disagreement_mm_median": 15.2,
+          "root_relative_disagreement_mm_p90": 21.5,
+          "nlf_uncertainty_mm_median": 50.4
+        },
+        "ankles": {
+          "root_relative_disagreement_mm_median": 16.8,
+          "root_relative_disagreement_mm_p90": 40.7,
+          "nlf_uncertainty_mm_median": 68.0
+        },
+        "trunk": {
+          "root_relative_disagreement_mm_median": 7.2,
+          "root_relative_disagreement_mm_p90": 22.1,
+          "nlf_uncertainty_mm_median": 43.2
+        },
+        "shoulders": {
+          "root_relative_disagreement_mm_median": 17.1,
+          "root_relative_disagreement_mm_p90": 21.9,
+          "nlf_uncertainty_mm_median": 56.5
+        },
+        "elbows": {
+          "root_relative_disagreement_mm_median": 13.8,
+          "root_relative_disagreement_mm_p90": 27.6,
+          "nlf_uncertainty_mm_median": 72.7
+        },
+        "wrists": {
+          "root_relative_disagreement_mm_median": 15.9,
+          "root_relative_disagreement_mm_p90": 42.3,
+          "nlf_uncertainty_mm_median": 90.1
+        }
+      },
+      "spearman_uncertainty_vs_disagreement": 0.51,
+      "rms_disagreement_over_rms_uncertainty": 0.26,
+      "expected_ratio_if_uncertainty_were_a_calibrated_sigma": 1.41,
+      "root_relative_rms_mm_camera_x_y_depth": [
+        9.3,
+        9.4,
+        16.7
+      ],
+      "pelvis_absolute_rms_mm_camera_x_y_depth": [
+        6.0,
+        3.2,
+        36.6
+      ]
+    },
+    "aug5": {
+      "by_group": {
+        "hips": {
+          "root_relative_disagreement_mm_median": 1.9,
+          "root_relative_disagreement_mm_p90": 3.4,
+          "nlf_uncertainty_mm_median": 30.7
+        },
+        "knees": {
+          "root_relative_disagreement_mm_median": 8.4,
+          "root_relative_disagreement_mm_p90": 16.2,
+          "nlf_uncertainty_mm_median": 50.4
+        },
+        "ankles": {
+          "root_relative_disagreement_mm_median": 12.2,
+          "root_relative_disagreement_mm_p90": 29.0,
+          "nlf_uncertainty_mm_median": 68.0
+        },
+        "trunk": {
+          "root_relative_disagreement_mm_median": 3.5,
+          "root_relative_disagreement_mm_p90": 10.0,
+          "nlf_uncertainty_mm_median": 43.2
+        },
+        "shoulders": {
+          "root_relative_disagreement_mm_median": 5.6,
+          "root_relative_disagreement_mm_p90": 15.7,
+          "nlf_uncertainty_mm_median": 56.5
+        },
+        "elbows": {
+          "root_relative_disagreement_mm_median": 7.9,
+          "root_relative_disagreement_mm_p90": 20.7,
+          "nlf_uncertainty_mm_median": 72.7
+        },
+        "wrists": {
+          "root_relative_disagreement_mm_median": 12.9,
+          "root_relative_disagreement_mm_p90": 45.8,
+          "nlf_uncertainty_mm_median": 90.1
+        }
+      },
+      "spearman_uncertainty_vs_disagreement": 0.73,
+      "rms_disagreement_over_rms_uncertainty": 0.21,
+      "expected_ratio_if_uncertainty_were_a_calibrated_sigma": 1.41,
+      "root_relative_rms_mm_camera_x_y_depth": [
+        4.2,
+        10.0,
+        13.9
+      ],
+      "pelvis_absolute_rms_mm_camera_x_y_depth": [
+        1.5,
+        2.2,
+        22.1
+      ]
+    },
+    "half_res": {
+      "by_group": {
+        "hips": {
+          "root_relative_disagreement_mm_median": 1.1,
+          "root_relative_disagreement_mm_p90": 2.1,
+          "nlf_uncertainty_mm_median": 30.7
+        },
+        "knees": {
+          "root_relative_disagreement_mm_median": 4.3,
+          "root_relative_disagreement_mm_p90": 8.3,
+          "nlf_uncertainty_mm_median": 50.4
+        },
+        "ankles": {
+          "root_relative_disagreement_mm_median": 7.2,
+          "root_relative_disagreement_mm_p90": 17.1,
+          "nlf_uncertainty_mm_median": 68.0
+        },
+        "trunk": {
+          "root_relative_disagreement_mm_median": 3.4,
+          "root_relative_disagreement_mm_p90": 8.9,
+          "nlf_uncertainty_mm_median": 43.2
+        },
+        "shoulders": {
+          "root_relative_disagreement_mm_median": 5.0,
+          "root_relative_disagreement_mm_p90": 9.5,
+          "nlf_uncertainty_mm_median": 56.5
+        },
+        "elbows": {
+          "root_relative_disagreement_mm_median": 6.4,
+          "root_relative_disagreement_mm_p90": 14.3,
+          "nlf_uncertainty_mm_median": 72.7
+        },
+        "wrists": {
+          "root_relative_disagreement_mm_median": 10.9,
+          "root_relative_disagreement_mm_p90": 23.6,
+          "nlf_uncertainty_mm_median": 90.1
+        }
+      },
+      "spearman_uncertainty_vs_disagreement": 0.6,
+      "rms_disagreement_over_rms_uncertainty": 0.12,
+      "expected_ratio_if_uncertainty_were_a_calibrated_sigma": 1.41,
+      "root_relative_rms_mm_camera_x_y_depth": [
+        2.5,
+        5.5,
+        8.0
+      ],
+      "pelvis_absolute_rms_mm_camera_x_y_depth": [
+        0.9,
+        2.2,
+        15.7
+      ]
+    }
+  },
+  "joint_disagreement_whole_clip": {
+    "flip": {
+      "by_group": {
+        "hips": {
+          "root_relative_disagreement_mm_median": 9.0,
+          "root_relative_disagreement_mm_p90": 12.4,
+          "nlf_uncertainty_mm_median": 29.0
+        },
+        "knees": {
+          "root_relative_disagreement_mm_median": 16.5,
+          "root_relative_disagreement_mm_p90": 26.3,
+          "nlf_uncertainty_mm_median": 51.4
+        },
+        "ankles": {
+          "root_relative_disagreement_mm_median": 16.3,
+          "root_relative_disagreement_mm_p90": 34.8,
+          "nlf_uncertainty_mm_median": 67.8
+        },
+        "trunk": {
+          "root_relative_disagreement_mm_median": 7.0,
+          "root_relative_disagreement_mm_p90": 23.6,
+          "nlf_uncertainty_mm_median": 39.2
+        },
+        "shoulders": {
+          "root_relative_disagreement_mm_median": 20.3,
+          "root_relative_disagreement_mm_p90": 25.1,
+          "nlf_uncertainty_mm_median": 51.4
+        },
+        "elbows": {
+          "root_relative_disagreement_mm_median": 11.7,
+          "root_relative_disagreement_mm_p90": 29.9,
+          "nlf_uncertainty_mm_median": 59.7
+        },
+        "wrists": {
+          "root_relative_disagreement_mm_median": 18.6,
+          "root_relative_disagreement_mm_p90": 51.4,
+          "nlf_uncertainty_mm_median": 77.7
+        }
+      },
+      "spearman_uncertainty_vs_disagreement": 0.49,
+      "rms_disagreement_over_rms_uncertainty": 0.47,
+      "expected_ratio_if_uncertainty_were_a_calibrated_sigma": 1.41,
+      "root_relative_rms_mm_camera_x_y_depth": [
+        13.8,
+        23.3,
+        19.3
+      ],
+      "pelvis_absolute_rms_mm_camera_x_y_depth": [
+        7.4,
+        2.5,
+        29.7
+      ]
+    },
+    "aug5": {
+      "by_group": {
+        "hips": {
+          "root_relative_disagreement_mm_median": 1.7,
+          "root_relative_disagreement_mm_p90": 3.3,
+          "nlf_uncertainty_mm_median": 29.0
+        },
+        "knees": {
+          "root_relative_disagreement_mm_median": 7.5,
+          "root_relative_disagreement_mm_p90": 16.7,
+          "nlf_uncertainty_mm_median": 51.4
+        },
+        "ankles": {
+          "root_relative_disagreement_mm_median": 10.5,
+          "root_relative_disagreement_mm_p90": 22.6,
+          "nlf_uncertainty_mm_median": 67.8
+        },
+        "trunk": {
+          "root_relative_disagreement_mm_median": 3.5,
+          "root_relative_disagreement_mm_p90": 10.2,
+          "nlf_uncertainty_mm_median": 39.2
+        },
+        "shoulders": {
+          "root_relative_disagreement_mm_median": 5.7,
+          "root_relative_disagreement_mm_p90": 14.2,
+          "nlf_uncertainty_mm_median": 51.4
+        },
+        "elbows": {
+          "root_relative_disagreement_mm_median": 7.2,
+          "root_relative_disagreement_mm_p90": 20.2,
+          "nlf_uncertainty_mm_median": 59.7
+        },
+        "wrists": {
+          "root_relative_disagreement_mm_median": 13.4,
+          "root_relative_disagreement_mm_p90": 41.4,
+          "nlf_uncertainty_mm_median": 77.7
+        }
+      },
+      "spearman_uncertainty_vs_disagreement": 0.72,
+      "rms_disagreement_over_rms_uncertainty": 0.37,
+      "expected_ratio_if_uncertainty_were_a_calibrated_sigma": 1.41,
+      "root_relative_rms_mm_camera_x_y_depth": [
+        8.6,
+        16.4,
+        18.4
+      ],
+      "pelvis_absolute_rms_mm_camera_x_y_depth": [
+        1.6,
+        1.9,
+        28.6
+      ]
+    },
+    "half_res": {
+      "by_group": {
+        "hips": {
+          "root_relative_disagreement_mm_median": 0.9,
+          "root_relative_disagreement_mm_p90": 2.0,
+          "nlf_uncertainty_mm_median": 29.0
+        },
+        "knees": {
+          "root_relative_disagreement_mm_median": 4.6,
+          "root_relative_disagreement_mm_p90": 9.3,
+          "nlf_uncertainty_mm_median": 51.4
+        },
+        "ankles": {
+          "root_relative_disagreement_mm_median": 6.6,
+          "root_relative_disagreement_mm_p90": 16.0,
+          "nlf_uncertainty_mm_median": 67.8
+        },
+        "trunk": {
+          "root_relative_disagreement_mm_median": 2.9,
+          "root_relative_disagreement_mm_p90": 9.1,
+          "nlf_uncertainty_mm_median": 39.2
+        },
+        "shoulders": {
+          "root_relative_disagreement_mm_median": 4.5,
+          "root_relative_disagreement_mm_p90": 9.5,
+          "nlf_uncertainty_mm_median": 51.4
+        },
+        "elbows": {
+          "root_relative_disagreement_mm_median": 5.9,
+          "root_relative_disagreement_mm_p90": 16.3,
+          "nlf_uncertainty_mm_median": 59.7
+        },
+        "wrists": {
+          "root_relative_disagreement_mm_median": 9.3,
+          "root_relative_disagreement_mm_p90": 24.3,
+          "nlf_uncertainty_mm_median": 77.7
+        }
+      },
+      "spearman_uncertainty_vs_disagreement": 0.68,
+      "rms_disagreement_over_rms_uncertainty": 0.37,
+      "expected_ratio_if_uncertainty_were_a_calibrated_sigma": 1.41,
+      "root_relative_rms_mm_camera_x_y_depth": [
+        8.6,
+        19.4,
+        14.7
+      ],
+      "pelvis_absolute_rms_mm_camera_x_y_depth": [
+        1.4,
+        1.7,
+        19.3
+      ]
+    }
+  },
+  "metrics": {
+    "runup_speed_mps": {
+      "base_value": 0.06,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 2.52,
+      "base_observability": "unmeasurable",
+      "delta_flip": 0.32,
+      "delta_flip_same_events": 0.32,
+      "delta_aug5": 0.07,
+      "delta_aug5_same_events": 0.07,
+      "delta_half_res": 0.47,
+      "delta_half_res_same_events": 0.47,
+      "delta_fov_30": 0.3,
+      "delta_fov_30_same_events": 0.3,
+      "delta_fov_15": 1.27,
+      "delta_fov_15_same_events": 0.69,
+      "delta_fov_8": 2.83,
+      "delta_fov_8_same_events": 2.14,
+      "delta_fov_45.8": 0.22,
+      "delta_fov_45.8_same_events": 0.22
+    },
+    "stride_length_pct_stature": {
+      "base_value": 38.86,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 24.06,
+      "base_observability": "unmeasurable",
+      "delta_flip": -3.59,
+      "delta_flip_same_events": -3.77,
+      "delta_aug5": -0.36,
+      "delta_aug5_same_events": -0.35,
+      "delta_half_res": 0.33,
+      "delta_half_res_same_events": 0.26,
+      "delta_fov_30": 17.79,
+      "delta_fov_30_same_events": 18.33,
+      "delta_fov_15": 55.8,
+      "delta_fov_15_same_events": 55.87,
+      "delta_fov_8": 126.81,
+      "delta_fov_8_same_events": 122.39,
+      "delta_fov_45.8": 4.45,
+      "delta_fov_45.8_same_events": 4.51
+    },
+    "front_knee_ffc_deg": {
+      "base_value": 157.04,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 20.35,
+      "base_observability": "unmeasurable",
+      "delta_flip": -1.89,
+      "delta_flip_same_events": -1.41,
+      "delta_aug5": 0.63,
+      "delta_aug5_same_events": 1.38,
+      "delta_half_res": 0.67,
+      "delta_half_res_same_events": 0.86,
+      "delta_fov_30": -0.41,
+      "delta_fov_30_same_events": -0.77,
+      "delta_fov_15": -1.45,
+      "delta_fov_15_same_events": -1.25,
+      "delta_fov_8": -2.72,
+      "delta_fov_8_same_events": -1.27,
+      "delta_fov_45.8": -0.36,
+      "delta_fov_45.8_same_events": -0.41
+    },
+    "front_knee_br_deg": {
+      "base_value": 133.06,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 19.96,
+      "base_observability": "unmeasurable",
+      "delta_flip": -0.15,
+      "delta_flip_same_events": -0.18,
+      "delta_aug5": -1.98,
+      "delta_aug5_same_events": -2.01,
+      "delta_half_res": 0.02,
+      "delta_half_res_same_events": 0.03,
+      "delta_fov_30": -0.66,
+      "delta_fov_30_same_events": -0.76,
+      "delta_fov_15": -0.76,
+      "delta_fov_15_same_events": -0.9,
+      "delta_fov_8": -0.9,
+      "delta_fov_8_same_events": -1.04,
+      "delta_fov_45.8": -0.57,
+      "delta_fov_45.8_same_events": -0.61
+    },
+    "front_knee_change_deg": {
+      "base_value": -23.98,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 20.36,
+      "base_observability": "unmeasurable",
+      "delta_flip": 1.75,
+      "delta_flip_same_events": 1.23,
+      "delta_aug5": -2.62,
+      "delta_aug5_same_events": -3.39,
+      "delta_half_res": -0.66,
+      "delta_half_res_same_events": -0.83,
+      "delta_fov_30": -0.25,
+      "delta_fov_30_same_events": 0.01,
+      "delta_fov_15": 0.69,
+      "delta_fov_15_same_events": 0.35,
+      "delta_fov_8": 1.82,
+      "delta_fov_8_same_events": 0.23,
+      "delta_fov_45.8": -0.22,
+      "delta_fov_45.8_same_events": -0.2
+    },
+    "trunk_flexion_ffc_deg": {
+      "base_value": 1.73,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 17.31,
+      "base_observability": "unmeasurable",
+      "delta_flip": 2.61,
+      "delta_flip_same_events": 1.85,
+      "delta_aug5": 2.43,
+      "delta_aug5_same_events": 1.36,
+      "delta_half_res": 0.2,
+      "delta_half_res_same_events": -0.14,
+      "delta_fov_30": -0.03,
+      "delta_fov_30_same_events": 0.79,
+      "delta_fov_15": -0.46,
+      "delta_fov_15_same_events": 1.03,
+      "delta_fov_8": -1.2,
+      "delta_fov_8_same_events": 1.22,
+      "delta_fov_45.8": 0.37,
+      "delta_fov_45.8_same_events": 0.49
+    },
+    "trunk_flexion_br_deg": {
+      "base_value": 14.32,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 17.19,
+      "base_observability": "unmeasurable",
+      "delta_flip": 2.97,
+      "delta_flip_same_events": 3.26,
+      "delta_aug5": 3.2,
+      "delta_aug5_same_events": 3.01,
+      "delta_half_res": 0.32,
+      "delta_half_res_same_events": 0.26,
+      "delta_fov_30": 1.6,
+      "delta_fov_30_same_events": 1.91,
+      "delta_fov_15": 2.46,
+      "delta_fov_15_same_events": 2.79,
+      "delta_fov_8": 2.88,
+      "delta_fov_8_same_events": 3.24,
+      "delta_fov_45.8": 0.75,
+      "delta_fov_45.8_same_events": 0.89
+    },
+    "trunk_flexion_delta_deg": {
+      "base_value": 12.6,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 17.35,
+      "base_observability": "unmeasurable",
+      "delta_flip": 0.36,
+      "delta_flip_same_events": 1.41,
+      "delta_aug5": 0.77,
+      "delta_aug5_same_events": 1.65,
+      "delta_half_res": 0.12,
+      "delta_half_res_same_events": 0.4,
+      "delta_fov_30": 1.63,
+      "delta_fov_30_same_events": 1.12,
+      "delta_fov_15": 2.91,
+      "delta_fov_15_same_events": 1.76,
+      "delta_fov_8": 4.08,
+      "delta_fov_8_same_events": 2.02,
+      "delta_fov_45.8": 0.38,
+      "delta_fov_45.8_same_events": 0.4
+    },
+    "thorax_lat_flex_ffc_deg": {
+      "base_value": 13.59,
+      "base_reported": true,
+      "base_ci_half_width": 11.8,
+      "base_sigma_total": 6.02,
+      "base_observability": "high",
+      "delta_flip": 2.49,
+      "delta_flip_same_events": 1.68,
+      "delta_aug5": 0.8,
+      "delta_aug5_same_events": -0.23,
+      "delta_half_res": 0.23,
+      "delta_half_res_same_events": -0.13,
+      "delta_fov_30": -1.22,
+      "delta_fov_30_same_events": -0.31,
+      "delta_fov_15": -2.07,
+      "delta_fov_15_same_events": -0.39,
+      "delta_fov_8": -3.27,
+      "delta_fov_8_same_events": -0.49,
+      "delta_fov_45.8": -0.27,
+      "delta_fov_45.8_same_events": -0.13
+    },
+    "thorax_lat_flex_br_deg": {
+      "base_value": 30.25,
+      "base_reported": true,
+      "base_ci_half_width": 10.55,
+      "base_sigma_total": 5.38,
+      "base_observability": "high",
+      "delta_flip": 1.03,
+      "delta_flip_same_events": 1.1,
+      "delta_aug5": -1.2,
+      "delta_aug5_same_events": -1.25,
+      "delta_half_res": 0.06,
+      "delta_half_res_same_events": 0.04,
+      "delta_fov_30": -0.6,
+      "delta_fov_30_same_events": -0.45,
+      "delta_fov_15": -0.94,
+      "delta_fov_15_same_events": -0.76,
+      "delta_fov_8": -1.11,
+      "delta_fov_8_same_events": -0.91,
+      "delta_fov_45.8": -0.28,
+      "delta_fov_45.8_same_events": -0.22
+    },
+    "pelvis_alignment_bfc_deg": {
+      "base_value": 249.99,
+      "base_reported": true,
+      "base_ci_half_width": 24.43,
+      "base_sigma_total": 12.46,
+      "base_observability": "low",
+      "delta_flip": -10.07,
+      "delta_flip_same_events": -10.07,
+      "delta_aug5": -4.71,
+      "delta_aug5_same_events": -4.97,
+      "delta_half_res": 0.21,
+      "delta_half_res_same_events": 0.16,
+      "delta_fov_30": -0.55,
+      "delta_fov_30_same_events": -0.98,
+      "delta_fov_15": 0.03,
+      "delta_fov_15_same_events": -1.26,
+      "delta_fov_8": 1.82,
+      "delta_fov_8_same_events": -1.4,
+      "delta_fov_45.8": -0.19,
+      "delta_fov_45.8_same_events": -0.37
+    },
+    "shoulder_alignment_bfc_deg": {
+      "base_value": 265.52,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 14.89,
+      "base_observability": "unmeasurable",
+      "delta_flip": -3.18,
+      "delta_flip_same_events": -3.18,
+      "delta_aug5": -4.07,
+      "delta_aug5_same_events": -4.08,
+      "delta_half_res": 0.16,
+      "delta_half_res_same_events": 0.16,
+      "delta_fov_30": -0.96,
+      "delta_fov_30_same_events": -1.05,
+      "delta_fov_15": -1.33,
+      "delta_fov_15_same_events": -1.46,
+      "delta_fov_8": -1.32,
+      "delta_fov_8_same_events": -1.75,
+      "delta_fov_45.8": -0.07,
+      "delta_fov_45.8_same_events": -0.1
+    },
+    "shoulder_counter_rotation_deg": {
+      "base_value": 49.79,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 15.61,
+      "base_observability": "unmeasurable",
+      "delta_flip": 1.71,
+      "delta_flip_same_events": 1.71,
+      "delta_aug5": -0.18,
+      "delta_aug5_same_events": -0.19,
+      "delta_half_res": 0.78,
+      "delta_half_res_same_events": 0.78,
+      "delta_fov_30": -0.89,
+      "delta_fov_30_same_events": -0.98,
+      "delta_fov_15": -1.23,
+      "delta_fov_15_same_events": -1.37,
+      "delta_fov_8": -1.22,
+      "delta_fov_8_same_events": -1.65,
+      "delta_fov_45.8": -0.12,
+      "delta_fov_45.8_same_events": -0.15
+    },
+    "hip_shoulder_sep_bfc_deg": {
+      "base_value": -15.52,
+      "base_reported": true,
+      "base_ci_half_width": 20.23,
+      "base_sigma_total": 10.32,
+      "base_observability": "moderate",
+      "delta_flip": -6.88,
+      "delta_flip_same_events": -6.89,
+      "delta_aug5": -0.64,
+      "delta_aug5_same_events": -0.89,
+      "delta_half_res": 0.05,
+      "delta_half_res_same_events": -0.0,
+      "delta_fov_30": 0.41,
+      "delta_fov_30_same_events": 0.07,
+      "delta_fov_15": 1.35,
+      "delta_fov_15_same_events": 0.2,
+      "delta_fov_8": 3.14,
+      "delta_fov_8_same_events": 0.36,
+      "delta_fov_45.8": -0.12,
+      "delta_fov_45.8_same_events": -0.27
+    },
+    "max_hip_shoulder_sep_deg": {
+      "base_value": 22.48,
+      "base_reported": true,
+      "base_ci_half_width": 21.5,
+      "base_sigma_total": 10.97,
+      "base_observability": "moderate",
+      "delta_flip": -5.97,
+      "delta_flip_same_events": -5.97,
+      "delta_aug5": -1.45,
+      "delta_aug5_same_events": -1.45,
+      "delta_half_res": -0.51,
+      "delta_half_res_same_events": -0.51,
+      "delta_fov_30": 0.27,
+      "delta_fov_30_same_events": 0.27,
+      "delta_fov_15": 0.47,
+      "delta_fov_15_same_events": 0.47,
+      "delta_fov_8": 0.51,
+      "delta_fov_8_same_events": 0.51,
+      "delta_fov_45.8": 0.01,
+      "delta_fov_45.8_same_events": 0.01
+    },
+    "delayed_arm_ffc_deg": {
+      "base_value": 116.48,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 23.04,
+      "base_observability": "unmeasurable",
+      "delta_flip": -6.9,
+      "delta_flip_same_events": -2.82,
+      "delta_aug5": -5.84,
+      "delta_aug5_same_events": -0.54,
+      "delta_half_res": -1.82,
+      "delta_half_res_same_events": -0.07,
+      "delta_fov_30": 2.76,
+      "delta_fov_30_same_events": -1.7,
+      "delta_fov_15": 5.6,
+      "delta_fov_15_same_events": -2.33,
+      "delta_fov_8": 9.95,
+      "delta_fov_8_same_events": -2.66,
+      "delta_fov_45.8": -0.02,
+      "delta_fov_45.8_same_events": -0.67
+    },
+    "rear_hip_bfc_deg": {
+      "base_value": 154.63,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 18.56,
+      "base_observability": "unmeasurable",
+      "delta_flip": 1.35,
+      "delta_flip_same_events": 1.35,
+      "delta_aug5": -0.44,
+      "delta_aug5_same_events": -0.43,
+      "delta_half_res": -0.07,
+      "delta_half_res_same_events": -0.06,
+      "delta_fov_30": 0.22,
+      "delta_fov_30_same_events": 0.34,
+      "delta_fov_15": 0.03,
+      "delta_fov_15_same_events": 0.29,
+      "delta_fov_8": -0.32,
+      "delta_fov_8_same_events": 0.33,
+      "delta_fov_45.8": -0.0,
+      "delta_fov_45.8_same_events": 0.06
+    },
+    "pelvic_drop_ffc_deg": {
+      "base_value": 8.54,
+      "base_reported": true,
+      "base_ci_half_width": 19.05,
+      "base_sigma_total": 9.72,
+      "base_observability": "moderate",
+      "delta_flip": -3.31,
+      "delta_flip_same_events": -3.74,
+      "delta_aug5": -0.42,
+      "delta_aug5_same_events": -0.98,
+      "delta_half_res": -0.34,
+      "delta_half_res_same_events": -0.53,
+      "delta_fov_30": -0.43,
+      "delta_fov_30_same_events": -0.01,
+      "delta_fov_15": -1.1,
+      "delta_fov_15_same_events": -0.06,
+      "delta_fov_8": -2.18,
+      "delta_fov_8_same_events": -0.1,
+      "delta_fov_45.8": 0.01,
+      "delta_fov_45.8_same_events": 0.07
+    },
+    "non_bowling_arm_elev_ffc_deg": {
+      "base_value": -27.05,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 28.7,
+      "base_observability": "unmeasurable",
+      "delta_flip": -4.27,
+      "delta_flip_same_events": 0.63,
+      "delta_aug5": -17.02,
+      "delta_aug5_same_events": -11.58,
+      "delta_half_res": -0.8,
+      "delta_half_res_same_events": 1.47,
+      "delta_fov_30": 4.34,
+      "delta_fov_30_same_events": -1.12,
+      "delta_fov_15": 5.98,
+      "delta_fov_15_same_events": -1.78,
+      "delta_fov_8": 8.09,
+      "delta_fov_8_same_events": -1.8,
+      "delta_fov_45.8": 0.15,
+      "delta_fov_45.8_same_events": -0.65
+    },
+    "peak_arm_angular_vel_dps": {
+      "base_value": 2331.49,
+      "base_reported": false,
+      "base_ci_half_width": null,
+      "base_sigma_total": 702.45,
+      "base_observability": "unmeasurable",
+      "delta_flip": -47.48,
+      "delta_flip_same_events": -47.48,
+      "delta_aug5": 56.31,
+      "delta_aug5_same_events": 56.31,
+      "delta_half_res": 40.22,
+      "delta_half_res_same_events": 40.22,
+      "delta_fov_30": -4.67,
+      "delta_fov_30_same_events": -4.67,
+      "delta_fov_15": -5.34,
+      "delta_fov_15_same_events": -5.34,
+      "delta_fov_8": -5.98,
+      "delta_fov_8_same_events": -5.98,
+      "delta_fov_45.8": 4.53,
+      "delta_fov_45.8_same_events": 4.53
+    },
+    "release_height_m": {
+      "base_value": 2.12,
+      "base_reported": true,
+      "base_ci_half_width": 0.28,
+      "base_sigma_total": 0.15,
+      "base_observability": "moderate",
+      "delta_flip": -0.0,
+      "delta_flip_same_events": -0.02,
+      "delta_aug5": -0.02,
+      "delta_aug5_same_events": -0.01,
+      "delta_half_res": -0.01,
+      "delta_half_res_same_events": -0.01,
+      "delta_fov_30": 0.05,
+      "delta_fov_30_same_events": 0.03,
+      "delta_fov_15": 0.16,
+      "delta_fov_15_same_events": 0.14,
+      "delta_fov_8": 0.34,
+      "delta_fov_8_same_events": 0.31,
+      "delta_fov_45.8": 0.01,
+      "delta_fov_45.8_same_events": 0.01
+    },
+    "follow_through_drift_deg": {
+      "base_value": -4.56,
+      "base_reported": true,
+      "base_ci_half_width": 8.51,
+      "base_sigma_total": 4.34,
+      "base_observability": "high",
+      "delta_flip": 5.3,
+      "delta_flip_same_events": 5.3,
+      "delta_aug5": 6.16,
+      "delta_aug5_same_events": 6.16,
+      "delta_half_res": -2.57,
+      "delta_half_res_same_events": -2.57,
+      "delta_fov_30": 9.12,
+      "delta_fov_30_same_events": 9.12,
+      "delta_fov_15": 29.96,
+      "delta_fov_15_same_events": 29.96,
+      "delta_fov_8": 53.91,
+      "delta_fov_8_same_events": 53.91,
+      "delta_fov_45.8": 1.5,
+      "delta_fov_45.8_same_events": 1.5
+    }
+  },
+  "geocalib": {
+    "vfov_deg_median": 26.7,
+    "vfov_deg_min_max": [
+      17.6,
+      29.8
+    ],
+    "equivalent_fov_on_larger_side_deg": 45.8,
+    "pipeline_assumed_fov_on_larger_side_deg": 55.0,
+    "focal_ratio_assumed_over_geocalib": 0.81,
+    "roll_deg_median": -0.2,
+    "pitch_deg_median": -5.9,
+    "pitch_deg_min_max": [
+      -7.4,
+      -3.6
+    ],
+    "gravity_vec3d_median": [
+      0.003,
+      -0.995,
+      -0.103
+    ],
+    "pipeline_up_in_camera": [
+      0.036,
+      -0.998,
+      0.044
+    ],
+    "angle_between_geocalib_and_pipeline_gravity_deg": 8.7
+  }
+}
