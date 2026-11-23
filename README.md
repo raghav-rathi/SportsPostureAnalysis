@@ -24,6 +24,8 @@ Built from first principles on **Neural Localizer Fields (`isarandi/nlf`, NeurIP
 
 ## Verified Baseline Results (`v3`)
 
+> Audit note (EXP-007, 2026-11-23). An independent audit qualifies or withdraws several results in this section, including the McGrath keyframes shown below. Read [docs/independent_audit_and_improvements.md](docs/independent_audit_and_improvements.md) first.
+
 - **Automated Unit & Integration Suite (`pytest -v`):** **13 / 13 passed** (`tests/test_core_biomechanics.py`)
 - **AR(1) Correlated-Noise Synthetic Metrology Benchmark (`tau = 80 ms`, Right + Left Arms):** **97.0%** empirical 95% CI coverage across 912 observable evaluations; uncalibrated self-calibration (no oracle `K` / no MCC landmarks) achieves `4.49°–4.58°` azimuth MAE and `2.99°` rear lateral-flexion RMSE (`docs/results/v3/synthetic_benchmark_results.json`).
 
@@ -60,3 +62,5 @@ bowling-biomech analyze path/to/delivery.mp4 \
 - **[docs/research_report.md](docs/research_report.md)** — First-principles scientific investigation, forensic Reel analysis, and full bibliography
 - **[docs/walkthrough.md](docs/walkthrough.md)** — Phase 0–1 build, audit hardening, and RTX 4090 validation walkthrough
 - **[docs/results/v3/](docs/results/v3/)** — Structured benchmark & real-video JSON Fact Sheet outputs
+- **[docs/independent_audit_and_improvements.md](docs/independent_audit_and_improvements.md)**. Independent audit (EXP-007) with a numbered bug list, real-clip evidence, a literature check and a prioritised roadmap.
+- **[docs/results/exp007/](docs/results/exp007/)**. Result files behind the audit, produced by `validation/audit_*.py`.

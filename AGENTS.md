@@ -52,6 +52,7 @@ Current flagship module: **Phase 0–1 Cricket Fast-Bowling Biomechanics Engine*
 | Orchestration | `src/bowling_biomech/pipeline.py`, `cli.py` | End-to-end single-view & dual-view pipelines and Typer CLI (`bowling-biomech`) |
 | Metrology & Tests | `src/bowling_biomech/synthetic_ground_truth.py`, `validation/`, `tests/` | 3D Z–X Cardan synthetic delivery generator, AR(1) correlated depth-drift benchmark + uncalibrated self-cal arm, FPS degradation stress test, 13-test pytest suite |
 | Research & Reports | `docs/research_report.md`, `docs/walkthrough.md`, `docs/figures/`, `docs/results/` | First-principles scientific report, forensic Reel deconstruction, build/audit walkthrough, verified visuals & JSON outputs |
+| Audit Diagnostics (EXP-007) | `validation/audit_synthetic_diagnostics.py`, `validation/audit_real_clip_diagnostics.py`, `validation/audit_nlf_self_consistency.py`, `docs/independent_audit_and_improvements.md` | Per-metric benchmark scoring and stress cases, repeated-frame and release checks on finished runs, pose-model consistency under mirror, TTA, FOV and checkpoint changes, and the audit report they support |
 
 ---
 
@@ -70,6 +71,12 @@ Current flagship module: **Phase 0–1 Cricket Fast-Bowling Biomechanics Engine*
   - `Indoor_SlowMo_120fps` (120 fps, front-on): `az = 177.3°`, `el = 9.9°`, sofa-cropped front ankle caught & hard-suppressed (`[UNMEASURABLE]`), zero yaw/lat-flex spikes, `thorax_lat_flex_br = 18.51°`, `Durability = 73.8`, handheld pan (`bg_pan = 0.211`) detected.
   - `Glenn_McGrath_Reel_SideOn` (25 fps archival portrait Reel): geometric pan override locked `side_on_left (az = -98.9°, el = 2.4°, pan = True)`, causal `BFC=42, FFC=53, UAH=53, BR=57`, blurry 25 fps knee & panning run-up/stride suppressed, readable 9:16 strip with warm amber warnings.
   - `Curtly_Ambrose_Reel_Rear` (25 fps archival static broadcast): `broadcast_elevated (az = 2.5°, el = 20.4°, pan = False, bg_pan = 0.0001)`, `UAH = None` placeholder, two-sided knots flagged `Durability = 54.2`, azimuth-gated upgrades recommend `120–240 fps` and `Side-On (90 deg)` only.
+- **Audit Status After EXP-007 (read `docs/independent_audit_and_improvements.md` before relying on the lines above):**
+  - The 97.0% coverage stands as arithmetic. It is pooled over 7 of 22 metrics, and Stage 4 was given the true noise level. Scored per metric it runs from 82.5% to 100%. With true noise at 2x the supplied uncertainty it falls to 76.8%.
+  - `240 fps BR Timing MAE` and the self-calibration `FK_BR RMSE = 0.03°` measure nothing. The detector and generator share the 8° release constant, and the self-calibration arm had no noise.
+  - `Glenn_McGrath_Reel_SideOn` and `Curtly_Ambrose_Reel_Rear`: events are wrong and every output is withdrawn. McGrath's BR is a freeze frame with the arm 46° behind vertical. Ambrose's BR is in the back-foot phase.
+  - `Dale_Steyn_Net_30fps`: events agree with the frames to about one frame. The footage is 25 fps in a 29.97 fps container, and the true focal length is about 6.2x the assumed one. `thorax_lat_flex_br` is repeatable to about 2°. `follow_through_drift_deg` and `release_height_m` are not reliable.
+  - `Indoor_SlowMo_120fps`: capture rate unverified. Every 5th frame is a repeat.
 
 ---
 
@@ -139,6 +146,21 @@ Current flagship module: **Phase 0–1 Cricket Fast-Bowling Biomechanics Engine*
   - Converted local absolute image paths in `docs/research_report.md` to repo-relative `figures/*.jpg` and staged verified forensic & `v3` figures (`docs/figures/`) + JSON summaries (`docs/results/v3/`).
   - Created global `AGENTS.md`, `docs/walkthrough.md`, and upgraded `README.md`.
   - Verified zero leaked credentials, IPs, or personal machine paths across the entire repository and git history prior to pushing to `origin main`.
+
+### EXP-007 — Independent first-principles audit, real-clip forensics and diagnostic scripts
+- **Date:** 2026-11-23
+- **Goal / Hypothesis:** Audit the repository from scratch. Test whether the v3 baseline claims (97.0% CI coverage, four verified real-video runs, literature-grounded scoring) survive checks that do not share the pipeline's assumptions.
+- **Modifications:** No change under `src/`. Added `docs/independent_audit_and_improvements.md`, three diagnostic scripts (`validation/audit_synthetic_diagnostics.py`, `validation/audit_real_clip_diagnostics.py`, `validation/audit_nlf_self_consistency.py`), result JSONs in `docs/results/exp007/`, and five figures `docs/figures/exp007_*`. README links the audit. Section 3 gained an audit-status block.
+- **Results:**
+  - `pytest -v`: **13 / 13 passed**. Stock benchmark reproduced exactly (97.0%, 912 evaluations).
+  - Timebase: all four v3 clips contain repeated frames. Steyn every 6th (25 fps footage in a 29.97 fps container), Indoor every 5th, McGrath 64% of frame pairs, Ambrose 82%.
+  - Events: McGrath BR at 56.5 is a freeze frame, arm 46° behind vertical, wrist at 68% of arm length. Ambrose BR at 36.9 is in the back-foot phase, about 40 frames before release. Steyn BFC, FFC and BR agree with the frames to about one frame.
+  - Camera: two-wicket geometry on Steyn gives focal length 11,400 px (9.6° FOV) against the assumed 1,844 px (55°), camera 27.6 m behind the wicket, 1.52 m high. Run-up depth speed is 0.79 m/s as processed and 4.9 m/s after focal scaling. Body-based gravity is 4.7° from the wicket-derived vertical.
+  - NLF consistency on GPU (checkpoint v0.3.2, SHA-256 prefix `52bee28e`): Steyn `thorax_lat_flex_br` moves at most 2.1° across mirror, TTA, half resolution, v0.2.2 and v0.3.2 patch 6, against a stated ±10.6°. `follow_through_drift_deg` moves 24.8°, and 53.9° under an FOV change, against a stated ±8.5°. NLF's uncertainty output is 1.2 to 8 times the measured spread by RMS and has rank correlation 0.5 to 0.7 with it.
+  - Synthetic diagnostics: per-metric coverage 82.5% to 100% behind the pooled 97.0%. 15 of 22 metrics were never scored by the stock benchmark. BFC and FFC timing error is 9.8 ms and 5.5 ms at 240 fps against a stated 2.1 ms. Self-calibration gravity error is 6° to 11° with a sprint lean, and release-height coverage is 0% to 6%. The kinetic pillar label agrees with its true-value version in 52.5% of trials.
+  - Literature: action-class thresholds are unsourced. Timing priors are about 2.5 SD above Felton 2019. The Alway 2021 figure of 88% is in-sample against a 78% base rate, and that paper reports no link between SCR and LBSI and less side flexion at release in injured bowlers.
+- **Findings & Decisions:** 27 numbered bugs, 7 of them P0 (`docs/independent_audit_and_improvements.md` section 5). The EXP-005 sign-off does not stand. Nothing was fixed in this cycle, so the baseline numbers above are unchanged and now carry the audit status. Next actions in order: repeated-frame check in Stage 0, release sanity gates, gating of translation-dependent metrics, per-metric benchmark scoring, pitch-based calibration with `K` passed to NLF, and a first real reference capture (trunk IMU, radar, tape).
+- **Artifacts / Commit:** `docs/independent_audit_and_improvements.md`, `docs/results/exp007/`, `docs/figures/exp007_*`, `validation/audit_*.py`. Commit `0115c48`.
 
 ---
 
