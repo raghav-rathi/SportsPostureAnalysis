@@ -15,45 +15,40 @@ from typing import Dict, List, Tuple
 import cv2
 import numpy as np
 
+from bowling_biomech.constants import JOINT_IDX, MCC_PITCH_LANDMARKS_M, SMPL24_JOINTS
 from bowling_biomech.schemas import BowlingArm
 from bowling_biomech.stage1_pitch_calibration import (
     MCC_LAW7_LANDMARKS_M,
     default_camera_matrix,
 )
 
-# Canonical SMPL-24 joint ordering matching NLF `smpl_24`
-SMPL24_JOINTS: List[str] = [
-    "pelv", "lhip", "rhip", "spi1", "lkne", "rkne",
-    "spi2", "lank", "rank", "spi3", "ltoe", "rtoe",
-    "neck", "lcla", "rcla", "head", "lsho", "rsho",
-    "lelb", "relb", "lwri", "rwri", "lhan", "rhan",
-]
-JOINT_IDX: Dict[str, int] = {name: i for i, name in enumerate(SMPL24_JOINTS)}
-
 
 @dataclass
 class SyntheticDeliveryParams:
     bowler_arm: BowlingArm = BowlingArm.RIGHT
     fps: float = 240.0
-    duration_s: float = 1.2
-    runup_speed_mps: float = 5.8           # Elite mean ~5.5-6.5 m/s (Worthington 2013)
-    bfc_time_s: float = 0.45
-    ffc_time_s: float = 0.72               # ~270 ms delivery stride
-    br_time_s: float = 0.85                # ~130 ms FFC -> BR
+    duration_s: float = 1.15
+    runup_speed_mps: float = 5.8           # Worthington (2013) elite male mean ~5.83 +- 0.50 m/s
+    bfc_time_s: float = 0.42
+    ffc_time_s: float = 0.612              # Felton (2019) elite male mean = 192 ms
+    br_time_s: float = 0.720               # Felton (2019) FFC -> BR ~ 108 ms
     stride_length_m: float = 1.48          # ~80% of 1.85 m stature
     front_knee_ffc_deg: float = 160.0      # Internal knee angle (180 = straight)
-    front_knee_br_deg: float = 168.0       # Bracing / extending front knee (extender)
-    trunk_flexion_ffc_deg: float = 12.0    # Forward sagittal trunk flexion at FFC
-    trunk_flexion_br_deg: float = 44.0     # Delta = 32 deg forward trunk flexion
-    thorax_lat_flex_ffc_deg: float = 18.0  # Contralateral side bend at FFC
-    thorax_lat_flex_br_deg: float = 36.0   # Elite healthy norm ~30-42 deg (Bayne 2016)
-    pelvis_yaw_bfc_deg: float = 215.0      # Semi-open alignment relative to +X (180=side-on, 270=front-on)
+    front_knee_br_deg: float = 168.0       # Bracing / extending front knee
+    trunk_flexion_ffc_deg: float = 12.0    # Global sagittal trunk inclination at FFC
+    trunk_flexion_br_deg: float = 44.0     # Delta = 32 deg forward trunk inclination
+    thorax_lat_flex_ffc_deg: float = 18.0  # Contralateral lateral inclination at FFC
+    thorax_lat_flex_br_deg: float = 36.0
+    pelvis_yaw_bfc_deg: float = 215.0      # AIS semi-open alignment relative to +X (180=side, 270=front)
     shoulder_yaw_bfc_deg: float = 210.0
-    shoulder_counter_rot_deg: float = 16.0 # <30 deg = non-mixed (Portus 2004)
-    delayed_arm_ffc_deg: float = 148.0     # Bowling arm angle behind trunk at FFC
-    rear_hip_bfc_deg: float = 145.0        # Rear hip extension/flexion angle at BFC
-    pelvic_drop_ffc_deg: float = 4.0       # Contralateral/ipsilateral pelvic drop at FFC
+    shoulder_counter_rot_deg: float = 16.0
+    delayed_arm_ffc_deg: float = 148.0     # Bowling arm behind global vertical at FFC
+    br_phi_deg: float = 8.0                # True arm angle past vertical at BR (randomize in benchmarks!)
+    rear_hip_bfc_deg: float = 145.0        # Trunk-thigh rear hip angle at BFC
+    pelvic_drop_ffc_deg: float = 4.0       # Frontal pelvic tilt at FFC
     follow_through_drift_deg: float = 6.0  # Lateral drift post-release
+    sprint_lean_deg: float = 4.0           # Pre-BFC forward sprint lean (set 12-18 deg for stress tests)
+    approach_angle_deg: float = 0.0        # Non-zero angled run-up relative to +X pitch axis
     stature_m: float = 1.85
 
 
@@ -126,23 +121,26 @@ def generate_synthetic_delivery(
     uah_frame_float = None
 
     for i, t in enumerate(times):
-        # 1. Pelvis center position in Pitch World
+        # 1. Pelvis center position in Pitch World (strictly C0 continuous across BFC, FFC, BR;
+        #    hip_y = py - 0.08*s stays strictly inside thigh_l + shank_l = 0.83*s so both feet touch Y=0!)
         if t <= params.bfc_time_s:
             px = x_bfc + v_run * (t - params.bfc_time_s)
-            py = 0.96 * s + 0.06 * math.sin(2.0 * math.pi * 2.5 * (t - params.bfc_time_s))
+            py = 0.87 * s + 0.03 * math.sin(2.0 * math.pi * 2.5 * (t - params.bfc_time_s))
         elif t <= params.ffc_time_s:
             u = (t - params.bfc_time_s) / (params.ffc_time_s - params.bfc_time_s)
             px = x_bfc + params.stride_length_m * u
-            py = 0.94 * s - 0.05 * math.sin(math.pi * u)
+            py = (0.87 - 0.03 * _smoothstep(u, 0.0, 1.0)) * s - 0.02 * math.sin(math.pi * u)
         else:
             dt = t - params.ffc_time_s
             px = x_ffc + v_stride * 0.65 * (1.0 - math.exp(-3.2 * dt)) / 3.2
-            py = 0.90 * s - 0.04 * _smoothstep(t, params.ffc_time_s, params.br_time_s)
+            py = 0.84 * s - 0.03 * _smoothstep(t, params.ffc_time_s, params.br_time_s)
         if t > params.br_time_s:
             # Post-release lateral drift along -sign_arm * Z
             sign_arm_tmp = 1.0 if is_right else -1.0
             dx_ft = max(0.0, px - (x_ffc + v_stride * 0.65 * (1.0 - math.exp(-3.2 * (params.br_time_s - params.ffc_time_s))) / 3.2))
             pz = -sign_arm_tmp * dx_ft * math.tan(math.radians(params.follow_through_drift_deg))
+        elif abs(params.approach_angle_deg) > 1e-4 and t <= params.ffc_time_s:
+            pz = (px - x_ffc) * math.tan(math.radians(params.approach_angle_deg))
         else:
             pz = 0.0
         pelv = np.array([px, py, pz], dtype=np.float64)
@@ -186,12 +184,12 @@ def generate_synthetic_delivery(
         # 3. Trunk forward sagittal flexion & contralateral lateral flexion via exact 3D Z-X Cardan rotation:
         #    s = [sin(alpha)cos(beta), cos(alpha)cos(beta), -sign_arm * sin(beta)]
         if t <= params.bfc_time_s:
-            trunk_flex = 4.0
+            trunk_flex = params.sprint_lean_deg
             # Keep run-up upright (0 deg roll), ramping gently into 6 deg gather lean just before BFC
             lat_flex = 6.0 * _smoothstep(t, params.bfc_time_s - 0.12, params.bfc_time_s)
         elif t <= params.ffc_time_s:
             u = _smoothstep(t, params.bfc_time_s, params.ffc_time_s)
-            trunk_flex = 4.0 + (params.trunk_flexion_ffc_deg - 4.0) * u
+            trunk_flex = params.sprint_lean_deg + (params.trunk_flexion_ffc_deg - params.sprint_lean_deg) * u
             lat_flex = 6.0 + (params.thorax_lat_flex_ffc_deg - 6.0) * u
         elif t <= params.br_time_s:
             u = _smoothstep(t, params.ffc_time_s, params.br_time_s)
@@ -202,8 +200,6 @@ def generate_synthetic_delivery(
             trunk_flex = params.trunk_flexion_br_deg + 14.0 * u
             lat_flex = params.thorax_lat_flex_br_deg + 4.0 * u
 
-        a_rad = math.radians(trunk_flex)
-        b_rad = math.radians(lat_flex)
         # Rotate +Y by R_z(-alpha) @ R_x(-sign_arm * beta) -> exact unit vector on S^2
         spine_dir = _rot_z(-trunk_flex) @ (_rot_x(-sign_arm * lat_flex) @ np.array([0.0, 1.0, 0.0]))
         spine_dir /= np.linalg.norm(spine_dir)
@@ -224,91 +220,83 @@ def generate_synthetic_delivery(
         lsho = neck - shoulder_half_w * sh_right
         rsho = neck + shoulder_half_w * sh_right
 
-        # 4. Lower limbs: Front leg (left for right-arm) & Rear leg (right for right-arm)
+        # 4. Lower limbs: Continuous, non-teleporting 2-link sagittal IK across swing & stance (EXP-007 S3!)
         front_hip = lhip if is_right else rhip
         rear_hip = rhip if is_right else lhip
 
-        # Front foot height & knee flexion profile
+        def _solve_leg_ik(hip_p: np.ndarray, ankle_p: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+            """Exact 2-link sagittal IK placing ankle at `ankle_p` (clamped to reach) with knee bending forward (+X)."""
+            vec = ankle_p - hip_p
+            dx_v, dy_v = float(vec[0]), float(-vec[1])
+            max_reach = thigh_l + shank_l - 1e-4
+            min_reach = abs(thigh_l - shank_l) + 0.05
+            dist = float(math.hypot(dx_v, dy_v))
+            if dist > max_reach:
+                scale_r = max_reach / max(dist, 1e-6)
+                dx_v *= scale_r
+                dy_v *= scale_r
+                dist = max_reach
+                ankle_p = np.array([hip_p[0] + dx_v, hip_p[1] - dy_v, ankle_p[2]], dtype=np.float64)
+            elif dist < min_reach:
+                dy_v = max(dy_v, min_reach)
+                dist = float(math.hypot(dx_v, dy_v))
+                ankle_p = np.array([hip_p[0] + dx_v, hip_p[1] - dy_v, ankle_p[2]], dtype=np.float64)
+            chord_ang = math.atan2(dx_v, max(dy_v, 1e-4))
+            cos_g = float(np.clip((thigh_l**2 + dist**2 - shank_l**2) / (2.0 * thigh_l * max(dist, 1e-6)), -1.0, 1.0))
+            alpha_k = chord_ang + math.acos(cos_g)
+            knee_p = hip_p + thigh_l * np.array([math.sin(alpha_k), -math.cos(alpha_k), 0.0], dtype=np.float64)
+            return knee_p, ankle_p
+
+        def _planted_ankle_for_knee(hip_p: np.ndarray, knee_int_deg: float, forward_sign: float = 1.0) -> np.ndarray:
+            chord = math.sqrt(thigh_l**2 + shank_l**2 - 2.0 * thigh_l * shank_l * math.cos(math.radians(knee_int_deg)))
+            dy_h = min(float(hip_p[1]), chord - 1e-4)
+            dx_h = math.sqrt(max(chord**2 - dy_h**2, 1e-6))
+            return np.array([hip_p[0] + forward_sign * dx_h, 0.0, hip_p[2]], dtype=np.float64)
+
+        # Front foot: smooth parabolic swing descending continuously onto exact FFC ground point (ZERO teleportation!)
         if t < params.ffc_time_s:
-            # Swing leg lifted during delivery stride, descending cleanly to Y=0 at FFC
-            u_stride = (t - params.bfc_time_s) / max(params.ffc_time_s - params.bfc_time_s, 1e-4)
+            target_land = _planted_ankle_for_knee(front_hip, params.front_knee_ffc_deg, forward_sign=1.0)
             if t < params.bfc_time_s:
-                f_ankle_y = 0.14 + 0.14 * abs(math.sin(2.0 * math.pi * 2.5 * t))
-                f_knee_int = 125.0
-                f_hip_fwd = 0.05
+                f_y_sw = 0.14 + 0.12 * abs(math.sin(2.0 * math.pi * 2.4 * t))
+                f_x_sw = front_hip[0] + 0.10 * math.sin(2.0 * math.pi * 2.4 * t)
+                f_ank_tgt = np.array([f_x_sw, f_y_sw, front_hip[2]], dtype=np.float64)
             else:
-                # Lifted mid-stride, drops sharply onto pitch at u_stride == 1.0
-                f_ankle_y = 0.32 * math.sin(math.pi * max(0.0, min(1.0, u_stride))) ** 1.3
-                f_knee_int = 125.0 + (params.front_knee_ffc_deg - 125.0) * _smoothstep(t, params.bfc_time_s + 0.10, params.ffc_time_s)
-                f_hip_fwd = 0.05 + 0.34 * _smoothstep(t, params.bfc_time_s, params.ffc_time_s)
+                u_s = (t - params.bfc_time_s) / max(params.ffc_time_s - params.bfc_time_s, 1e-4)
+                s_u = _smoothstep(u_s, 0.0, 1.0)
+                f_y_bfc = 0.14 + 0.12 * abs(math.sin(2.0 * math.pi * 2.4 * params.bfc_time_s))
+                f_dx_bfc = 0.10 * math.sin(2.0 * math.pi * 2.4 * params.bfc_time_s)
+                # Exact C0 continuity at both BFC (u_s=0) and FFC (u_s=1, Y=0, X=target_land[0])
+                f_y_sw = f_y_bfc * (1.0 - s_u) + 0.18 * math.sin(math.pi * u_s) * (1.0 - 0.20 * u_s)
+                f_x_start = front_hip[0] + f_dx_bfc
+                f_x_sw = f_x_start + (target_land[0] - f_x_start) * s_u
+                f_ank_tgt = np.array([f_x_sw, max(0.0, f_y_sw), front_hip[2]], dtype=np.float64)
+            f_knee, f_ankle = _solve_leg_ik(front_hip, f_ank_tgt)
         elif t <= params.br_time_s:
-            # Planted solidly on pitch Y=0 from FFC through BR
             u = _smoothstep(t, params.ffc_time_s, params.br_time_s)
-            f_ankle_y = 0.0
             f_knee_int = params.front_knee_ffc_deg + (params.front_knee_br_deg - params.front_knee_ffc_deg) * u
-            f_hip_fwd = 0.39 - 0.12 * u
+            f_ank_tgt = _planted_ankle_for_knee(front_hip, f_knee_int, forward_sign=1.0)
+            f_knee, f_ankle = _solve_leg_ik(front_hip, f_ank_tgt)
         else:
             u = _smoothstep(t, params.br_time_s, params.br_time_s + 0.25)
-            f_ankle_y = 0.08 * u
-            f_knee_int = params.front_knee_br_deg - 25.0 * u
-            f_hip_fwd = 0.27 - 0.35 * u
-
-        # Solve 2-link sagittal leg kinematics for exact internal knee angle f_knee_int
-        f_flex_rad = math.radians(180.0 - f_knee_int)  # 0 when straight
-        # Thigh points down-and-forward by alpha; shank bends backward by f_flex_rad
-        # Choose thigh angle so ankle hits target forward reach and ground height cleanly
-        alpha_f = math.atan2(f_hip_fwd, max(front_hip[1] - f_ankle_y, 0.2)) + 0.45 * f_flex_rad
-        f_knee = front_hip + thigh_l * np.array([math.sin(alpha_f), -math.cos(alpha_f), 0.0])
-        beta_f = alpha_f - f_flex_rad
-        f_ankle = f_knee + shank_l * np.array([math.sin(beta_f), -math.cos(beta_f), 0.0])
-        # Snap foot onto ground during planted contact phase while preserving exact internal knee angle
-        if params.ffc_time_s <= t <= params.br_time_s:
-            shift_y = -f_ankle[1]
-            # Keep exact thigh/shank vectors so knee angle is unchanged
-            front_hip_adj = front_hip + np.array([0.0, shift_y, 0.0])
-            f_knee = f_knee + np.array([0.0, shift_y, 0.0])
-            f_ankle = f_ankle + np.array([0.0, shift_y, 0.0])
-            # Update pelvis/hip subtly only for vertical contact alignment? No, keep exact knee angle by placing ankle on ground
-            # Actually compute exact 2-link IK between fixed front_hip and ground point so knee angle matches f_knee_int!
-            chord = math.sqrt(thigh_l**2 + shank_l**2 - 2 * thigh_l * shank_l * math.cos(math.radians(f_knee_int)))
-            dy_hip = min(front_hip[1], chord - 1e-4)
-            dx_foot = math.sqrt(max(chord**2 - dy_hip**2, 1e-6))
-            f_ankle = np.array([front_hip[0] + dx_foot, 0.0, front_hip[2]], dtype=np.float64)
-            # Law of cosines for thigh angle relative to hip->ankle chord
-            chord_ang = math.atan2(dx_foot, dy_hip)
-            cos_gamma = np.clip((thigh_l**2 + chord**2 - shank_l**2) / (2 * thigh_l * chord), -1.0, 1.0)
-            gamma = math.acos(cos_gamma)
-            alpha_exact = chord_ang + gamma  # knee bends forward (+X)
-            f_knee = front_hip + thigh_l * np.array([math.sin(alpha_exact), -math.cos(alpha_exact), 0.0])
+            f_ank_br = _planted_ankle_for_knee(front_hip, params.front_knee_br_deg, forward_sign=1.0)
+            f_ank_tgt = np.array([f_ank_br[0] - 0.32 * u, 0.14 * u, front_hip[2]], dtype=np.float64)
+            f_knee, f_ankle = _solve_leg_ik(front_hip, f_ank_tgt)
         f_toe = f_ankle + np.array([foot_l, 0.0, 0.0])
 
-        # Rear leg kinematics: touches pitch cleanly AT t == bfc_time_s, stays planted for ~75 ms, then lifts
+        # Rear foot: smooth landing continuously onto exact BFC ground point, planted ~75 ms, then smooth lift
+        r_ank_bfc_tgt = _planted_ankle_for_knee(rear_hip, 152.0, forward_sign=-0.10)
         if params.bfc_time_s <= t <= params.bfc_time_s + 0.075:
-            # Grounded at BFC with exact rear_hip_bfc_deg relative to spine/vertical
-            r_knee_int = 152.0
-            chord_r = math.sqrt(thigh_l**2 + shank_l**2 - 2 * thigh_l * shank_l * math.cos(math.radians(r_knee_int)))
-            dy_r = min(rear_hip[1], chord_r - 1e-4)
-            dx_r = math.sqrt(max(chord_r**2 - dy_r**2, 1e-6))
-            # At BFC rear foot slightly behind/under hip
-            r_ankle = np.array([rear_hip[0] - 0.10 * dx_r, 0.0, rear_hip[2]], dtype=np.float64)
-            vec_ra = r_ankle - rear_hip
-            dist_ra = float(np.linalg.norm(vec_ra))
-            chord_r_ang = math.atan2(vec_ra[0], -vec_ra[1])
-            cos_g = np.clip((thigh_l**2 + dist_ra**2 - shank_l**2) / (2 * thigh_l * max(dist_ra, 1e-6)), -1.0, 1.0)
-            alpha_r = chord_r_ang + math.acos(cos_g)
-            r_knee = rear_hip + thigh_l * np.array([math.sin(alpha_r), -math.cos(alpha_r), 0.0])
+            r_knee, r_ankle = _solve_leg_ik(rear_hip, r_ank_bfc_tgt)
+        elif t < params.bfc_time_s:
+            u_pre = min(1.0, max(0.0, (params.bfc_time_s - t) / 0.16))
+            r_y_sw = 0.22 * math.sin(0.5 * math.pi * u_pre)
+            r_x_sw = r_ank_bfc_tgt[0] - 0.16 * u_pre
+            r_knee, r_ankle = _solve_leg_ik(rear_hip, np.array([r_x_sw, r_y_sw, rear_hip[2]], dtype=np.float64))
         else:
-            if t < params.bfc_time_s:
-                u_pre = max(0.0, (params.bfc_time_s - t) / 0.18)
-                r_lift = 0.24 * math.sin(0.5 * math.pi * min(u_pre, 1.0))
-                r_thigh_ang = 0.22 * math.sin(2.0 * math.pi * 2.5 * t)
-            else:
-                u_post = _smoothstep(t, params.bfc_time_s + 0.075, params.br_time_s)
-                r_lift = 0.20 * u_post
-                r_thigh_ang = -0.55 * u_post  # trails backward during delivery stride
-            r_knee = rear_hip + thigh_l * np.array([math.sin(r_thigh_ang), -math.cos(r_thigh_ang), 0.0])
-            r_ankle = r_knee + shank_l * np.array([math.sin(r_thigh_ang - 0.35), -math.cos(r_thigh_ang - 0.35), 0.0])
-            r_ankle[1] = max(r_ankle[1], r_lift)
+            u_post = _smoothstep(t, params.bfc_time_s + 0.075, params.br_time_s)
+            r_y_sw = 0.20 * u_post
+            r_x_sw = r_ank_bfc_tgt[0] - 0.35 * u_post
+            r_knee, r_ankle = _solve_leg_ik(rear_hip, np.array([r_x_sw, r_y_sw, rear_hip[2]], dtype=np.float64))
         r_toe = r_ankle + np.array([foot_l, 0.0, 0.0])
 
         if is_right:
@@ -318,40 +306,24 @@ def generate_synthetic_delivery(
             rkne, rank, rtoe = f_knee, f_ankle, f_toe
             lkne, lank, ltoe = r_knee, r_ankle, r_toe
 
-        # 5. Bowling arm circumduction in delivery plane (peak ~2200-2400 deg/s near BR!)
-        # Angle theta_arm measured in sagittal-delivery plane from vertical-up (+Y):
-        #   -180 = straight down, -90 = horizontal behind bowler (-X, UAH!), 0 = vertical overhead (BR!), +90 = forward follow-through
-        # At FFC: bowling arm is delayed behind trunk -> angle relative to spine_dir = delayed_arm_ffc_deg
-        # Define bowling arm angle relative to +Y (0 = straight up at BR, negative = behind)
-        # Note: Worthington's "shoulder angle at FFC" is angle between trunk (pelvis->neck) and upper arm (shoulder->elbow)
-        # When trunk is tilted +trunk_flex_ffc forward and arm is behind (-X, down-back), internal angle ~148 deg!
-        # Let's parameterize arm angle phi_world from vertical +Y (0=up, -90=back horizontal UAH, -180=down, +90=forward)
-        # At FFC, trunk points at angle +trunk_flex_ffc from +Y; for shoulder-to-elbow vector to make angle `delayed_arm_ffc_deg`
-        # with the downward spine (-spine_dir -> wait: let's match standard convention: angle between upper trunk upward vector and upper arm vector;
-        # at BR arm points upward along trunk -> ~180 deg? No: angle(pelvis->neck, sho->elb) is ~0 deg at BR when aligned up, ~180 when straight down,
-        # OR angle(neck->pelvis, sho->elb) is ~180 deg at BR and ~200-230 deg delayed behind!
-        # Let's use the exact Worthington (2013) convention:
-        #   Shoulder circumduction angle = 360-deg progression where 180° = straight down, 270° = back horizontal (UAH), 360°/0° = straight overhead (BR)!
-        #   In that convention, delayed arm at FFC sits around ~210°-250° (further back = smaller number toward 180°, i.e., LARGER angle behind vertical overhead = 110°-150° behind +Y).
-        # Let's store `bowling_arm_behind_vertical_ffc_deg` clearly AND compute angle cleanly.
-        phi_ffc = -(180.0 - params.delayed_arm_ffc_deg + 90.0)  # e.g., delayed=148 -> -122 deg behind +Y (past down, swinging back-up toward -90 UAH!)
-        # Wait: make sure UAH (-90 deg) happens cleanly BETWEEN FFC and BR!
-        # If at FFC arm is at -140 deg (behind-and-below horizontal), sweeps through -90 deg (UAH) at ~55% of FFC->BR, and hits +5 deg (just past vertical) at BR!
-        phi_ffc = -params.delayed_arm_ffc_deg  # e.g., -148 deg from +Y (down-and-back at FFC)
-        phi_br = 8.0                           # slightly forward of vertical at ball release
+        # 5. Bowling arm circumduction in delivery plane (cleanly decelerating after follow-through — no 2nd pass!)
+        phi_ffc = -params.delayed_arm_ffc_deg
+        phi_br = params.br_phi_deg
         if t < params.bfc_time_s:
-            phi = -260.0 + 40.0 * (t / max(params.bfc_time_s, 1e-4))
+            phi = -255.0 + 35.0 * (t / max(params.bfc_time_s, 1e-4))
         elif t <= params.ffc_time_s:
             u = _smoothstep(t, params.bfc_time_s, params.ffc_time_s)
             phi = -220.0 + (phi_ffc - (-220.0)) * u
         elif t <= params.br_time_s:
             u = (t - params.ffc_time_s) / max(params.br_time_s - params.ffc_time_s, 1e-5)
-            # Accelerating angular velocity peaking near BR
             phi = phi_ffc + (phi_br - phi_ffc) * (0.35 * u + 0.65 * u * u)
         else:
             dt = t - params.br_time_s
+            # Realistic follow-through deceleration settling smoothly ~115 deg past BR (does not loop overhead!)
             omega_br = (phi_br - phi_ffc) * 1.65 / max(params.br_time_s - params.ffc_time_s, 1e-5)
-            phi = phi_br + omega_br * (1.0 - math.exp(-5.0 * dt)) / 5.0
+            max_ft_sweep = 115.0
+            k_damp = max(omega_br / max_ft_sweep, 8.0)
+            phi = phi_br + max_ft_sweep * (1.0 - math.exp(-k_damp * dt))
 
         if uah_frame_float is None and t >= params.ffc_time_s and phi >= -90.0:
             uah_frame_float = float(i)

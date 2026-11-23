@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bowling-biomech"
-version = "0.1.0"
+version = "0.2.0"
 description = "Pitch-calibrated, uncertainty-gated, biomechanically grounded 3D cricket fast-bowling analysis engine"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,9 +14,6 @@ dependencies = [
     "pydantic>=2.7",
     "opencv-python-headless>=4.9",
     "matplotlib>=3.8",
-    "pillow>=10.2",
-    "pyyaml>=6.0",
-    "tqdm>=4.66",
     "rich>=13.7",
     "typer>=0.12",
 ]
@@ -25,10 +22,6 @@ dependencies = [
 gpu = [
     "torch>=2.3",
     "torchvision>=0.18",
-    "ultralytics>=8.3",
-    "huggingface_hub>=0.24",
-    "imageio>=2.34",
-    "imageio-ffmpeg>=0.5",
 ]
 dev = [
     "pytest>=8.0",

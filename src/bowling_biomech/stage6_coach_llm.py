@@ -1,8 +1,9 @@
-"""Stage 6B: Strictly Measurement-Grounded Multimodal Coaching Synthesizer.
+"""Stage 6B: Strictly Measurement-Grounded Coaching Report Synthesizer.
 
-Enforces the neuro-symbolic boundary: every numeric claim in the coaching narrative MUST
-trace back to a non-suppressed MetricEstimate in the verified BiomechanicalFactSheet JSON,
-and REFUSED guardrails (ICC 15-degree legality) are NEVER truncated or omitted.
+Enforces the neuro-symbolic boundary: every numeric claim traces directly to a non-suppressed
+MetricEstimate in BiomechanicalFactSheet, reports exact interval semantics (`repeatability_interval`
+vs `analytical_uncertainty` — never claiming uncalibrated 95% CIs on real video), and preserves
+all REFUSED guardrails (ICC 15-degree elbow legality) and medical non-diagnosis disclaimers.
 """
 
 from __future__ import annotations
@@ -11,25 +12,11 @@ from typing import List
 
 from .schemas import BiomechanicalFactSheet, CoachingReport, ObservabilityGrade
 
-LLM_SYSTEM_PROMPT = """You are an accredited cricket fast-bowling biomechanist and performance coach.
-You will receive a strictly verified JSON BiomechanicalFactSheet.
-RULES (NON-NEGOTIABLE):
-1. NEVER invent, guess, or alter any numeric angle, velocity, or score not explicitly present in the JSON.
-2. NEVER quote a suppressed or REFUSED metric as a measurement. Explicitly explain why suppressed metrics were withheld and how to re-film to unlock them.
-3. Always report 95% confidence intervals alongside key measurements.
-4. Distinguish clearly between per-delivery mechanical loading and actual injury risk (which depends on workload, age/maturity, and physical capacity).
-5. NEVER issue an ICC 15-degree elbow legality verdict from video.
-"""
-
-
-def build_llm_prompt(fact_sheet: BiomechanicalFactSheet) -> str:
-    """Build a strict JSON-grounded user prompt ready for Gemini / OpenAI / local vLLM APIs."""
-    return (
-        "Analyze the following verified BiomechanicalFactSheet JSON and produce a clear, "
-        "evidence-cited coaching evaluation covering strengths, prioritized limiters, "
-        "capture-quality caveats, and actionable drills:\n\n"
-        f"```json\n{fact_sheet.model_dump_json(indent=2)}\n```"
-    )
+INTERVAL_LABEL = {
+    "repeatability_interval": "Repeatability Interval",
+    "analytical_uncertainty": "Analytical Uncertainty Interval",
+    "conformal_calibrated_ci": "Conformal 95% CI",
+}
 
 
 def generate_grounded_report(fact_sheet: BiomechanicalFactSheet) -> CoachingReport:
@@ -45,57 +32,68 @@ def generate_grounded_report(fact_sheet: BiomechanicalFactSheet) -> CoachingRepo
     for m in valid_metrics:
         cited.append(m.key)
 
-    kin_p = fact_sheet.kinetic_efficiency
-    lum_p = fact_sheet.lumbar_load_screening
-    quad = fact_sheet.quadrant
-
+    int_label = INTERVAL_LABEL.get(fact_sheet.interval_type, "Uncertainty Interval")
+    fps_label = (
+        f"{fact_sheet.audit.fps:.2f} nominal fps [UNVERIFIED TIMEBASE]"
+        if fact_sheet.audit.timebase_unreliable
+        else f"{fact_sheet.audit.fps:.2f} unique fps"
+    )
     exec_parts = [
         f"**{fact_sheet.bowler_id}** ({fact_sheet.bowling_arm.value}-arm pace bowler, "
-        f"classified as **{fact_sheet.action_class.value.replace('_', ' ')}**) was analyzed from "
-        f"{fact_sheet.audit.width}x{fact_sheet.audit.height} @ **{fact_sheet.audit.fps:.1f} fps** "
-        f"footage (view: `{fact_sheet.calibration.view_class.value}`, azimuth `{fact_sheet.calibration.azimuth_deg:.1f} deg`, "
-        f"elevation `{fact_sheet.calibration.elevation_deg:.1f} deg`, calibration: `{fact_sheet.calibration.method}`, "
-        f"panning: `{fact_sheet.calibration.is_panning_camera}`).",
-        f"**Kinetic & Pace Efficiency:** {kin_p.summary}",
-        f"**Mechanical Load & Durability:** {lum_p.summary}",
-        f"**2D Quadrant Placement:** `{quad.quadrant_label}` — {quad.interpretation}",
+        f"action class: **{fact_sheet.action_class.value.replace('_', ' ')}**) was analyzed from "
+        f"{fact_sheet.audit.width}x{fact_sheet.audit.height} @ **{fps_label}** "
+        f"(timebase: `{fact_sheet.audit.timebase_status}`, view: `{fact_sheet.calibration.view_class.value}`, "
+        f"azimuth `{fact_sheet.calibration.azimuth_deg:.1f} deg`, elevation `{fact_sheet.calibration.elevation_deg:.1f} deg`, "
+        f"calibration: `{fact_sheet.calibration.method}`, intrinsics calibrated: `{fact_sheet.calibration.is_intrinsics_calibrated}`, "
+        f"camera motion/pan: `{fact_sheet.calibration.is_panning_camera}`).",
+        f"**Interval Semantics:** Reported ranges are **{int_label}s** (`{fact_sheet.interval_type}`). "
+        f"Unvalidated 0-100 composite scores are intentionally retired in favor of individual verified metrics and cohort norms.",
     ]
+
+    if fact_sheet.workload_guidance is not None:
+        wg = fact_sheet.workload_guidance
+        exec_parts.append(
+            f"**Workload Guidance ({wg.age_band}):** {wg.status_note} *({wg.governing_body_source})*"
+        )
 
     completeness = (
         f"Delivery stride duration (BFC->FFC) was **{fact_sheet.events.delivery_stride_duration_ms:.0f} ms** "
-        f"and front-foot contact to ball release (FFC->BR) took **{fact_sheet.events.ffc_to_br_duration_ms:.0f} ms** "
-        f"(+- {fact_sheet.events.br.timing_uncertainty_ms:.1f} ms frame quantization)."
+        f"(+- {fact_sheet.events.bfc.timing_uncertainty_ms:.1f}/{fact_sheet.events.ffc.timing_uncertainty_ms:.1f} ms) "
+        f"and FFC->BR took **{fact_sheet.events.ffc_to_br_duration_ms:.0f} ms** "
+        f"(+- {fact_sheet.events.br.timing_uncertainty_ms:.1f} ms)."
         if fact_sheet.events.is_complete_delivery
-        else "**Incomplete delivery clip:** overhead ball release was not observed before clip end; release-phase kinematics were suppressed."
+        else "**Incomplete delivery clip:** no verified high-speed overhead ball release passed sanity gates; all delivery metrics and cues were suppressed."
     )
     profile_summary = (
-        f"{completeness} Out of {len(fact_sheet.metrics)} tracked biomechanical variables, **{len(valid_metrics)}** "
-        f"passed observability and confidence thresholds, **{len(suppressed_other)}** were withheld due to "
-        f"camera-angle, crop, panning, or frame-rate constraints, and **{len(refused_metrics)}** were permanently refused."
+        f"{completeness} Out of {len(fact_sheet.metrics)} tracked variables, **{len(valid_metrics)}** "
+        f"passed observability and confidence gates, **{len(suppressed_other)}** were withheld, and "
+        f"**{len(refused_metrics)}** were permanently refused."
     )
 
     strengths_text = [
         f"**{c.title}:** {c.biomechanical_mechanism} *Next step:* {c.actionable_recommendation}"
         for c in fact_sheet.strengths
     ] or [
-        "No primary strengths could be confirmed with high confidence from this single camera angle/FPS; "
-        "record a 120–240 fps static-tripod side-on + rear-on pair for a full kinetic profile."
+        "No strengths cleared interval-level confidence gates from this clip."
     ]
 
     improvements_text = [
         f"**{c.title}:** {c.biomechanical_mechanism} *Actionable focus:* {c.actionable_recommendation}"
         for c in fact_sheet.limiters
-    ] or [
-        "No high-confidence mechanical limiters were flagged among the currently observable metrics."
     ]
+    for inc in fact_sheet.inconclusive_observations:
+        improvements_text.append(f"**{inc.title}:** {inc.biomechanical_mechanism} *{inc.actionable_recommendation}*")
+    if not improvements_text:
+        improvements_text = [
+            "No mechanical limiters cleared interval-level confidence gates among currently observable metrics."
+        ]
 
     caveats_text = list(fact_sheet.audit.warnings) + list(fact_sheet.events.event_warnings)
     for up in fact_sheet.capture_upgrades:
         caveats_text.append(f"**Capture Upgrade — {up.title}:** {up.actionable_recommendation}")
-    # ALWAYS include all REFUSED metrics (never truncated!)
+    # ALWAYS include all REFUSED metrics without truncation
     for rm in refused_metrics:
         caveats_text.append(f"**Refused `{rm.label}`:** {rm.suppression_reason}")
-    # Summarize all suppressed metrics without silently dropping entries
     if suppressed_other:
         for sm in suppressed_other[:8]:
             caveats_text.append(f"Withheld `{sm.label}`: {sm.suppression_reason}")
@@ -121,6 +119,7 @@ def render_report_markdown(
     report: CoachingReport,
 ) -> str:
     """Format the verified FactSheet and grounded CoachingReport into a crisp Markdown document."""
+    int_label = INTERVAL_LABEL.get(fact_sheet.interval_type, "Interval")
     lines = [
         f"# Fast-Bowling Biomechanical Analysis Report: {fact_sheet.bowler_id}",
         "",
@@ -130,9 +129,9 @@ def render_report_markdown(
         "## Delivery Phase & Observability Overview",
         report.action_profile_summary,
         "",
-        "## Verified Biomechanical Measurements (with 95% Confidence Intervals)",
+        f"## Verified Biomechanical Measurements ({int_label})",
         "",
-        "| Metric | Value (95% CI) | Observability | Empirical Literature Reference |",
+        f"| Metric | Value ({int_label}) | Observability | Literature Context & Definition Note |",
         "|---|---|---|---|",
     ]
     for m in fact_sheet.metrics.values():
@@ -142,11 +141,26 @@ def render_report_markdown(
             val_str = f"**{m.value:.1f} {m.unit}** (`[{m.ci_low:.1f}, {m.ci_high:.1f}]`)"
         lines.append(f"| {m.label} | {val_str} | `{m.observability.value}` | {m.empirical_reference} |")
 
-    lines.extend(["", "## Key Strengths"])
+    if fact_sheet.cohort_comparisons:
+        lines.extend([
+            "",
+            "## Definition-Matched Cohort Comparisons",
+            "",
+            "| Metric | Value | Cohort (Mean +- SD) | Z-Score | Approx %ile | Definition Match |",
+            "|---|---|---|---|---|---|",
+        ])
+        for cc in fact_sheet.cohort_comparisons:
+            lines.append(
+                f"| {cc.label} | {cc.value:.1f} `[{cc.ci_low:.1f}, {cc.ci_high:.1f}]` {cc.unit} | "
+                f"{cc.cohort_name}: {cc.cohort_mean:.1f} +- {cc.cohort_sd:.1f} | {cc.z_score:+.2f} | "
+                f"{cc.percentile_approx:.0f}% | `{cc.definition_match}` |"
+            )
+
+    lines.extend(["", "## Interval-Cleared Strengths"])
     for s in report.strengths_narrative:
         lines.append(f"- {s}")
 
-    lines.extend(["", "## Prioritized Mechanical Limiters & Coaching Focus"])
+    lines.extend(["", "## Interval-Cleared Limiters & Inconclusive Observations"])
     for imp in report.prioritized_improvements:
         lines.append(f"- {imp}")
 

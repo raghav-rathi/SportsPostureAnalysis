@@ -1,50 +1,50 @@
-"""Stage 6A: Truthful Mathematical Visuals, Freeze-Frame Panels, Virtual 3D Views, & Sparklines.
+"""Stage 6A: Truthful, Uncertainty-Aware Biomechanics Visuals & Freeze-Frame Video Renderer.
 
-Renders strictly measurement-grounded visual explanations (never generative body-warping art):
-  1. Readable key-phase annotated freeze-frame strip (resize-before-draw for portrait 9:16 legibility)
-  2. Synchronized kinematic waveforms with suppressed channels visually dimmed (never contradicting FactSheet)
-  3. Virtual 3D canonical projections (Side-On, Rear Coronal)
-  4. 2D Performance-Durability Quadrant with uncertainty ellipse & non-clipping labels
-  5. Automatic H.264 freeze-frame slow-motion video export
+Fixes EXP-007:
+  - B2 / Zero-Drift Frame Alignment: Accepts `source_frame_indices` and decodes sequentially via `cap.read()`
+    so pulldown-deduplicated clips (e.g., Steyn 25-in-29.97) align 2D skeletons and freeze-frames to the
+    exact raw video frame with zero off-by-N drift.
+  - Section 6: Removes unverified "Uninjured Elite Lat-Flex (Bayne 2016) 32-44 deg" plot bands and replaces
+               retired 0-100 Quadrant Panel 6 with an honest Cohort Z-Score / Repeatability Forest Plot.
+  - B23: Imports `JOINT_IDX` from `constants.py`.
 """
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
-from typing import List, Tuple
+import shutil
+import subprocess
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse, Rectangle
 import numpy as np
 
-from .schemas import BiomechanicalFactSheet
+from .constants import JOINT_IDX
+from .schemas import BiomechanicalFactSheet, ObservabilityGrade
 from .stage3_kinematics import KinematicsResult
-from .synthetic_ground_truth import JOINT_IDX
 
 SKELETON_EDGES: List[Tuple[str, str, Tuple[int, int, int], str]] = [
-    ("pelv", "spi1", (210, 60, 210), "#d23cd2"),
-    ("spi1", "spi2", (210, 60, 210), "#d23cd2"),
-    ("spi2", "spi3", (210, 60, 210), "#d23cd2"),
-    ("spi3", "neck", (210, 60, 210), "#d23cd2"),
-    ("neck", "head", (210, 60, 210), "#d23cd2"),
-    ("lhip", "rhip", (255, 220, 40), "#28dcff"),
-    ("lsho", "rsho", (40, 220, 255), "#ffdc28"),
-    ("lhip", "lkne", (240, 210, 40), "#28d2f0"),
-    ("lkne", "lank", (240, 210, 40), "#28d2f0"),
-    ("lank", "ltoe", (240, 210, 40), "#28d2f0"),
-    ("rhip", "rkne", (40, 165, 255), "#ffa528"),
-    ("rkne", "rank", (40, 165, 255), "#ffa528"),
-    ("rank", "rtoe", (40, 165, 255), "#ffa528"),
-    ("neck", "lsho", (255, 140, 60), "#3c8cff"),
-    ("lsho", "lelb", (255, 140, 60), "#3c8cff"),
-    ("lelb", "lwri", (255, 140, 60), "#3c8cff"),
-    ("neck", "rsho", (60, 235, 90), "#5aeb3c"),
-    ("rsho", "relb", (60, 235, 90), "#5aeb3c"),
-    ("relb", "rwri", (60, 235, 90), "#5aeb3c"),
+    ("pelv", "spi1", (240, 120, 255), "#f078ff"),
+    ("spi1", "spi2", (240, 120, 255), "#f078ff"),
+    ("spi2", "spi3", (240, 120, 255), "#f078ff"),
+    ("spi3", "neck", (240, 120, 255), "#f078ff"),
+    ("neck", "head", (240, 120, 255), "#f078ff"),
+    ("lsho", "rsho", (80, 220, 255), "#50dcff"),
+    ("lhip", "rhip", (80, 220, 255), "#50dcff"),
+    ("lhip", "lkne", (255, 190, 50), "#32beff"),
+    ("lkne", "lank", (255, 190, 50), "#32beff"),
+    ("lank", "ltoe", (255, 190, 50), "#32beff"),
+    ("rhip", "rkne", (70, 150, 255), "#ff9646"),
+    ("rkne", "rank", (70, 150, 255), "#ff9646"),
+    ("rank", "rtoe", (70, 150, 255), "#ff9646"),
+    ("rsho", "relb", (90, 255, 110), "#6eff5a"),
+    ("relb", "rwri", (90, 255, 110), "#6eff5a"),
+    ("lsho", "lelb", (255, 120, 70), "#4678ff"),
+    ("lelb", "lwri", (255, 120, 70), "#4678ff"),
 ]
 
 
@@ -52,23 +52,24 @@ def _prepare_readable_canvas(
     frame_bgr: np.ndarray,
     joints2d_px: np.ndarray,
     target_h: int = 560,
-    min_w: int = 520,
+    min_w: int = 560,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Resize BEFORE drawing overlays and pad narrow portrait clips so HUD text stays crisp & legible."""
+    """Resize frame BEFORE drawing text and pad narrow portrait frames so overlays stay crisp."""
     h, w = frame_bgr.shape[:2]
     scale = target_h / max(h, 1)
     new_w = max(1, int(round(w * scale)))
-    resized = cv2.resize(frame_bgr, (new_w, target_h))
-    j2_scaled = joints2d_px * scale
+    resized = cv2.resize(frame_bgr, (new_w, target_h), interpolation=cv2.INTER_AREA)
+    j2 = joints2d_px.copy() * scale
 
     if new_w < min_w:
-        pad_total = min_w - new_w
-        pad_l = pad_total // 2
-        pad_r = pad_total - pad_l
-        resized = cv2.copyMakeBorder(resized, 0, 0, pad_l, pad_r, cv2.BORDER_CONSTANT, value=(15, 18, 24))
-        j2_scaled = j2_scaled.copy()
-        j2_scaled[:, 0] += pad_l
-    return resized, j2_scaled
+        pad_left = (min_w - new_w) // 2
+        pad_right = min_w - new_w - pad_left
+        canvas = cv2.copyMakeBorder(
+            resized, 0, 0, pad_left, pad_right, cv2.BORDER_CONSTANT, value=(15, 19, 26)
+        )
+        j2[:, 0] += pad_left
+        return canvas, j2
+    return resized, j2
 
 
 def draw_skeleton_on_frame(
@@ -79,34 +80,28 @@ def draw_skeleton_on_frame(
     callout_lines: List[str],
     draw_skeleton: bool = True,
 ) -> np.ndarray:
-    """Draw mathematically accurate 2D reprojected skeleton & crisp verified metric callouts onto a canvas."""
+    """Draw reprojected 2D skeleton and crisp dark-banner metric callouts on an already-sized canvas."""
     img = frame_bgr.copy()
     h, w = img.shape[:2]
-    thickness = max(2, int(round(min(h, w) / 240.0)))
-    radius = max(3, int(round(min(h, w) / 170.0)))
+    thick = max(2, int(round(min(h, w) / 260)))
 
     if draw_skeleton:
         for a_name, b_name, bgr, _ in SKELETON_EDGES:
             pa = joints2d_px[JOINT_IDX[a_name]]
             pb = joints2d_px[JOINT_IDX[b_name]]
-            if not (np.all(np.isfinite(pa)) and np.all(np.isfinite(pb))):
-                continue
-            p1 = (int(round(pa[0])), int(round(pa[1])))
-            p2 = (int(round(pb[0])), int(round(pb[1])))
-            cv2.line(img, p1, p2, bgr, thickness, cv2.LINE_AA)
-
-        for j in range(min(22, joints2d_px.shape[0])):
-            pt = joints2d_px[j]
+            if np.all(np.isfinite(pa)) and np.all(np.isfinite(pb)):
+                cv2.line(img, (int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), bgr, thick, cv2.LINE_AA)
+        for pt in joints2d_px:
             if np.all(np.isfinite(pt)):
-                cv2.circle(img, (int(round(pt[0])), int(round(pt[1]))), radius, (255, 255, 255), -1, cv2.LINE_AA)
+                cv2.circle(img, (int(pt[0]), int(pt[1])), thick + 1, (255, 255, 255), -1, cv2.LINE_AA)
 
-    banner_h = max(58, int(0.105 * h))
+    banner_h = max(62, int(0.115 * h))
     overlay = img.copy()
-    cv2.rectangle(overlay, (0, 0), (w, banner_h), (16, 20, 27), -1)
+    cv2.rectangle(overlay, (0, 0), (w, banner_h), (14, 17, 23), -1)
     cv2.addWeighted(overlay, 0.84, img, 0.16, 0, img)
 
-    title_scale = float(np.clip(w / 950.0, 0.56, 0.92))
-    sub_scale = float(np.clip(w / 1280.0, 0.44, 0.68))
+    title_scale = float(np.clip(w / 900.0, 0.58, 0.85))
+    sub_scale = float(np.clip(w / 1220.0, 0.44, 0.62))
     cv2.putText(
         img, title, (12, int(banner_h * 0.46)),
         cv2.FONT_HERSHEY_SIMPLEX, title_scale, (255, 255, 255), 2, cv2.LINE_AA,
@@ -130,46 +125,75 @@ def draw_skeleton_on_frame(
     return img
 
 
+def _read_exact_frames_sequential(video_path: str | Path, abs_indices: List[int]) -> Dict[int, np.ndarray]:
+    """Decode exact source frame indices sequentially via `cap.read()` (avoids GOP seek off-by-1 drift)."""
+    if not abs_indices:
+        return {}
+    needed = set(int(i) for i in abs_indices)
+    first_f, last_f = min(needed), max(needed)
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Could not open video: {video_path}")
+    cap.set(cv2.CAP_PROP_POS_FRAMES, first_f)
+    out: Dict[int, np.ndarray] = {}
+    for f in range(first_f, last_f + 1):
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            break
+        if f in needed:
+            out[f] = frame
+    cap.release()
+    return out
+
+
 def render_keyframe_panel(
     video_path: str | Path,
     start_frame: int,
     joints2d_px: np.ndarray,
     fact_sheet: BiomechanicalFactSheet,
     out_path: str | Path,
+    source_frame_indices: Optional[List[int]] = None,
 ) -> Path:
-    """Render readable 2x2 key-phase freeze-frame strip (BFC, FFC, UAH, BR) with verified metrics."""
+    """Render readable 2x2 key-phase freeze-frame strip (BFC, FFC, UAH, BR) aligned to exact source frames."""
     ev = fact_sheet.events
     m = fact_sheet.metrics
+    src_map = source_frame_indices or fact_sheet.audit.source_frame_indices
+
+    def _to_abs(rel_idx: int) -> int:
+        if src_map and 0 <= rel_idx < len(src_map):
+            return int(src_map[rel_idx])
+        return int(start_frame + rel_idx)
 
     def _fmt(key: str, short: str) -> str:
         me = m.get(key)
         if me is None or me.suppressed or me.value is None:
             return f"{short}: [Suppressed - {me.observability.value if me else 'N/A'}]"
-        half = (me.ci_high - me.ci_low) / 2.0 if (me.ci_high is not None and me.ci_low is not None) else 0.0
-        return f"{short}: {me.value:.1f} +- {half:.1f} {me.unit} ({me.observability.value})"
+        tag = "rep" if me.interval_type == "repeatability_interval" else "unc"
+        if me.ci_low is not None and me.ci_high is not None:
+            return f"{short}: {me.value:.1f} [{me.ci_low:.1f}, {me.ci_high:.1f}] {me.unit} ({me.observability.value}, {tag})"
+        return f"{short}: {me.value:.1f} {me.unit} ({me.observability.value})"
 
     phases = [
-        ("1. Back Foot Contact (BFC)", ev.bfc, [_fmt("runup_speed_mps", "Run-up"), _fmt("rear_hip_bfc_deg", "Rear Hip")]),
+        ("1. Back Foot Contact (BFC)", ev.bfc if ev.is_complete_delivery else None, [_fmt("runup_speed_mps", "Run-up"), _fmt("rear_hip_bfc_deg", "Rear Hip Proxy")]),
         (
             "2. Front Foot Contact (FFC)",
-            ev.ffc,
-            [_fmt("front_knee_ffc_deg", "Front Knee"), _fmt("delayed_arm_ffc_deg", "Arm Delay"), _fmt("thorax_lat_flex_ffc_deg", "Lat Bend")],
+            ev.ffc if ev.is_complete_delivery else None,
+            [_fmt("front_knee_ffc_deg", "Front Knee"), _fmt("delayed_arm_ffc_deg", "Arm Delay"), _fmt("thorax_lat_flex_ffc_deg", "Lat Tilt")],
         ),
         (
             "3. Upper Arm Horizontal (UAH)",
-            ev.uah,
+            ev.uah if ev.is_complete_delivery else None,
             [_fmt("shoulder_counter_rotation_deg", "SCR"), "ICC Elbow: REFUSED (Lab 3D Req)"],
         ),
         (
-            "4. Ball Release (BR)" if ev.is_complete_delivery else "4. Ball Release (NOT IN CLIP)",
+            "4. Ball Release (BR)" if ev.is_complete_delivery else "4. Ball Release (NOT VERIFIED IN CLIP)",
             ev.br if ev.is_complete_delivery else None,
-            [_fmt("front_knee_br_deg", "Front Knee"), _fmt("trunk_flexion_delta_deg", "Trunk Flex d"), _fmt("thorax_lat_flex_br_deg", "Lat Bend BR")],
+            [_fmt("front_knee_br_deg", "Front Knee"), _fmt("trunk_flexion_delta_deg", "Trunk Flex d"), _fmt("thorax_lat_flex_br_deg", "Lat Tilt BR")],
         ),
     ]
 
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise FileNotFoundError(f"Could not open video for keyframe rendering: {video_path}")
+    abs_needed = [_to_abs(evt.frame_idx) for _, evt, _ in phases if evt is not None]
+    decoded = _read_exact_frames_sequential(video_path, abs_needed)
 
     panels: List[np.ndarray] = []
     target_h = 560
@@ -180,41 +204,43 @@ def render_keyframe_panel(
         if evt is None:
             w_use = canvas_w or min_w
             blank = np.full((target_h, w_use, 3), (22, 26, 34), dtype=np.uint8)
+            msg = "Delivery incomplete / phase not observed" if not ev.is_complete_delivery else "Phase not observed in clip"
             cv2.putText(
-                blank, "Phase not observed in clip", (w_use // 6, target_h // 2),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.75, (90, 190, 255), 2, cv2.LINE_AA,
+                blank, msg, (max(16, w_use // 10), target_h // 2),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.68, (90, 190, 255), 2, cv2.LINE_AA,
             )
             annotated = draw_skeleton_on_frame(
-                blank, np.zeros((24, 2)), title, "Truncated clip or phase outside [FFC, BR)", lines, draw_skeleton=False
+                blank, np.zeros((24, 2)), title, "Suppressed — release sanity gate not passed", lines, draw_skeleton=False
             )
             panels.append(annotated)
             continue
 
-        abs_frame = start_frame + evt.frame_idx
-        cap.set(cv2.CAP_PROP_POS_FRAMES, abs_frame)
-        ok, frame = cap.read()
-        if not ok or frame is None:
+        abs_f = _to_abs(evt.frame_idx)
+        frame = decoded.get(abs_f)
+        if frame is None:
             frame = np.zeros((720, 1280, 3), dtype=np.uint8)
         j2 = joints2d_px[min(evt.frame_idx, len(joints2d_px) - 1)]
         canvas, j2_s = _prepare_readable_canvas(frame, j2, target_h=target_h, min_w=min_w)
         canvas_w = canvas.shape[1]
-        sub = f"t={evt.timestamp_s:.3f}s (frame {evt.frame_idx}, +- {evt.timing_uncertainty_ms:.1f} ms)"
+        sub = f"t={evt.timestamp_s:.3f}s (u={evt.frame_idx}, src={abs_f}, +- {evt.timing_uncertainty_ms:.1f} ms)"
         annotated = draw_skeleton_on_frame(canvas, j2_s, title, sub, lines, draw_skeleton=True)
         panels.append(annotated)
-    cap.release()
 
-    # Ensure identical width across all 4 panels before stacking
     max_w = max(p.shape[1] for p in panels)
     norm_panels = []
     for p in panels:
         if p.shape[1] != max_w:
-            p = cv2.resize(p, (max_w, target_h))
+            pad_l = (max_w - p.shape[1]) // 2
+            pad_r = max_w - p.shape[1] - pad_l
+            p = cv2.copyMakeBorder(p, 0, 0, pad_l, pad_r, cv2.BORDER_CONSTANT, value=(15, 19, 26))
         norm_panels.append(p)
 
-    grid = np.vstack([np.hstack(norm_panels[:2]), np.hstack(norm_panels[2:])])
+    top = np.hstack([norm_panels[0], norm_panels[1]])
+    bot = np.hstack([norm_panels[2], norm_panels[3]])
+    grid = np.vstack([top, bot])
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(out), grid)
+    cv2.imwrite(str(out), grid, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
     return out
 
 
@@ -224,98 +250,83 @@ def render_biomechanics_dashboard(
     fact_sheet: BiomechanicalFactSheet,
     out_path: str | Path,
 ) -> Path:
-    """Render a 6-panel scientific biomechanics dashboard with suppressed channels dimmed."""
-    fps = max(fact_sheet.audit.fps, 1.0)
+    """Render 6-panel scientific biomechanics dashboard (waveforms, virtual 3D views, cohort forest plot)."""
+    fps = fact_sheet.audit.fps
     n = joints_world.shape[0]
-    t_ms = (np.arange(n) - fact_sheet.events.ffc.frame_float) / fps * 1000.0
     ev = fact_sheet.events
+    t_ms = (np.arange(n) - ev.ffc.frame_float) / max(fps, 1.0) * 1000.0
+    bfc_ms = (ev.bfc.frame_float - ev.ffc.frame_float) / max(fps, 1.0) * 1000.0
+    br_ms = (ev.br.frame_float - ev.ffc.frame_float) / max(fps, 1.0) * 1000.0
 
-    fig = plt.figure(figsize=(16, 10), facecolor="#0f131a")
-    gs = fig.add_gridspec(2, 3, hspace=0.36, wspace=0.28)
-    title_color = "#f2f5f8"
-    text_color = "#cfd8e3"
-    grid_color = "#283241"
+    fig = plt.figure(figsize=(16.8, 10.2), facecolor="#0f131a")
+    gs = fig.add_gridspec(2, 3, hspace=0.36, wspace=0.40)
+    text_color = "#e6edf3"
+    grid_color = "#263042"
 
     def _style_ax(ax, title: str, xlabel: str, ylabel: str):
         ax.set_facecolor("#161c26")
-        ax.set_title(title, color=title_color, fontsize=10.5, fontweight="bold", pad=8)
-        ax.set_xlabel(xlabel, color=text_color, fontsize=9)
-        ax.set_ylabel(ylabel, color=text_color, fontsize=9)
-        ax.tick_params(colors=text_color, labelsize=8)
+        ax.set_title(title, color=text_color, fontsize=10.5, fontweight="bold", pad=8)
+        ax.set_xlabel(xlabel, color="#9fb0c8", fontsize=8.5)
+        ax.set_ylabel(ylabel, color="#9fb0c8", fontsize=8.5)
+        ax.tick_params(colors="#9fb0c8", labelsize=8)
+        ax.grid(True, color=grid_color, alpha=0.65, linewidth=0.7)
         for sp in ax.spines.values():
-            sp.set_color("#344054")
-        ax.grid(True, color=grid_color, linestyle="--", alpha=0.55)
+            sp.set_color("#334155")
 
     def _mark_events(ax):
-        marks = [
-            ("BFC", (ev.bfc.frame_float - ev.ffc.frame_float) / fps * 1000.0, "#f59e0b", 0.94),
-            ("FFC", 0.0, "#38bdf8", 0.84),
-        ]
-        if ev.is_complete_delivery:
-            marks.append(("BR", (ev.br.frame_float - ev.ffc.frame_float) / fps * 1000.0, "#22c55e", 0.74))
-        ymin, ymax = ax.get_ylim()
-        span = max(ymax - ymin, 1e-3)
-        for lbl, x_ms, col, y_frac in marks:
-            ax.axvline(x_ms, color=col, linestyle=":", linewidth=1.4, alpha=0.9)
+        if not ev.is_complete_delivery:
+            return
+        y_lo, y_hi = ax.get_ylim()
+        span = max(y_hi - y_lo, 1.0)
+        marks = [(bfc_ms, "BFC", "#f59e0b", 0.96), (0.0, "FFC", "#38bdf8", 0.87), (br_ms, "BR", "#22c55e", 0.96)]
+        for x_m, lbl, col, y_frac in marks:
+            ax.axvline(x_m, color=col, linestyle="--", linewidth=1.1, alpha=0.85)
             ax.text(
-                x_ms + 5,
-                ymin + y_frac * span,
-                lbl,
-                color=col,
-                fontsize=8,
-                fontweight="bold",
-                bbox=dict(boxstyle="round,pad=0.15", facecolor="#0f131a", edgecolor="none", alpha=0.72),
+                x_m, y_lo + y_frac * span, lbl, color=col, fontsize=7.5, fontweight="bold",
+                ha="center", va="top", bbox=dict(boxstyle="round,pad=0.14", facecolor="#0f131a", edgecolor="none", alpha=0.72),
             )
 
-    # 1. Front Knee Angle Waveform (dimmed if suppressed!)
+    # 1. Front Knee Flexion / Bracing
     ax1 = fig.add_subplot(gs[0, 0])
     fk_m = fact_sheet.metrics["front_knee_br_deg"]
     fk_sup = fk_m.suppressed
     ax1.plot(
-        t_ms,
-        kin.series["front_knee_deg"],
-        color="#38bdf8",
-        linewidth=1.5 if fk_sup else 2.2,
-        linestyle="--" if fk_sup else "-",
-        alpha=0.22 if fk_sup else 1.0,
+        t_ms, kin.series["front_knee_deg"], color="#38bdf8",
+        linewidth=1.5 if fk_sup else 2.2, linestyle="--" if fk_sup else "-", alpha=0.22 if fk_sup else 1.0,
     )
-    ax1.axhspan(158, 178, color="#22c55e", alpha=0.10, label="Elite Braced Zone (158-178 deg)")
     _style_ax(
         ax1,
-        f"Front Knee Angle ({'SUPPRESSED' if fk_sup else fk_m.observability.value.upper()})",
+        f"Front Knee Internal Angle ({'SUPPRESSED' if fk_sup else fk_m.observability.value.upper()})",
         "Time relative to FFC (ms)",
         "Internal Angle (deg, 180=straight)",
     )
     _mark_events(ax1)
     if fk_sup:
         ax1.text(
-            0.5, 0.45, "SUPPRESSED FROM THIS VIEW / CROP\n(Curve dimmed; not used in scoring)",
+            0.5, 0.45, "SUPPRESSED FROM THIS VIEW / CLIP\n(Curve dimmed; excluded from cues)",
             transform=ax1.transAxes, ha="center", va="center", color="#fbbf24", fontsize=8.5, fontweight="bold",
             bbox=dict(boxstyle="round,pad=0.35", facecolor="#0f131a", edgecolor="#fbbf24", alpha=0.88),
         )
-    ax1.legend(loc="lower left", fontsize=7.5, facecolor="#161c26", labelcolor=text_color)
 
-    # 2. Thoracolumbar Kinematics (dim suppressed curve independently!)
+    # 2. Global Trunk Kinematics (Z-X Cardan — no misleading Bayne elite bands!)
     ax2 = fig.add_subplot(gs[0, 1])
     tf_sup = fact_sheet.metrics["trunk_flexion_delta_deg"].suppressed
     lf_sup = fact_sheet.metrics["thorax_lat_flex_br_deg"].suppressed
     ax2.plot(
         t_ms, kin.series["trunk_flex_deg"], color="#a855f7",
         linewidth=1.4 if tf_sup else 2.1, linestyle="--" if tf_sup else "-", alpha=0.20 if tf_sup else 1.0,
-        label=f"Sagittal Forward Flexion{' (suppressed)' if tf_sup else ''}",
+        label=f"Global Sagittal Inclination{' (suppressed)' if tf_sup else ''}",
     )
     ax2.plot(
         t_ms, kin.series["thorax_lat_flex_deg"], color="#fb7185",
         linewidth=1.4 if lf_sup else 2.1, linestyle="--" if lf_sup else "-", alpha=0.20 if lf_sup else 1.0,
-        label=f"Contralateral Lateral Flexion{' (suppressed)' if lf_sup else ''}",
+        label=f"Global Contralateral Inclination{' (suppressed)' if lf_sup else ''}",
     )
-    ax2.axhspan(32, 44, color="#22c55e", alpha=0.10, label="Uninjured Elite Lat-Flex (Bayne 2016)")
-    ax2.axhline(48, color="#ef4444", linestyle="--", linewidth=1.0, alpha=0.75, label="Elevated Load (~48-50 deg)")
-    _style_ax(ax2, "Thoracolumbar Kinematics (Z-X Cardan)", "Time relative to FFC (ms)", "Angle from Vertical (deg)")
+    _style_ax(ax2, "Global Trunk Kinematics (Z-X Cardan)", "Time relative to FFC (ms)", "Angle from Vertical (deg)")
     _mark_events(ax2)
     ax2.legend(loc="lower left", fontsize=7.0, facecolor="#161c26", labelcolor=text_color)
 
-    # 3. Pelvis vs Shoulder Transverse Rotation (Unwrapped Portus Convention)
+    # 3. Pelvis vs Shoulder Transverse Alignment
     ax3 = fig.add_subplot(gs[0, 2])
     scr_sup = fact_sheet.metrics["shoulder_counter_rotation_deg"].suppressed
     ax3.plot(
@@ -330,84 +341,118 @@ def render_biomechanics_dashboard(
     )
     _style_ax(
         ax3,
-        f"Transverse Alignment (180=Side, 270=Front){' [LOW/SUP]' if scr_sup else ''}",
+        f"Transverse Alignment (180=Side, 270=Front){' [SUP]' if scr_sup else ''}",
         "Time relative to FFC (ms)",
         "Unwrapped Alignment (deg)",
     )
+    if scr_sup:
+        ax3.set_ylim(90.0, 420.0)
     _mark_events(ax3)
     ax3.legend(loc="lower left", fontsize=7.5, facecolor="#161c26", labelcolor=text_color)
 
-    # 4. Virtual 3D Side-On Projection at FFC & BR
-    ax4 = fig.add_subplot(gs[1, 0])
-    plot_phases = [(ev.ffc.frame_idx, 0.45)]
+    # Use smoothed Pitch-World trajectory for clean 3D virtual pose views (P1-5)
+    jw_plot = kin.joints_world_smoothed if kin.joints_world_smoothed is not None else joints_world
+    f_ank_name = "lank" if fact_sheet.bowling_arm.value == "right" else "rank"
     if ev.is_complete_delivery:
-        plot_phases.append((ev.br.frame_idx, 1.0))
+        i0_g = max(0, min(ev.ffc.frame_idx, n - 1))
+        i1_g = max(i0_g + 1, min(ev.br.frame_idx + 1, n))
+        y_ground_ref = float(np.median(jw_plot[i0_g:i1_g, JOINT_IDX[f_ank_name], 1]))
+    else:
+        y_ground_ref = float(np.percentile(jw_plot[:, JOINT_IDX[f_ank_name], 1], 10))
+
+    # 4. Virtual 3D Side-On Projection (anchor each pose to planted front ankle X when world translation is suppressed)
+    ax4 = fig.add_subplot(gs[1, 0])
+    trans_sup = fact_sheet.metrics["stride_length_pct_stature"].suppressed
+    plot_phases = [(ev.ffc.frame_idx, 0.45), (ev.br.frame_idx, 1.0)] if ev.is_complete_delivery else [(n // 2, 0.7)]
     for idx, col_alpha in plot_phases:
-        pts = joints_world[min(idx, n - 1)]
+        pts = jw_plot[min(idx, n - 1)]
+        x_ref = float(pts[JOINT_IDX[f_ank_name], 0]) if trans_sup else 0.0
         for a_name, b_name, _, hex_c in SKELETON_EDGES:
             pa, pb = pts[JOINT_IDX[a_name]], pts[JOINT_IDX[b_name]]
-            ax4.plot([pa[0], pb[0]], [pa[1], pb[1]], color=hex_c, alpha=col_alpha, linewidth=2.2)
-    _style_ax(ax4, "Virtual 3D Pitch-World Side View (FFC faded -> BR solid)", "+X Down Pitch (m)", "+Y Height (m)")
+            ax4.plot(
+                [pa[0] - x_ref, pb[0] - x_ref],
+                [pa[1] - y_ground_ref, pb[1] - y_ground_ref],
+                color=hex_c,
+                alpha=col_alpha,
+                linewidth=2.2,
+            )
+    ax4.axhline(0.0, color="#475569", linestyle=":", linewidth=0.9)
+    x_lbl_4 = "+X Relative to Front Ankle (m, translation suppressed)" if trans_sup else "+X Down Pitch (m)"
+    _style_ax(ax4, "Virtual 3D Pitch-World Side View (FFC -> BR)", x_lbl_4, "+Y Above Ground (m)")
     ax4.set_aspect("equal", adjustable="datalim")
 
-    # 5. Virtual 3D Rear Coronal View at BR (or FFC if incomplete)
+    # 5. Virtual 3D Rear Coronal View
     ax5 = fig.add_subplot(gs[1, 1])
-    rear_idx = ev.br.frame_idx if ev.is_complete_delivery else ev.ffc.frame_idx
-    pts_rear = joints_world[min(rear_idx, n - 1)]
+    rear_idx = ev.br.frame_idx if ev.is_complete_delivery else (n // 2)
+    pts_rear = jw_plot[min(rear_idx, n - 1)]
     for a_name, b_name, _, hex_c in SKELETON_EDGES:
         pa, pb = pts_rear[JOINT_IDX[a_name]], pts_rear[JOINT_IDX[b_name]]
-        ax5.plot([pa[2], pb[2]], [pa[1], pb[1]], color=hex_c, linewidth=2.4)
+        ax5.plot([pa[2], pb[2]], [pa[1] - y_ground_ref, pb[1] - y_ground_ref], color=hex_c, linewidth=2.4)
+    ax5.axhline(0.0, color="#475569", linestyle=":", linewidth=0.9)
     pelv_r = pts_rear[JOINT_IDX["pelv"]]
     ax5.axvline(pelv_r[2], color="#94a3b8", linestyle="--", linewidth=1.1, label="Gravity Plumb Line")
     _style_ax(
         ax5,
-        f"Virtual 3D Rear View at {'BR' if ev.is_complete_delivery else 'FFC'} (Gravity-Aligned)",
+        f"Virtual 3D Rear View at {'BR' if ev.is_complete_delivery else 'Mid-Clip'}",
         "+Z Across Pitch (m)",
-        "+Y Height (m)",
+        "+Y Above Ground (m)",
     )
     ax5.set_aspect("equal", adjustable="datalim")
-    ax5.legend(loc="upper right", fontsize=7.5, facecolor="#161c26", labelcolor=text_color)
+    ax5.legend(loc="upper left", fontsize=7.5, facecolor="#161c26", labelcolor=text_color)
 
-    # 6. 2D Performance-Durability Quadrant with Uncertainty Ellipse
+    # 6. Cohort Comparison Z-Score Forest Plot (replaces retired unvalidated 0-100 quadrant!)
     ax6 = fig.add_subplot(gs[1, 2])
-    ax6.add_patch(Rectangle((70, 70), 30, 30, facecolor="#22c55e", alpha=0.10))
-    ax6.add_patch(Rectangle((70, 0), 30, 70, facecolor="#f59e0b", alpha=0.08))
-    ax6.add_patch(Rectangle((0, 70), 70, 30, facecolor="#38bdf8", alpha=0.08))
-    ax6.add_patch(Rectangle((0, 0), 70, 70, facecolor="#ef4444", alpha=0.08))
-    ax6.axvline(70, color="#64748b", linestyle="--", linewidth=1.0)
-    ax6.axhline(70, color="#64748b", linestyle="--", linewidth=1.0)
-
-    q = fact_sheet.quadrant
-    if q.kinetic_efficiency_x is not None and q.durability_safety_y is not None:
-        w_e = 2.0 * (q.kinetic_efficiency_ci or 8.0)
-        h_e = 2.0 * (q.durability_safety_ci or 8.0)
-        ell = Ellipse(
-            (q.kinetic_efficiency_x, q.durability_safety_y),
-            width=w_e, height=h_e, facecolor="#38bdf8", edgecolor="#e0f2fe", alpha=0.35, linewidth=1.8,
+    comps = fact_sheet.cohort_comparisons
+    short_names = {
+        "front_knee_br_deg": "Front Knee BR",
+        "trunk_flexion_delta_deg": "Trunk Flex Δ",
+        "delayed_arm_ffc_deg": "Arm Delay FFC",
+        "runup_speed_mps": "Run-up Speed",
+        "thorax_lat_flex_br_deg": "LatFlex BR",
+        "shoulder_counter_rotation_deg": "SCR",
+    }
+    if comps and ev.is_complete_delivery:
+        ys = np.arange(len(comps))
+        z_vals = [c.z_score for c in comps]
+        z_los = [(c.ci_low - c.cohort_mean) / max(c.cohort_sd, 1e-6) for c in comps]
+        z_his = [(c.ci_high - c.cohort_mean) / max(c.cohort_sd, 1e-6) for c in comps]
+        ax6.axvspan(-1.0, 1.0, color="#22c55e", alpha=0.10, label="Cohort +-1 SD")
+        ax6.axvline(0.0, color="#94a3b8", linestyle="--", linewidth=1.0)
+        for idx_c, c in enumerate(comps):
+            col_c = "#38bdf8" if c.definition_match == "exact" else "#fbbf24"
+            ax6.plot([z_los[idx_c], z_his[idx_c]], [idx_c, idx_c], color=col_c, linewidth=2.5, alpha=0.85)
+            ax6.scatter([z_vals[idx_c]], [idx_c], color="#ffffff", edgecolor=col_c, s=42, zorder=5)
+        ax6.set_yticks(ys)
+        ax6.set_yticklabels(
+            [
+                f"{short_names.get(c.metric_key, c.metric_key)}\n({'exact' if c.definition_match == 'exact' else 'proxy'})"
+                for c in comps
+            ],
+            fontsize=7.8,
         )
-        ax6.add_patch(ell)
-        ax6.scatter([q.kinetic_efficiency_x], [q.durability_safety_y], color="#ffffff", s=45, zorder=5)
-        ha = "right" if q.kinetic_efficiency_x > 72.0 else "left"
-        dx = -3.0 if ha == "right" else 3.0
-        dy = -5.0 if q.durability_safety_y > 90.0 else 3.0
-        ax6.text(
-            q.kinetic_efficiency_x + dx, q.durability_safety_y + dy,
-            fact_sheet.bowler_id, ha=ha, color="#ffffff", fontsize=8.5, fontweight="bold",
-        )
+        ax6.set_ylim(-0.6, max(len(comps) - 0.4, 0.6))
+        ax6.set_xlim(-3.5, 3.5)
+        ax6.legend(loc="lower right", fontsize=7.0, facecolor="#161c26", labelcolor=text_color)
+        _style_ax(ax6, f"Cohort Z-Scores ({fact_sheet.interval_type})", "Z-Score vs Published Cohort", "")
     else:
-        ax6.text(
-            50, 50, "Partial Observability\n(Add complementary angle\nfor full 2D placement)",
-            ha="center", va="center", color="#fbbf24", fontsize=9, fontweight="bold",
+        msg = (
+            "INCOMPLETE DELIVERY CLIP\nNo verified ball release;\nmetrics suppressed"
+            if not ev.is_complete_delivery
+            else "No cohort-matched metrics\nobservable from this view/FPS"
         )
-    ax6.set_xlim(0, 100)
-    ax6.set_ylim(0, 100)
-    _style_ax(ax6, "Performance vs. Durability Quadrant (95% Ellipse)", "Kinetic & Pace Efficiency (0-100)", "Lumbar Mechanical Durability (0-100)")
+        ax6.text(0.5, 0.5, msg, transform=ax6.transAxes, ha="center", va="center", color="#fbbf24", fontsize=9.0, fontweight="bold")
+        _style_ax(ax6, "Cohort Comparison & Observability Status", "", "")
 
+    fps_title = (
+        f"{fact_sheet.audit.fps:.1f} nominal fps [UNVERIFIED TIMEBASE: {fact_sheet.audit.timebase_status}]"
+        if fact_sheet.audit.timebase_unreliable
+        else f"{fact_sheet.audit.fps:.1f} unique fps ({fact_sheet.audit.timebase_status})"
+    )
     fig.suptitle(
-        f"Cricket Fast-Bowling Biomechanics Dashboard — {fact_sheet.bowler_id} "
+        f"Cricket Fast-Bowling Biomechanics — {fact_sheet.bowler_id} "
         f"[{fact_sheet.bowling_arm.value.upper()} ARM | {fact_sheet.action_class.value.upper()} | "
-        f"{fact_sheet.audit.fps:.0f} fps | View: {fact_sheet.calibration.view_class.value}]",
-        color="#ffffff", fontsize=12.5, fontweight="bold", y=0.98,
+        f"{fps_title} | {fact_sheet.calibration.method}]",
+        color="#ffffff", fontsize=11.4, fontweight="bold", y=0.98,
     )
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -422,89 +467,80 @@ def render_annotated_freeze_video(
     joints2d_px: np.ndarray,
     fact_sheet: BiomechanicalFactSheet,
     out_path: str | Path,
-    out_fps: float = 25.0,
-    freeze_seconds: float = 1.4,
+    freeze_seconds: float = 1.1,
+    slow_factor: float = 0.5,
+    source_frame_indices: Optional[List[int]] = None,
 ) -> Path:
-    """Render an annotated slow-motion H.264 MP4 pausing automatically at BFC, FFC, UAH, and BR."""
+    """Export annotated H.264 freeze-frame analysis video strictly aligned to `source_frame_indices`."""
+    src_map = source_frame_indices or fact_sheet.audit.source_frame_indices
+    n = len(joints2d_px)
+    abs_list = [int(src_map[i]) for i in range(n)] if (src_map and len(src_map) == n) else [int(start_frame + i) for i in range(n)]
+    decoded = _read_exact_frames_sequential(video_path, abs_list)
+
+    first_frame = decoded.get(abs_list[0])
+    if first_frame is None:
+        raise RuntimeError(f"Could not read frames from {video_path} for annotated freeze video.")
+    h, w = first_frame.shape[:2]
+
+    out_fps = max(15.0, min(30.0, fact_sheet.audit.fps * slow_factor))
+    freeze_n = max(6, int(round(freeze_seconds * out_fps)))
     ev = fact_sheet.events
     m = fact_sheet.metrics
 
     def _fmt(key: str, short: str) -> str:
         me = m.get(key)
         if me is None or me.suppressed or me.value is None:
-            return f"{short}: [{me.observability.value.upper() if me else 'N/A'}]"
-        half = (me.ci_high - me.ci_low) / 2.0 if (me.ci_high is not None and me.ci_low is not None) else 0.0
-        return f"{short}: {me.value:.1f} +- {half:.1f} {me.unit}"
+            return f"{short}: [Suppressed]"
+        if me.ci_low is not None and me.ci_high is not None:
+            return f"{short}: {me.value:.1f} [{me.ci_low:.1f}, {me.ci_high:.1f}] {me.unit}"
+        return f"{short}: {me.value:.1f} {me.unit}"
 
-    freeze_map = {
-        ev.bfc.frame_idx: (
-            "PHASE 1: BACK FOOT CONTACT (BFC)",
-            [_fmt("runup_speed_mps", "Run-up"), _fmt("rear_hip_bfc_deg", "Rear Hip")],
-        ),
-        ev.ffc.frame_idx: (
-            "PHASE 2: FRONT FOOT CONTACT (FFC)",
-            [_fmt("front_knee_ffc_deg", "Front Knee"), _fmt("delayed_arm_ffc_deg", "Arm Delay"), _fmt("thorax_lat_flex_ffc_deg", "Lat Bend")],
-        ),
-    }
-    if ev.uah is not None and ev.uah.frame_idx not in freeze_map:
-        freeze_map[ev.uah.frame_idx] = (
-            "PHASE 3: UPPER ARM HORIZONTAL (UAH)",
-            [_fmt("shoulder_counter_rotation_deg", "SCR"), "ICC 15-deg Elbow Legality: REFUSED (Lab 3D Req)"],
-        )
+    freeze_map: Dict[int, Tuple[str, List[str]]] = {}
     if ev.is_complete_delivery:
+        freeze_map[ev.bfc.frame_idx] = ("PAUSE: Back Foot Contact (BFC)", [_fmt("runup_speed_mps", "Run-up"), _fmt("rear_hip_bfc_deg", "Rear Hip")])
+        freeze_map[ev.ffc.frame_idx] = ("PAUSE: Front Foot Contact (FFC)", [_fmt("front_knee_ffc_deg", "Front Knee"), _fmt("delayed_arm_ffc_deg", "Arm Delay")])
         freeze_map[ev.br.frame_idx] = (
-            "PHASE 4: BALL RELEASE (BR)",
-            [_fmt("front_knee_br_deg", "Front Knee BR"), _fmt("trunk_flexion_delta_deg", "Trunk Flex Delta"), _fmt("thorax_lat_flex_br_deg", "Lat Bend BR")],
+            "PAUSE: Ball Release (BR)",
+            [_fmt("front_knee_br_deg", "Front Knee BR"), _fmt("thorax_lat_flex_br_deg", "Lat Tilt BR"), "ICC Elbow: REFUSED (Lab 3D Req)"],
         )
-
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise FileNotFoundError(f"Could not open video: {video_path}")
-    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    w_even = w - (w % 2)
-    h_even = h - (h % 2)
 
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    tmp_raw = out.with_suffix(".raw.mp4")
+    tmp_mp4 = out.with_suffix(".raw_mp4v.mp4")
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(tmp_raw), fourcc, out_fps, (w_even, h_even))
+    writer = cv2.VideoWriter(str(tmp_mp4), fourcc, out_fps, (w, h))
 
-    freeze_reps = max(1, int(round(freeze_seconds * out_fps)))
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
-    for rel_idx in range(joints2d_px.shape[0]):
-        ok, frame = cap.read()
-        if not ok or frame is None:
-            break
-        if frame.shape[1] != w_even or frame.shape[0] != h_even:
-            frame = cv2.resize(frame, (w_even, h_even))
-
+    fps_tag = "nominal fps [UNVERIFIED]" if fact_sheet.audit.timebase_unreliable else "unique fps"
+    for rel_idx, abs_f in enumerate(abs_list):
+        frame = decoded.get(abs_f)
+        if frame is None:
+            continue
+        j2 = joints2d_px[rel_idx]
         if rel_idx in freeze_map:
             title, lines = freeze_map[rel_idx]
-            sub = f"{fact_sheet.bowler_id} | View: {fact_sheet.calibration.view_class.value} | Frame {rel_idx}"
-            ann = draw_skeleton_on_frame(frame, joints2d_px[rel_idx], title, sub, lines)
-            for _ in range(freeze_reps):
+            sub = f"t={rel_idx / max(fact_sheet.audit.fps, 1.0):.3f}s | {fact_sheet.calibration.view_class.value}"
+            ann = draw_skeleton_on_frame(frame, j2, title, sub, lines)
+            for _ in range(freeze_n):
                 writer.write(ann)
         else:
-            sub = f"View: {fact_sheet.calibration.view_class.value} | {fact_sheet.audit.fps:.0f} fps | Frame {rel_idx}"
-            ann = draw_skeleton_on_frame(
-                frame, joints2d_px[rel_idx], f"{fact_sheet.bowler_id} — 3D Biomechanical Tracking", sub, [],
-            )
+            title = f"{fact_sheet.bowler_id} ({fact_sheet.bowling_arm.value}-arm | {fact_sheet.audit.fps:.1f} {fps_tag})"
+            sub = f"u={rel_idx} (src={abs_f}) | ICC Elbow Legality: REFUSED"
+            ann = draw_skeleton_on_frame(frame, j2, title, sub, [])
             writer.write(ann)
-
-    cap.release()
     writer.release()
 
-    cmd = [
-        "ffmpeg", "-y", "-i", str(tmp_raw),
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-movflags", "+faststart",
-        str(out),
-    ]
-    proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    if proc.returncode == 0 and out.exists():
-        tmp_raw.unlink(missing_ok=True)
-    else:
-        tmp_raw.rename(out)
+    # Transcode mp4v -> browser-safe H.264 (yuv420p + faststart) when ffmpeg is available (P2-1)
+    if shutil.which("ffmpeg"):
+        res = subprocess.run(
+            [
+                "ffmpeg", "-y", "-loglevel", "error", "-i", str(tmp_mp4),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out),
+            ],
+            capture_output=True,
+            check=False,
+        )
+        if res.returncode == 0 and out.exists() and out.stat().st_size > 0:
+            tmp_mp4.unlink(missing_ok=True)
+            return out
+    tmp_mp4.replace(out)
     return out

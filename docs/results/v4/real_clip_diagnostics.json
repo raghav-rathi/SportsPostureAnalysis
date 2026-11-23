@@ -1,0 +1,222 @@
+{
+  "steyn": {
+    "clip": {
+      "frames": 63,
+      "fps_assumed": 25.175,
+      "width": 1920,
+      "height": 1080,
+      "view_class": "rear_behind_bowler",
+      "is_panning_camera": true,
+      "background_pan_fraction": 0.0824,
+      "blur_grade": "crisp",
+      "median_laplacian_var": 433.68,
+      "bowler_height_px_median": 669,
+      "pelvis_depth_median_m": 24.03,
+      "pelvis_depth_range_m": 10.85
+    },
+    "timebase": {
+      "held_frame_ratio": 0.161,
+      "longest_held_run_frames": 1,
+      "regular_repeat_every_n_frames": 6,
+      "implied_unique_frames_per_container_second_factor": 0.833,
+      "median_change_moving_frames": 11.84,
+      "median_change_held_frames": 0.157,
+      "pattern_first_60": "....H.....H.....H.....H.....H.....H.....H.....H.....H.....H."
+    },
+    "release": {
+      "br_frame": 39.331,
+      "br_method": "overhead_circumduction_crossing",
+      "br_confidence": 0.62,
+      "is_complete_delivery_flag": true,
+      "arm_angle_from_vertical_at_br_deg": -6.0,
+      "wrist_above_shoulder_at_br_m": 0.55,
+      "wrist_above_shoulder_as_fraction_of_arm_length": 1.01,
+      "stride_ms": 213.9,
+      "ffc_to_br_ms": 72.7
+    },
+    "delivered": {
+      "metrics_reported": 9,
+      "metrics_total": 22,
+      "reported_keys": [
+        "thorax_lat_flex_ffc_deg",
+        "thorax_lat_flex_br_deg",
+        "pelvis_alignment_bfc_deg",
+        "shoulder_alignment_bfc_deg",
+        "shoulder_counter_rotation_deg",
+        "hip_shoulder_sep_bfc_deg",
+        "max_hip_shoulder_sep_deg",
+        "pelvic_drop_ffc_deg",
+        "release_height_m"
+      ],
+      "action_class": "mixed",
+      "kinetic_score": null,
+      "kinetic_contributors": [],
+      "durability_score": null,
+      "durability_contributors": [
+        "thorax_lat_flex_br_deg",
+        "thorax_lat_flex_ffc_deg",
+        "shoulder_counter_rotation_deg",
+        "pelvic_drop_ffc_deg"
+      ],
+      "quadrant": "Retired (See Individual Verified Metrics & Cohort Comparisons)",
+      "limiters": [
+        "Mixed-Action Shoulder Counter-Rotation (>=30 deg)"
+      ],
+      "strengths": []
+    }
+  },
+  "indoor": {
+    "clip": {
+      "frames": 264,
+      "fps_assumed": 120.0,
+      "width": 1280,
+      "height": 720,
+      "view_class": "front_behind_batter",
+      "is_panning_camera": true,
+      "background_pan_fraction": 0.4735,
+      "blur_grade": "crisp",
+      "median_laplacian_var": 493.37,
+      "bowler_height_px_median": 621,
+      "pelvis_depth_median_m": 3.11,
+      "pelvis_depth_range_m": 1.62
+    },
+    "timebase": {
+      "held_frame_ratio": 0.186,
+      "longest_held_run_frames": 2,
+      "regular_repeat_every_n_frames": 5,
+      "implied_unique_frames_per_container_second_factor": 0.8,
+      "median_change_moving_frames": 4.37,
+      "median_change_held_frames": 0.042,
+      "pattern_first_60": "HH....H....H....H....H....H....H....H....H....H....H....H..."
+    },
+    "release": {
+      "br_frame": 179.261,
+      "br_method": "overhead_circumduction_crossing",
+      "br_confidence": 0.88,
+      "is_complete_delivery_flag": true,
+      "arm_angle_from_vertical_at_br_deg": 11.0,
+      "wrist_above_shoulder_at_br_m": 0.45,
+      "wrist_above_shoulder_as_fraction_of_arm_length": 0.88,
+      "stride_ms": 213.2,
+      "ffc_to_br_ms": 95.1
+    },
+    "delivered": {
+      "metrics_reported": 4,
+      "metrics_total": 22,
+      "reported_keys": [
+        "thorax_lat_flex_br_deg",
+        "pelvis_alignment_bfc_deg",
+        "shoulder_alignment_bfc_deg",
+        "hip_shoulder_sep_bfc_deg"
+      ],
+      "action_class": "unknown",
+      "kinetic_score": null,
+      "kinetic_contributors": [],
+      "durability_score": null,
+      "durability_contributors": [
+        "thorax_lat_flex_br_deg"
+      ],
+      "quadrant": "Retired (See Individual Verified Metrics & Cohort Comparisons)",
+      "limiters": [],
+      "strengths": []
+    }
+  },
+  "mcgrath": {
+    "clip": {
+      "frames": 65,
+      "fps_assumed": 25.0,
+      "width": 720,
+      "height": 1280,
+      "view_class": "side_on_left",
+      "is_panning_camera": true,
+      "background_pan_fraction": 0.0862,
+      "blur_grade": "crisp",
+      "median_laplacian_var": 209.23,
+      "bowler_height_px_median": 523,
+      "pelvis_depth_median_m": 3.74,
+      "pelvis_depth_range_m": 1.21
+    },
+    "timebase": {
+      "held_frame_ratio": 0.641,
+      "longest_held_run_frames": 8,
+      "regular_repeat_every_n_frames": null,
+      "implied_unique_frames_per_container_second_factor": null,
+      "median_change_moving_frames": 5.08,
+      "median_change_held_frames": 0.187,
+      "pattern_first_60": "HH.H.HH.H.H.HH.H.HH.H.HH.H.H..H.H.HHHH.H.HH.H.HH.H.H.HH.HHHH"
+    },
+    "release": {
+      "br_frame": 64.0,
+      "br_method": "incomplete_clip_no_overhead_release",
+      "br_confidence": 0.0,
+      "is_complete_delivery_flag": false,
+      "arm_angle_from_vertical_at_br_deg": -48.0,
+      "wrist_above_shoulder_at_br_m": 0.35,
+      "wrist_above_shoulder_as_fraction_of_arm_length": 0.65,
+      "stride_ms": 397.5,
+      "ffc_to_br_ms": 100.0
+    },
+    "delivered": {
+      "metrics_reported": 0,
+      "metrics_total": 22,
+      "reported_keys": [],
+      "action_class": "unknown",
+      "kinetic_score": null,
+      "kinetic_contributors": [],
+      "durability_score": null,
+      "durability_contributors": [],
+      "quadrant": "Retired (See Individual Verified Metrics & Cohort Comparisons)",
+      "limiters": [],
+      "strengths": []
+    }
+  },
+  "ambrose": {
+    "clip": {
+      "frames": 115,
+      "fps_assumed": 25.0,
+      "width": 720,
+      "height": 1280,
+      "view_class": "rear_behind_bowler",
+      "is_panning_camera": false,
+      "background_pan_fraction": 0.0067,
+      "blur_grade": "severe_blur",
+      "median_laplacian_var": 19.12,
+      "bowler_height_px_median": 224,
+      "pelvis_depth_median_m": 5.38,
+      "pelvis_depth_range_m": 0.6
+    },
+    "timebase": {
+      "held_frame_ratio": 0.947,
+      "longest_held_run_frames": 43,
+      "regular_repeat_every_n_frames": null,
+      "implied_unique_frames_per_container_second_factor": null,
+      "median_change_moving_frames": 0.54,
+      "median_change_held_frames": 0.061,
+      "pattern_first_60": "HHHH.HHHHHHH.HHHHH.HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH.HHHHHH"
+    },
+    "release": {
+      "br_frame": 114.0,
+      "br_method": "incomplete_clip_no_overhead_release",
+      "br_confidence": 0.0,
+      "is_complete_delivery_flag": false,
+      "arm_angle_from_vertical_at_br_deg": 167.0,
+      "wrist_above_shoulder_at_br_m": -0.35,
+      "wrist_above_shoulder_as_fraction_of_arm_length": -0.92,
+      "stride_ms": 332.7,
+      "ffc_to_br_ms": 105.6
+    },
+    "delivered": {
+      "metrics_reported": 0,
+      "metrics_total": 22,
+      "reported_keys": [],
+      "action_class": "unknown",
+      "kinetic_score": null,
+      "kinetic_contributors": [],
+      "durability_score": null,
+      "durability_contributors": [],
+      "quadrant": "Retired (See Individual Verified Metrics & Cohort Comparisons)",
+      "limiters": [],
+      "strengths": []
+    }
+  }
+}

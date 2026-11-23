@@ -36,7 +36,9 @@ def analyze(
     end_frame: Optional[int] = typer.Option(None, "--end-frame"),
     arm: Optional[BowlingArm] = typer.Option(None, "--arm", help="right | left (auto if omitted)"),
     anchor_xy: Optional[str] = typer.Option(None, "--anchor-xy", help="Normalized bowler anchor 'x,y' in [0,1] (e.g. '0.45,0.60')"),
-    mcc_landmarks: Optional[Path] = typer.Option(None, "--mcc-landmarks", help="JSON file mapping MCC Law 7 landmark names to [x_px, y_px]"),
+    mcc_landmarks: Optional[Path] = typer.Option(None, "--mcc-landmarks", help="JSON file mapping MCC pitch landmark names to [x_px, y_px]"),
+    auto_two_wickets: bool = typer.Option(True, "--auto-two-wickets/--no-auto-two-wickets", help="Attempt conservative Law-8 two-wicket focal/gravity calibration before NLF"),
+    repeatability: bool = typer.Option(True, "--repeatability/--no-repeatability", help="Run GPU perturbation ensemble (base/mirror/aug3 + MC) for empirical Repeatability Intervals"),
     age: Optional[int] = typer.Option(None, "--age"),
     sex: str = typer.Option("male", "--sex"),
     bowls_per_week: Optional[int] = typer.Option(None, "--bowls-per-week"),
@@ -55,10 +57,10 @@ def analyze(
     lm_dict: Optional[Dict[str, Tuple[float, float]]] = None
     if mcc_landmarks is not None:
         raw_lm = json.loads(mcc_landmarks.read_text(encoding="utf-8"))
-        lm_dict = {k: (float(v[0]), float(v[1])) for k, v in raw_lm.items()}
+        lm_dict = {str(k): (float(v[0]), float(v[1])) for k, v in raw_lm.items()}
 
-    workload = WorkloadContext(age_years=age, sex=sex, bowls_per_week=bowls_per_week)
-    fs, report, artifacts = analyze_delivery_video(
+    wk = WorkloadContext(age_years=age, sex=sex, bowls_per_week=bowls_per_week)
+    fs, _, artifacts = analyze_delivery_video(
         video_path=video,
         bowler_id=bowler_id,
         nlf_model_path=model_path,
@@ -67,44 +69,50 @@ def analyze(
         end_frame=end_frame,
         bowling_arm=arm,
         mcc_landmarks_px=lm_dict,
+        auto_two_wickets=auto_two_wickets,
         anchor_xy_norm=anchor_tuple,
-        workload=workload,
+        workload=wk,
         capture_fps_override=capture_fps,
+        compute_repeatability=repeatability,
         device=device,
     )
-    table = Table(title=f"Verified Biomechanics Summary — {fs.bowler_id}")
-    table.add_column("Metric", style="cyan")
-    table.add_column("Value (95% CI)", style="bold white")
-    table.add_column("Observability", style="yellow")
+
+    tbl = Table(title=f"{fs.bowler_id} ({fs.bowling_arm.value}-arm | {fs.action_class.value} | {fs.interval_type})")
+    tbl.add_column("Metric")
+    tbl.add_column("Value / Interval")
+    tbl.add_column("Observability")
     for m in fs.metrics.values():
-        val = f"[{m.observability.value.upper()}]" if m.suppressed else f"{m.value:.1f} [{m.ci_low:.1f}, {m.ci_high:.1f}] {m.unit}"
-        table.add_row(m.label, val, m.observability.value)
-    console.print(table)
-    console.print(f"\n[bold green]Action Class:[/bold green] {fs.action_class.value} | [bold green]Quadrant:[/bold green] {fs.quadrant.quadrant_label}")
-    console.print(f"[bold]Outputs written to:[/bold] {output_dir}")
+        val = (
+            f"[{m.observability.value.upper()}]"
+            if (m.suppressed or m.value is None)
+            else f"{m.value:.1f} [{m.ci_low:.1f}, {m.ci_high:.1f}] {m.unit}"
+        )
+        tbl.add_row(m.label, val, m.observability.value)
+    console.print(tbl)
+    console.print(f"[bold green]Timebase:[/bold green] {fs.audit.timebase_status} ({fs.audit.fps:.2f} unique fps) | Complete delivery: {fs.events.is_complete_delivery}")
+    console.print(f"[bold cyan]Calibration:[/bold cyan] {fs.calibration.method} (intrinsics_cal={fs.calibration.is_intrinsics_calibrated}, pan={fs.calibration.is_panning_camera})")
     for k, p in artifacts.items():
         console.print(f"  - {k}: {p}")
 
 
 @app.command()
 def fuse(
-    side_json: Path = typer.Argument(..., help="Side-on fact_sheet.json"),
-    rear_json: Path = typer.Argument(..., help="Rear-on fact_sheet.json"),
+    side_fact_sheet: Path = typer.Argument(..., help="Side-on fact_sheet.json"),
+    rear_fact_sheet: Path = typer.Argument(..., help="Rear-on fact_sheet.json"),
     output_dir: Path = typer.Option(Path("outputs/fused"), "--output-dir", "-o"),
     bowler_id: Optional[str] = typer.Option(None, "--bowler-id", "-b"),
 ) -> None:
-    """Fuse complementary side-on and rear-on FactSheets into a unified multi-view assessment."""
-    side_fs = BiomechanicalFactSheet.model_validate_json(side_json.read_text(encoding="utf-8"))
-    rear_fs = BiomechanicalFactSheet.model_validate_json(rear_json.read_text(encoding="utf-8"))
-    fused = fuse_dual_view_fact_sheets(side_fs, rear_fs, bowler_id=bowler_id)
-    report = generate_grounded_report(fused)
+    """Fuse complementary side-on and rear-on BiomechanicalFactSheet JSON files."""
+    s_fs = BiomechanicalFactSheet.model_validate_json(side_fact_sheet.read_text(encoding="utf-8"))
+    r_fs = BiomechanicalFactSheet.model_validate_json(rear_fact_sheet.read_text(encoding="utf-8"))
+    fused = fuse_dual_view_fact_sheets(s_fs, r_fs, bowler_id=bowler_id)
+    rep = generate_grounded_report(fused)
+    md = render_report_markdown(fused, rep)
+
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "fact_sheet_fused.json").write_text(fused.model_dump_json(indent=2), encoding="utf-8")
-    (output_dir / "coaching_report_fused.md").write_text(
-        render_report_markdown(fused, report), encoding="utf-8"
-    )
-    console.print(f"[bold green]Fused Action:[/bold green] {fused.action_class.value} | [bold green]Quadrant:[/bold green] {fused.quadrant.quadrant_label}")
-    console.print(f"Saved fused outputs to {output_dir}")
+    (output_dir / "coaching_report_fused.md").write_text(md, encoding="utf-8")
+    console.print(f"[bold green]Dual-View Fusion Complete:[/bold green] action={fused.action_class.value}")
 
 
 if __name__ == "__main__":
