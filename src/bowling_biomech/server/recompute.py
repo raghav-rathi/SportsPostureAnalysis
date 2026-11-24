@@ -592,7 +592,7 @@ def compute_session_comparison(deliveries: List[Dict[str, Any]]) -> Dict[str, An
 def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Optional[Path] = None) -> str:
     """Seed an immediately usable offline demo session (240 fps Dual-View Synthetic + Cached Real Steyn & McGrath)."""
     existing = db.list_sessions()
-    if existing:
+    if any(int(s.get("delivery_count", 0)) > 0 for s in existing):
         return existing[0]["id"]
 
     bowler = db.create_bowler("Demo Pace Bowler (Studio Showcase)", bowling_arm="right", age_band="adult", bowler_id="bwl_demo")
@@ -602,10 +602,11 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
         notes="Includes MCC-calibrated 240 fps Side-On & Rear-On views for Dual-Phone 3D Fusion plus verified v4 real-clip fixtures.",
         session_id="ses_demo",
     )
-    today = datetime.now(timezone.utc).date()
-    db.add_workload_log(bowler["id"], (today - timedelta(days=5)).isoformat(), 36, "net", "High-intensity target bowling")
-    db.add_workload_log(bowler["id"], (today - timedelta(days=3)).isoformat(), 42, "match", "Club 7-over spell")
-    db.add_workload_log(bowler["id"], (today - timedelta(days=1)).isoformat(), 24, "net", "Technical front-leg brace drill")
+    if not db.list_workload_logs(bowler["id"]):
+        today = datetime.now(timezone.utc).date()
+        db.add_workload_log(bowler["id"], (today - timedelta(days=5)).isoformat(), 36, "net", "High-intensity target bowling")
+        db.add_workload_log(bowler["id"], (today - timedelta(days=3)).isoformat(), 42, "match", "Club 7-over spell")
+        db.add_workload_log(bowler["id"], (today - timedelta(days=1)).isoformat(), 24, "net", "Technical front-leg brace drill")
 
     lm_keys = [
         "bowling_crease_off", "bowling_crease_leg", "popping_crease_off",
