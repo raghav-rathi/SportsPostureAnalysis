@@ -17,6 +17,7 @@ RSYNC_ARGS=(
   -avz
   --exclude '.git' --exclude '__pycache__' --exclude '.pytest_cache'
   --exclude '.venv' --exclude 'cache' --exclude 'models' --exclude 'data' --exclude 'outputs' --exclude '.env'
+  --exclude 'web/node_modules' --exclude 'web/dist' --exclude '*.tsbuildinfo' --exclude '*.db*' --exclude '*.sqlite*'
 )
 
 if [[ -n "${SSHPASS:-}" ]] && command -v sshpass >/dev/null 2>&1; then

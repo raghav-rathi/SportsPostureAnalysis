@@ -23,3 +23,10 @@ third_party/
 *.ckpt
 *.torchscript
 .env
+web/node_modules/
+web/dist/
+*.tsbuildinfo
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*

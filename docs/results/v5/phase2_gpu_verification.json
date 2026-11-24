@@ -1,0 +1,68 @@
+{
+  "video": "Dale_Steyn_Net_25fps",
+  "gpu_device": "NVIDIA GeForce RTX 4090",
+  "model_sha256": "52bee28edb6ea914",
+  "calibration": {
+    "method": "two_wicket_geometry",
+    "fx_px": 10207.6,
+    "camera_position_world_m": [-24.69, 1.42, 0.0],
+    "auto_cal_preserved_in_npz": true
+  },
+  "warm_gpu_worker": {
+    "frames": 63,
+    "boot_jit_warmup_s": 26.62,
+    "jit_warmed": true,
+    "first_http_req_s": 46.791,
+    "steady_warm_miss_s": 6.834,
+    "steady_warm_miss_server_s": 6.83,
+    "cache_hit_ms": 7.84,
+    "payload_bytes": 117631,
+    "bml_movi_87_shape": [63, 87, 3],
+    "all_tracks_count": 6
+  },
+  "steyn_pan_3dof": {
+    "is_verified": true,
+    "median_residual_px": 0.188,
+    "p90_residual_px": 0.263,
+    "min_inlier_count": 227,
+    "mean_inlier_ratio": 0.956,
+    "max_pan_deg": 0.91,
+    "sigma_pan_deg": 0.008,
+    "verification_reason": "Verified 3-DOF rotational pan track (median residual=0.19 px <= 2.5 px, min_inliers=227, max_pan=0.9 deg, sigma_pan=0.01 deg)."
+  },
+  "steyn_events": {
+    "bfc_idx": 32,
+    "bfc_src": 63,
+    "ffc_idx": 37,
+    "ffc_src": 69,
+    "br_idx": 39,
+    "br_src": 71,
+    "is_complete_delivery": true
+  },
+  "steyn_isb_bml87": {
+    "scalars_raw_unfiltered": {
+      "pelvis_alignment_bfc_isb_deg": 258.1,
+      "thorax_alignment_bfc_isb_deg": 271.54,
+      "shoulder_counter_rotation_isb_deg": 41.11,
+      "anterior_pelvic_tilt_ffc_deg": 7.72,
+      "lumbopelvic_angle_ffc_deg": -5.6,
+      "front_foot_angle_ffc_deg": 6.51,
+      "lumbopelvic_angle_br_deg": 7.18
+    },
+    "metrics_gated_neff": {
+      "pelvis_alignment_bfc_isb_deg": {"value": 258.1, "ci_low": 224.23, "ci_high": 291.97, "sigma_total": 17.28, "obs": "low", "suppressed": false},
+      "thorax_alignment_bfc_isb_deg": {"value": 271.54, "ci_low": 240.15, "ci_high": 302.93, "sigma_total": 16.01, "obs": "low", "suppressed": false},
+      "shoulder_counter_rotation_isb_deg": {"value": 41.11, "ci_low": 5.32, "ci_high": 76.9, "sigma_total": 18.26, "obs": "low", "suppressed": false},
+      "anterior_pelvic_tilt_ffc_deg": {"value": null, "ci_low": null, "ci_high": null, "sigma_total": 58.84, "obs": "unmeasurable", "suppressed": true},
+      "lumbopelvic_angle_ffc_deg": {"value": null, "ci_low": null, "ci_high": null, "sigma_total": 83.55, "obs": "unmeasurable", "suppressed": true},
+      "lumbopelvic_angle_br_deg": {"value": null, "ci_low": null, "ci_high": null, "sigma_total": 65.39, "obs": "unmeasurable", "suppressed": true},
+      "front_foot_angle_ffc_deg": {"value": null, "ci_low": null, "ci_high": null, "sigma_total": 42.49, "obs": "unmeasurable", "suppressed": true}
+    },
+    "n_eff_pelvis": 1.127,
+    "n_eff_thorax": 1.143,
+    "n_eff_foot": 1.081,
+    "rho_assumed": 0.85,
+    "front_foot_strike_mode": "flat_foot",
+    "mean_marker_unc_m": 0.0748
+  }
+}

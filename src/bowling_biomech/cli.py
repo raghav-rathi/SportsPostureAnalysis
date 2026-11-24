@@ -115,5 +115,32 @@ def fuse(
     console.print(f"[bold green]Dual-View Fusion Complete:[/bold green] action={fused.action_class.value}")
 
 
+@app.command("serve-studio")
+def serve_studio(
+    host: str = typer.Option("127.0.0.1", help="Bind host for the local-first Coaching Studio API"),
+    port: int = typer.Option(8000, help="Bind port for the Coaching Studio API"),
+    gpu_worker_url: Optional[str] = typer.Option(None, help="Optional remote GPU worker URL (e.g., http://127.0.0.1:8090)"),
+) -> None:
+    """Launch the local-first FastAPI Coaching Studio backend (with SQLite store & optional Vite bundle)."""
+    import uvicorn
+
+    if gpu_worker_url:
+        os.environ["GPU_WORKER_URL"] = gpu_worker_url
+    console.print(f"[bold cyan]Starting Coaching Studio API at http://{host}:{port}[/bold cyan]")
+    uvicorn.run("bowling_biomech.server.app:create_app", factory=True, host=host, port=port, reload=False)
+
+
+@app.command("serve-gpu-worker")
+def serve_gpu_worker(
+    host: str = typer.Option("127.0.0.1", help="Bind host for the Warm GPU Worker daemon"),
+    port: int = typer.Option(8090, help="Bind port for the Warm GPU Worker daemon"),
+) -> None:
+    """Launch the Warm GPU Worker keeping NLF TorchScript loaded in VRAM with SHA-256 disk caching."""
+    import uvicorn
+
+    console.print(f"[bold green]Starting Warm NLF GPU Worker at http://{host}:{port}[/bold green]")
+    uvicorn.run("bowling_biomech.gpu_worker.worker:app", host=host, port=port, reload=False)
+
+
 if __name__ == "__main__":
     app()

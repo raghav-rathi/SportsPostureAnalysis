@@ -60,3 +60,24 @@ Following the independent first-principles audit (`EXP-007`, [independent_audit_
 
 #### Glenn McGrath Archival Reel (`is_complete_delivery=False`, Complete Suppression)
 ![Glenn McGrath v4 Keyframes](figures/mcgrath_v4_keyframes.jpg)
+
+---
+
+## Phase II (`v5` / `EXP-009`): Interactive Coaching Studio, Multi-View Sync, ISB Anatomy & 2-Round Audit Hardening
+
+Building on the locked `v4` metrology foundation (with zero regression across all 22/22 synthetic benchmark metrics), Phase II delivered four major engineering milestones (`M2A`–`M2D`) verified across local macOS CPU, live browser automation, and RTX 4090 GPU 1:
+
+1. **`M2A` Local-First Coaching Studio & Warm GPU Worker:**
+   - FastAPI + WAL SQLite longitudinal store (`src/bowling_biomech/server/`) + React 18 / Three.js / `uPlot` / Zustand Studio UI (`web/src/`).
+   - Exploits the CPU/GPU seam: raw NLF 3D predictions are cached once from the Warm GPU Worker (`nlf_l_multi.torchscript`, lifespan JIT warmup `26.6 s`, steady-state warm miss **`6.83 s`**, SHA-256 cache hit **`7.84 ms`**, preserving `two_wicket_geometry` `auto_cal_json`), while 4-click MCC calibration, 3-tier FPS override, causal event nudging, and workload updates recompute locally on CPU in **`<35 ms`**.
+2. **`M2B` Zero-Extra-Weight `bml_movi_87` ISB Anatomy, 3-DOF Pan Tracking & Net Auto-Clipper:**
+   - Verified native 87-marker `bml_movi_87` head inside `nlf_l_multi.torchscript`; implemented 3D coordinate-invariant `R_pelvis^T @ R_thorax` lumbopelvic flexion, unclamped external/internal front-foot angle, and `N_eff = N / (1 + (N-1)*rho)` Guardrail #3 gating (on telephoto rear-on Steyn, sagittal/foot ISB angles are transparently suppressed while transverse Pelvis/Thorax/SCR report wide `low`-grade intervals).
+   - Verified 1-frame MCC PnP + bowler-masked KLT/RANSAC pure SO(3) camera rotation tracking on real Dale Steyn footage: **`0.188 px`** median residual (`p90 = 0.263 px`, `227` min inliers, `0.91°` pan).
+3. **`M2C` Unsynchronized Dual-Phone 3D Ray-Precision Fusion:**
+   - View-invariant `+Y_world` 1000 Hz spline FFT NCC sync (`<2.5 ms` error across mixed 120+240 fps), per-joint anisotropic ray fusion $(\Lambda_1 + \Lambda_2)^{-1}$ with exact PSD matrix-square-root cross-covariance (`S1 @ S2`), and strict collinearity gate (`baseline_sin >= 0.45`).
+4. **`M2D` Calibrated Optical Ball Speed, Verifier-Gated Coach Copilot & 1-Click 9:16 Reel:**
+   - Asymmetric `+3.2 m` down-pitch wrist-ROI ballistic RANSAC estimator (forearm-masked, depth+azimuth uncertainty propagated, recovering `140 km/h` on 1080p 120 fps video while suppressing rear/low-fps/panning clips).
+   - Deterministic post-generation numeric verifier (`verify_coach_response`) blocking **9 / 9** adversarial ICC/composite/suppressed-metric bypasses while passing **30 / 30** grounded prompts across all 5 seeded deliveries and adolescent `U17` workload contexts.
+   - Independently audited across 2 rounds by **Gemini 4 Carbon (High)** (`p2-auditor` — all 5 P0s, 4 P1s, 3 P2s, and 2 Round-2 catches resolved; **`FINAL SIGN-OFF APPROVED`**; **27 / 27 `pytest` passing** on macOS and RTX 4090 Linux).
+
+![SportsPostureAnalysis Studio v2.0](figures/studio_v2_preview.png)

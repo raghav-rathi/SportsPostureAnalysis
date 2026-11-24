@@ -544,3 +544,167 @@ def render_annotated_freeze_video(
             return out
     tmp_mp4.replace(out)
     return out
+
+
+def render_truthful_breakdown_reel_9x16(
+    video_path: str | Path,
+    start_frame: int,
+    joints2d_px: np.ndarray,
+    joints_world_m: np.ndarray,
+    fact_sheet: BiomechanicalFactSheet,
+    out_path: str | Path,
+    freeze_seconds: float = 1.25,
+    source_frame_indices: Optional[List[int]] = None,
+) -> Path:
+    """Phase 2 (M2D): 1-click 1080x1920 (9:16) Truthful Breakdown Reel MP4 (browser-safe H.264).
+
+    Combines top video viewport with synchronized 2D skeleton, bottom dark biomechanical telemetry card
+    (live mini-3D side/rear wireframe + verified `[ci_low, ci_high]` readouts), auto-freezes at
+    BFC / FFC / UAH / BR, and preserves the permanent non-truncating ICC 15-degree refusal banner.
+    """
+    W_OUT, H_OUT = 1080, 1920
+    VIDEO_H = 1120
+    src_map = source_frame_indices or fact_sheet.audit.source_frame_indices
+    n = len(joints2d_px)
+    abs_list = [int(src_map[i]) for i in range(n)] if (src_map and len(src_map) == n) else [int(start_frame + i) for i in range(n)]
+    decoded = _read_exact_frames_sequential(video_path, abs_list) if Path(video_path).exists() else {}
+
+    out_fps = 25.0
+    freeze_n = max(8, int(round(freeze_seconds * out_fps)))
+    ev = fact_sheet.events
+    m = fact_sheet.metrics
+
+    def _fmt(key: str, short: str) -> str:
+        me = m.get(key)
+        if me is None or me.suppressed or me.value is None:
+            return f"{short}: [Suppressed]"
+        return f"{short}: {me.value:.1f} [{me.ci_low:.1f}, {me.ci_high:.1f}] {me.unit} ({me.observability.value})"
+
+    freeze_map: Dict[int, Tuple[str, List[str]]] = {}
+    if ev.is_complete_delivery:
+        freeze_map[ev.bfc.frame_idx] = (
+            "PHASE 1: BACK FOOT CONTACT (BFC)",
+            [_fmt("pelvis_alignment_bfc_deg", "Pelvis BFC"), _fmt("shoulder_alignment_bfc_deg", "Shoulder BFC"), _fmt("runup_speed_mps", "Run-up")],
+        )
+        freeze_map[ev.ffc.frame_idx] = (
+            "PHASE 2: FRONT FOOT CONTACT (FFC)",
+            [_fmt("front_knee_ffc_deg", "Front Knee"), _fmt("thorax_lat_flex_ffc_deg", "Lat Tilt FFC"), _fmt("pelvic_drop_ffc_deg", "Pelvic Drop")],
+        )
+        if ev.uah is not None:
+            freeze_map[ev.uah.frame_idx] = (
+                "PHASE 3: UPPER ARM HORIZONTAL (UAH)",
+                [_fmt("shoulder_counter_rotation_deg", "SCR"), _fmt("max_hip_shoulder_sep_deg", "Peak Hip-Sho Sep")],
+            )
+        freeze_map[ev.br.frame_idx] = (
+            "PHASE 4: BALL RELEASE (BR)",
+            [_fmt("front_knee_br_deg", "Front Knee BR"), _fmt("thorax_lat_flex_br_deg", "Lat Tilt BR"), _fmt("release_height_m", "Release Height")],
+        )
+
+    f_ank_i = JOINT_IDX["lank" if fact_sheet.bowling_arm.value == "right" else "rank"]
+    y_ground = float(np.percentile(joints_world_m[:, f_ank_i, 1], 10)) if len(joints_world_m) > 0 else 0.0
+
+    def _compose_frame(rel_idx: int, abs_f: int, banner: str, metric_lines: List[str]) -> np.ndarray:
+        canvas = np.full((H_OUT, W_OUT, 3), (15, 19, 26), dtype=np.uint8)
+        raw = decoded.get(abs_f)
+        j2 = joints2d_px[rel_idx]
+        if raw is not None:
+            rh, rw = raw.shape[:2]
+            scale = min(W_OUT / max(rw, 1), VIDEO_H / max(rh, 1))
+            nw, nh = int(round(rw * scale)), int(round(rh * scale))
+            resized = cv2.resize(raw, (nw, nh), interpolation=cv2.INTER_AREA)
+            ox, oy = (W_OUT - nw) // 2, 110 + (VIDEO_H - nh) // 2
+            canvas[oy : oy + nh, ox : ox + nw] = resized
+            src_w = max(int(fact_sheet.audit.width or rw), 1)
+            src_h = max(int(fact_sheet.audit.height or rh), 1)
+            sx = nw / float(src_w)
+            sy = nh / float(src_h)
+            j2_s = j2.copy()
+            j2_s[:, 0] = j2[:, 0] * sx + ox
+            j2_s[:, 1] = j2[:, 1] * sy + oy
+            for a_name, b_name, bgr, _ in SKELETON_EDGES:
+                pa, pb = j2_s[JOINT_IDX[a_name]], j2_s[JOINT_IDX[b_name]]
+                if np.all(np.isfinite(pa)) and np.all(np.isfinite(pb)):
+                    cv2.line(canvas, (int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), bgr, 3, cv2.LINE_AA)
+            for pt in j2_s:
+                if np.all(np.isfinite(pt)):
+                    cv2.circle(canvas, (int(pt[0]), int(pt[1])), 4, (255, 255, 255), -1, cv2.LINE_AA)
+
+        # Header bar
+        cv2.rectangle(canvas, (0, 0), (W_OUT, 108), (22, 28, 38), -1)
+        fps_str = (
+            f"{fact_sheet.audit.fps:.1f} nom. fps [UNVERIFIED]"
+            if fact_sheet.audit.timebase_unreliable
+            else f"{fact_sheet.audit.fps:.1f} unique fps"
+        )
+        cv2.putText(canvas, f"{fact_sheet.bowler_id} ({fact_sheet.bowling_arm.value.upper()}-ARM)", (36, 48), cv2.FONT_HERSHEY_SIMPLEX, 1.05, (245, 250, 255), 2, cv2.LINE_AA)
+        cv2.putText(canvas, f"{fps_str} | {fact_sheet.calibration.method} | {fact_sheet.interval_type}", (36, 86), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (160, 185, 215), 1, cv2.LINE_AA)
+
+        # Bottom telemetry panel (mini 3D rear view on right + verified metrics on left)
+        y_panel = 1245
+        cv2.rectangle(canvas, (24, y_panel), (W_OUT - 24, H_OUT - 24), (22, 28, 38), -1)
+        cv2.putText(canvas, banner, (48, y_panel + 52), cv2.FONT_HERSHEY_SIMPLEX, 0.92, (56, 189, 248), 2, cv2.LINE_AA)
+
+        y_txt = y_panel + 108
+        for ln in metric_lines[:5]:
+            col = (100, 196, 255) if "[Suppressed" in ln else (235, 245, 255)
+            cv2.putText(canvas, ln, (48, y_txt), cv2.FONT_HERSHEY_SIMPLEX, 0.72, col, 2, cv2.LINE_AA)
+            y_txt += 48
+
+        # Synchronized 3D mini coronal wireframe box on bottom-right
+        bx0, by0, bx1, by1 = 720, y_panel + 75, W_OUT - 48, H_OUT - 140
+        cv2.rectangle(canvas, (bx0, by0), (bx1, by1), (15, 19, 26), -1)
+        cv2.putText(canvas, "3D Pitch-World Rear", (bx0 + 18, by0 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (159, 176, 200), 1, cv2.LINE_AA)
+        if rel_idx < len(joints_world_m):
+            pts3 = joints_world_m[rel_idx]
+            zc = float(pts3[JOINT_IDX["pelv"], 2])
+            px_scale = 175.0
+            cx_3d = (bx0 + bx1) // 2
+            cy_base = by1 - 36
+            for a_name, b_name, bgr, _ in SKELETON_EDGES:
+                pa, pb = pts3[JOINT_IDX[a_name]], pts3[JOINT_IDX[b_name]]
+                p1 = (int(cx_3d + (pa[2] - zc) * px_scale), int(cy_base - (pa[1] - y_ground) * px_scale))
+                p2 = (int(cx_3d + (pb[2] - zc) * px_scale), int(cy_base - (pb[1] - y_ground) * px_scale))
+                cv2.line(canvas, p1, p2, bgr, 3, cv2.LINE_AA)
+
+        # Permanent non-truncating scientific guardrails footer
+        cv2.rectangle(canvas, (24, H_OUT - 122), (W_OUT - 24, H_OUT - 24), (42, 24, 24), -1)
+        cv2.putText(canvas, "ICC 15-DEGREE ELBOW LEGALITY: PERMANENTLY REFUSED (Lab >=250 Hz 3D Required)", (42, H_OUT - 82), cv2.FONT_HERSHEY_SIMPLEX, 0.56, (120, 170, 255), 2, cv2.LINE_AA)
+        cv2.putText(canvas, "Single-delivery mechanical stress proxy only — NOT a clinical injury diagnosis.", (42, H_OUT - 44), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (195, 205, 220), 1, cv2.LINE_AA)
+        return canvas
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp_mp4 = out.with_suffix(".reel_raw.mp4")
+    writer = cv2.VideoWriter(str(tmp_mp4), cv2.VideoWriter_fourcc(*"mp4v"), out_fps, (W_OUT, H_OUT))
+
+    default_lines = [
+        _fmt("thorax_lat_flex_br_deg", "Lat Tilt BR"),
+        _fmt("shoulder_counter_rotation_deg", "SCR"),
+        _fmt("front_knee_br_deg", "Front Knee BR"),
+        f"Frame u={0} | Action: {fact_sheet.action_class.value}",
+    ]
+    for rel_idx, abs_f in enumerate(abs_list):
+        if rel_idx in freeze_map:
+            title, lines = freeze_map[rel_idx]
+            frame_out = _compose_frame(rel_idx, abs_f, title, lines)
+            for _ in range(freeze_n):
+                writer.write(frame_out)
+        else:
+            lines_cur = default_lines[:3] + [f"Frame u={rel_idx} (src={abs_f}) | Action: {fact_sheet.action_class.value}"]
+            writer.write(_compose_frame(rel_idx, abs_f, "LIVE DELIVERY TRACKING", lines_cur))
+    writer.release()
+
+    if shutil.which("ffmpeg"):
+        res = subprocess.run(
+            [
+                "ffmpeg", "-y", "-loglevel", "error", "-i", str(tmp_mp4),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out),
+            ],
+            capture_output=True,
+            check=False,
+        )
+        if res.returncode == 0 and out.exists() and out.stat().st_size > 0:
+            tmp_mp4.unlink(missing_ok=True)
+            return out
+    tmp_mp4.replace(out)
+    return out
