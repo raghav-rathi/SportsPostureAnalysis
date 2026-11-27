@@ -36,7 +36,8 @@ from fastapi.staticfiles import StaticFiles
 import numpy as np
 from pydantic import BaseModel, Field
 
-from ..constants import JOINT_IDX, MCC_PITCH_LANDMARKS_M
+from ..constants import JOINT_IDX, MCC_PITCH_LANDMARKS_M, SMPL24_JOINTS
+from ..archetypes import get_reference_archetypes
 from ..schemas import (
     BiomechanicalFactSheet,
     BowlingArm,
@@ -46,6 +47,7 @@ from ..schemas import (
     VideoAudit,
     WorkloadContext,
 )
+from ..spell_analytics import compute_spell_analytics
 from ..stage0_audit import analyze_frame_cadence, audit_video, detect_camera_motion, measure_bowler_roi_blur
 from ..stage0_net_clipper import scan_net_session_video
 from ..stage1_pitch_calibration import (
@@ -59,7 +61,9 @@ from ..stage2_ball_release import estimate_ball_release_speed_video
 from ..stage2_dual_sync_fusion import fuse_dual_view_3d_trajectories
 from ..stage5_evaluator import build_compare_story, build_workload_guidance, hydrate_coaching_story
 from ..stage6_coach_copilot import ask_grounded_coach
+from ..stage6_stroboscopic import render_stroboscopic_jpeg
 from ..stage6_visualizer import render_truthful_breakdown_reel_9x16
+from ..workload_acwr import compute_bowler_workload_analytics
 from .db import StudioDatabase
 from .recompute import (
     build_telemetry_v2,
@@ -170,6 +174,11 @@ class WorkloadLogRequest(BaseModel):
     deliveries_count: int = Field(..., ge=0, le=500)
     session_type: str = "net"
     notes: str = ""
+    rpe: Optional[int] = Field(default=6, ge=1, le=10)
+    max_spell_balls: Optional[int] = Field(default=None, ge=0, le=300)
+    soreness_lumbar: Optional[int] = Field(default=None, ge=0, le=10)
+    fatigue_level: Optional[int] = Field(default=None, ge=1, le=10)
+    pain_when_bowling: Optional[bool] = False
 
 
 class SaveAnnotationsRequest(BaseModel):
@@ -777,9 +786,12 @@ def create_app(
         has_user_upload = any(c.kind == "upload" for c in cards)
         sample_defs = [
             ("del_real_steyn", "Dale Steyn — Real Net Video", "Filmed from behind · 25 fps real clip"),
-            ("del_demo_side_240", "240 fps Side-On Sample", "Calibrated slow-motion · 19 of 22 checks visible"),
-            ("del_demo_side_b2", "Spell Ball 2 — Comparison Sample", "Side-on 240 fps · compare against Ball 1"),
-            ("del_demo_rear_240", "240 fps Behind-Bowler Sample", "Rear slow-motion · unlocks spine & alignment"),
+            ("del_real_indoor", "Indoor Net 120fps — Real Front-On Video", "Filmed from front · real indoor slow-motion"),
+            ("del_demo_dual_240", "Spell Ball 1 — Dual-Phone 240 fps (Full 3D Sequence)", "Fused side + rear · full 4-lane sequence & all 22 checks"),
+            ("del_demo_side_240", "Spell Ball 1 — 240 fps Side-On", "Calibrated slow-motion · 19 of 22 checks visible"),
+            ("del_demo_side_b2", "Spell Ball 2 — Rhythm Check", "Side-on 240 fps · compare against Ball 1"),
+            ("del_demo_side_b4", "Spell Ball 4 — Late-Spell Fatigue", "Side-on 240 fps · front-knee yield & drill"),
+            ("del_demo_rear_240", "Spell Ball 1 — 240 fps Behind-Bowler", "Rear slow-motion · dual-phone fusion mate"),
             ("del_real_mcgrath", "Incomplete Clip Guardrail Example", "Shows how truncated clips are safely withheld"),
         ]
         samples: List[Dict[str, Any]] = []
@@ -790,7 +802,7 @@ def create_app(
             samples.append(
                 {
                     "delivery_id": c.id,
-                    "title": s_title if (sid_d != "del_real_steyn" or c.kind == "sample_real") else "Dale Steyn — Net Sample",
+                    "title": s_title if (sid_d not in ("del_real_steyn", "del_real_indoor") or c.kind == "sample_real") else s_title.replace("Real ", ""),
                     "subtitle": s_sub,
                     "kind": "real" if c.kind == "sample_real" else "synthetic",
                     "thumbnail_url": c.thumbnail_url,
@@ -799,13 +811,54 @@ def create_app(
             )
 
         if not has_user_upload:
-            preferred_order = ["del_real_steyn", "del_demo_side_240", "del_demo_side_b2", "del_demo_rear_240", "del_real_mcgrath"]
+            preferred_order = [
+                "del_real_steyn",
+                "del_real_indoor",
+                "del_demo_dual_240",
+                "del_demo_side_240",
+                "del_demo_side_b2",
+                "del_demo_side_b3",
+                "del_demo_side_b4",
+                "del_demo_rear_240",
+                "del_real_mcgrath",
+            ]
             rank = {did: idx for idx, did in enumerate(preferred_order)}
             recent = sorted(cards, key=lambda item: rank.get(item.id, 99))[:24]
         else:
             uploads = [c for c in cards if c.kind == "upload"]
             others = [c for c in cards if c.kind != "upload"]
             recent = (uploads + others)[:24]
+
+        bowlers_list = db.list_bowlers_with_stats()
+        workload_snapshot: Optional[Dict[str, Any]] = None
+        spell_snapshot: Optional[Dict[str, Any]] = None
+        if bowlers_list:
+            primary_b = sorted(bowlers_list, key=lambda b_item: int(b_item.get("delivery_count") or 0), reverse=True)[0]
+            pb_id = str(primary_b["id"])
+            w_an = compute_bowler_workload_analytics(primary_b, db.list_workload_logs(pb_id))
+            acwr_s = w_an["acwr_summary"]
+            workload_snapshot = {
+                "bowler_id": pb_id,
+                "balls_7d": w_an["deliveries_last_7d"],
+                "days_bowled_7d": w_an["days_bowled_7d"],
+                "max_days_per_week": w_an["max_days_per_week"],
+                "acwr_zone": acwr_s["zone"],
+                "acwr_zone_label_plain": acwr_s["zone_label_plain"],
+                "acwr_value": acwr_s["acwr_ewma"] if acwr_s["acwr_ewma"] is not None else acwr_s["acwr_coupled"],
+                "daily_loop_sentence": w_an["daily_loop_summary"],
+            }
+            pb_rows = db.list_all_deliveries(bowler_id=pb_id, limit=60, ascending=True)
+            sp_an = compute_spell_analytics(pb_rows, bowler_id=pb_id)
+            rt = sp_an["release_tunnel"]
+            deb_sd_m = rt["debiased_radial_sd_m"] if rt else None
+            spell_snapshot = {
+                "bowler_id": pb_id,
+                "latest_session_id": str(pb_rows[-1]["session_id"]) if pb_rows else None,
+                "completed_count": sp_an["completed_count"],
+                "release_spread_cm": round(100.0 * float(deb_sd_m), 1) if deb_sd_m is not None else None,
+                "release_spread_ci_cm": sp_an.get("release_spread_ci_cm"),
+                "tunnel_mode": rt["mode"] if rt else None,
+            }
 
         return {
             "is_first_run": not has_user_upload,
@@ -815,9 +868,11 @@ def create_app(
                 "can_analyse_new_video": can_analyse,
                 "reason_plain": reason_plain,
             },
-            "bowlers": db.list_bowlers_with_stats(),
+            "bowlers": bowlers_list,
             "samples": samples,
             "recent_deliveries": [c.model_dump() for c in recent],
+            "workload_snapshot": workload_snapshot,
+            "spell_snapshot": spell_snapshot,
         }
 
     @app.get("/api/jobs/{job_id}")
@@ -1577,6 +1632,7 @@ def create_app(
         (ddir / "fact_sheet.json").write_text(fused_fs.model_dump_json(indent=2), encoding="utf-8")
         rep = ask_grounded_coach("Give a complete verified summary of this dual-view fused delivery.", fused_fs)
         (ddir / "coaching_report.md").write_text(rep.answer_markdown, encoding="utf-8")
+        v5_b = getattr(fused, "v5_bundle", None)
         tel = build_telemetry_v2(
             joints_world_m=fused.joints_world_fused,
             joints2d_px=j2d_f,
@@ -1587,6 +1643,9 @@ def create_app(
             cal=fused_fs.calibration,
             events=fused.events,
             proxy_fps=30.0,
+            bowling_arm=fs_a.bowling_arm,
+            sequence_series=getattr(v5_b, "sequence_series", None),
+            wrist_rel_speed_mps=getattr(v5_b, "wrist_rel_speed_mps", None),
         )
         (ddir / "telemetry.json").write_text(json.dumps(tel), encoding="utf-8")
 
@@ -1642,42 +1701,206 @@ def create_app(
             "story": fused_story.model_dump(),
         }
 
+    @app.get("/api/archetypes")
+    def api_get_archetypes(arm: str = "right") -> Dict[str, Any]:
+        """Studio v5 (Module 8): 4 literature-grounded 3D fast-bowling reference archetypes."""
+        use_arm = BowlingArm.LEFT if str(arm).strip().lower() == "left" else BowlingArm.RIGHT
+        return {"archetypes": get_reference_archetypes(use_arm)}
+
+    @app.get("/api/deliveries/{delivery_id}/stroboscopic.jpg")
+    @app.get("/api/deliveries/{delivery_id}/strobe.jpg")
+    def api_get_stroboscopic_jpg(
+        delivery_id: str,
+        w: int = 1280,
+        skeleton: bool = False,
+        trails: bool = True,
+    ) -> Response:
+        """Studio v5 (Module 7): View-adaptive stroboscopic multi-exposure JPEG."""
+        rec = db.get_delivery(delivery_id)
+        if not rec or not rec.get("fact_sheet_json"):
+            raise HTTPException(status_code=404, detail="Delivery not found.")
+        ddir = Path(rec["data_dir"])
+        fs = BiomechanicalFactSheet.model_validate_json(rec["fact_sheet_json"])
+        tel_p = ddir / "telemetry.json"
+        if not tel_p.exists():
+            raise HTTPException(status_code=404, detail="Telemetry not found.")
+        tel = json.loads(tel_p.read_text(encoding="utf-8"))
+        j2d = np.asarray(tel["joints2d_px"], dtype=np.float64)
+        com_2d = np.asarray(tel["com_2d_px"], dtype=np.float64) if tel.get("com_2d_px") else None
+        pan_poses = tel.get("camera_poses_per_frame")
+        meta_p = ddir / "meta.json"
+        meta = json.loads(meta_p.read_text(encoding="utf-8")) if meta_p.exists() else {}
+        is_syn_only = _is_synthetic_or_fixture_delivery(rec, fs) and (not bool(meta.get("has_real_video", False)))
+        vid = rec["proxy_path"] or rec["video_path"]
+        safe_w = int(max(480, min(w, 1920)))
+        cache_p = ddir / "frames" / f"strobo_w{safe_w}_sk{int(skeleton)}_tr{int(trails)}.jpg"
+        try:
+            jpg_bytes, mode_used = render_stroboscopic_jpeg(
+                proxy_or_video_path=vid,
+                joints2d_px=j2d,
+                com_2d_px=com_2d,
+                fact_sheet=fs,
+                is_synthetic_proxy=is_syn_only,
+                pan_poses_per_frame=pan_poses,
+                max_width=safe_w,
+                draw_skeleton=skeleton,
+                draw_trails=trails,
+                cache_path=cache_p,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"Could not render stroboscopic image: {exc}")
+        return Response(
+            content=jpg_bytes,
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "X-Stroboscopic-Mode": mode_used,
+            },
+        )
+
+    @app.get("/api/deliveries/{delivery_id}/export")
+    def api_export_delivery_research_data(delivery_id: str, format: str = "csv") -> Response:
+        """Studio v5: Research data export (`csv` or `json`) with explicit NLF CC-BY-NC-4.0 & ICC refusal headers."""
+        rec = db.get_delivery_with_bowler(delivery_id)
+        if not rec or not rec.get("fact_sheet_json"):
+            raise HTTPException(status_code=404, detail="Delivery not found.")
+        ddir = Path(rec["data_dir"])
+        fs, story, card = _resolve_delivery_story_and_card(rec)
+        tel_p = ddir / "telemetry.json"
+        tel = json.loads(tel_p.read_text(encoding="utf-8")) if tel_p.exists() else {}
+        fmt = str(format or "csv").strip().lower()
+        license_notice = (
+            "NON-COMMERCIAL RESEARCH NOTICE: 3D pose trajectories extracted with NLF (isarandi/nlf, NeurIPS 2024) "
+            "inherit CC-BY-NC-4.0 pretrained weight licensing. ICC 15-degree elbow legality is PERMANENTLY REFUSED "
+            "on video (accredited >=250 Hz 3D optical lab required). Single-delivery mechanical data is NOT a medical diagnosis."
+        )
+        if fmt == "json":
+            payload = {
+                "export_version": "5.0",
+                "licensing_and_guardrail_notice": license_notice,
+                "delivery": card.model_dump(),
+                "fact_sheet": fs.model_copy(update={"coaching_story": story}).model_dump(),
+                "telemetry": tel,
+            }
+            return Response(
+                content=json.dumps(payload, indent=2),
+                media_type="application/json",
+                headers={"Content-Disposition": f'attachment; filename="{delivery_id}_biomechanics_v5.json"'},
+            )
+        if fmt != "csv":
+            raise HTTPException(status_code=400, detail="Unsupported export format; use 'csv' or 'json'.")
+
+        import csv
+        import io
+
+        buf = io.StringIO()
+        buf.write(f"# SportsPostureAnalysis Studio v5 — Biomechanical Trajectory & Metric Export\n")
+        buf.write(f"# {license_notice}\n")
+        buf.write(f"# delivery_id={delivery_id}, label={rec.get('label')}, arm={fs.bowling_arm.value}, fps={fs.audit.fps}\n")
+        for mk, me in fs.all_metric_estimates().items():
+            if me.suppressed or me.value is None:
+                buf.write(f"# metric.{mk}=SUPPRESSED ({me.observability.value}: {me.suppression_reason})\n")
+            else:
+                buf.write(f"# metric.{mk}={me.value} [{me.ci_low}, {me.ci_high}] {me.unit} ({me.observability.value})\n")
+
+        jw = tel.get("joints3d_world_m") or []
+        com_w = tel.get("com_world_m") or []
+        t_ffc = tel.get("time_rel_ffc_ms") or []
+        ks = tel.get("kin_series") or {}
+        ss = tel.get("sequence_series") or {}
+        ks_keys = sorted(ks.keys())
+        ss_keys = sorted(ss.keys())
+
+        cols = ["frame_idx", "time_rel_ffc_ms", "com_x_m", "com_y_m", "com_z_m"]
+        for j_name in SMPL24_JOINTS:
+            cols.extend([f"{j_name}_x_m", f"{j_name}_y_m", f"{j_name}_z_m"])
+        cols.extend(ks_keys)
+        cols.extend(ss_keys)
+
+        writer = csv.writer(buf)
+        writer.writerow(cols)
+        n_rows = len(jw)
+        for i in range(n_rows):
+            c_xyz = com_w[i] if i < len(com_w) else ["", "", ""]
+            row_vals: List[Any] = [i, t_ffc[i] if i < len(t_ffc) else "", c_xyz[0], c_xyz[1], c_xyz[2]]
+            for j_idx in range(len(SMPL24_JOINTS)):
+                pt3 = jw[i][j_idx] if j_idx < len(jw[i]) else ["", "", ""]
+                row_vals.extend([pt3[0], pt3[1], pt3[2]])
+            for kk in ks_keys:
+                row_vals.append(ks[kk][i] if i < len(ks[kk]) else "")
+            for sk in ss_keys:
+                row_vals.append(ss[sk][i] if i < len(ss[sk]) else "")
+            writer.writerow(row_vals)
+
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{delivery_id}_trajectories_v5.csv"'},
+        )
+
+    @app.get("/api/bowlers/{bowler_id}/spell-analytics")
+    def api_bowler_spell_analytics(bowler_id: str, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """Studio v5 (Module 10): Release-point bullseye, measurement-debiased repeatability CV%, & fatigue drift."""
+        if not db.get_bowler(bowler_id):
+            raise HTTPException(status_code=404, detail="Bowler not found.")
+        if session_id:
+            ses = db.get_session(session_id)
+            if not ses or ses.get("bowler_id") != bowler_id:
+                raise HTTPException(status_code=404, detail="Session not found for this bowler.")
+            rows = db.list_session_deliveries(session_id)
+        else:
+            rows = db.list_all_deliveries(bowler_id=bowler_id, limit=60, ascending=True)
+        return compute_spell_analytics(rows, bowler_id=bowler_id, session_id=session_id)
+
+    @app.get("/api/sessions/{session_id}/spell")
+    def api_session_spell_analytics(session_id: str) -> Dict[str, Any]:
+        ses = db.get_session(session_id)
+        if not ses:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        rows = db.list_session_deliveries(session_id)
+        return compute_spell_analytics(rows, bowler_id=str(ses["bowler_id"]), session_id=session_id)
+
     @app.get("/api/bowlers/{bowler_id}/workload")
     def api_get_workload(bowler_id: str) -> Dict[str, Any]:
         b = db.get_bowler(bowler_id)
         if not b:
             raise HTTPException(status_code=404, detail="Bowler not found.")
         logs = db.list_workload_logs(bowler_id)
-        ref_date = datetime.now(timezone.utc).date()
-        last_7 = 0
-        last_28 = 0
-        for row in logs:
-            try:
-                log_d = date.fromisoformat(str(row["log_date"])[:10])
-            except ValueError:
-                continue
-            delta_days = (ref_date - log_d).days
-            if 0 <= delta_days < 7:
-                last_7 += int(row["deliveries_count"])
-            if 0 <= delta_days < 28:
-                last_28 += int(row["deliveries_count"])
-        band_to_age = {"u13": 13, "u15": 15, "u17": 17, "u19": 19, "adult": 24}
-        age_yrs = band_to_age.get(str(b.get("age_band", "adult")).lower(), 24)
-        wg = build_workload_guidance(WorkloadContext(age_years=age_yrs, bowls_per_week=last_7))
+        analytics = compute_bowler_workload_analytics(b, logs)
         return {
             "bowler": b,
             "logs": logs,
-            "deliveries_last_7d": last_7,
-            "deliveries_last_28d": last_28,
-            "guidance": wg.model_dump() if wg is not None else None,
+            **analytics,
         }
 
     @app.post("/api/bowlers/{bowler_id}/workload")
     def api_add_workload(bowler_id: str, req: WorkloadLogRequest) -> Dict[str, Any]:
+        b = db.get_bowler(bowler_id)
+        if not b:
+            raise HTTPException(status_code=404, detail="Bowler not found.")
+        entry = db.add_workload_log(
+            bowler_id=bowler_id,
+            log_date=req.log_date,
+            deliveries_count=req.deliveries_count,
+            session_type=req.session_type,
+            notes=req.notes,
+            rpe=req.rpe if req.rpe is not None else 6,
+            max_spell_balls=req.max_spell_balls,
+            soreness_lumbar=req.soreness_lumbar,
+            fatigue_level=req.fatigue_level,
+            pain_when_bowling=bool(req.pain_when_bowling or False),
+        )
+        analytics = compute_bowler_workload_analytics(b, db.list_workload_logs(bowler_id))
+        return {"entry": entry, "log": entry, "bowler": b, **analytics}
+
+    @app.delete("/api/bowlers/{bowler_id}/workload/{log_id}")
+    def api_delete_workload(bowler_id: str, log_id: str) -> Dict[str, Any]:
         if not db.get_bowler(bowler_id):
             raise HTTPException(status_code=404, detail="Bowler not found.")
-        entry = db.add_workload_log(bowler_id, req.log_date, req.deliveries_count, req.session_type, req.notes)
-        return {"entry": entry}
+        deleted = db.delete_workload_log(bowler_id, log_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Workload log entry not found.")
+        return {"deleted": True, "log_id": log_id}
 
     # Serve compiled Vite frontend if `web/dist` exists
     web_dist = Path(__file__).resolve().parents[3] / "web" / "dist"

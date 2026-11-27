@@ -120,3 +120,21 @@ To make the studio effortless for everyday club bowlers and coaches (zero confus
 ![SportsPostureAnalysis Studio v4 — Home Hub](figures/studio_v4_home.png)
 ![SportsPostureAnalysis Studio v4 — Dale Steyn Real Video Story](figures/studio_v4_steyn_story.png)
 ![SportsPostureAnalysis Studio v4 — Ball 1 Story & Body Map](figures/studio_v4_ball1_story.png)
+
+---
+
+## 9. Phase 5 — Coaching Studio v5 "Paper Instrument" & 11-Module Biomechanics Expansion (`v8`, `EXP-012`)
+
+Built from a 30-product competitive teardown (`docs/research_app_landscape_v5.md`) and 11-module peer-reviewed biomechanics specification (`docs/research_biomechanics_v5.md`) by a 5-agent multi-model swarm (`Claude Opus 5.5 High`, `Gemini 4 Carbon High`, `Gemini 4 Neon High`):
+
+1. **11 New Backend Biomechanics, Visual & Workload Modules (`36 / 36` pytest passed, `0.00%` regression on canonical `96.4%` benchmark, `96.9%` AR(1) empirical coverage across `2,596` v5 evaluations):**
+   - `stage3_v5_metrics.py`: Proximal-to-Distal Kinematic Sequence (`Pelvis → Thorax → Bowling Arm → Wrist Whip`), 14-segment de Leva (1996) COM & Braking Impulse (`rho_body=0.75`), Head Stability & Coronal Fall-Away, Lead-Arm Pull-Down & Ribcage Flare, Crease Alignment Corridor & 3D Release Tunnel, and Delivery Tempo Fingerprint.
+   - `stage6_stroboscopic.py`, `archetypes.py`, `workload_acwr.py`, `spell_analytics.py`: View-adaptive Stroboscopic Chronophotography (`/stroboscopic.jpg`), 4 peer-reviewed Literature 3D Reference Archetypes (`/api/archetypes`), Coupled/Uncoupled/EWMA ACWR + ECB (2024)/CA (2026) Workload Engine + Lumbar Soreness log, TrackMan-style Release Bullseye & Verified Spell Fatigue Drift (`-25.6°` Ball 1→4), and Dual Real-Video (`uiZN5FHWjJk.mp4` + `ZpBNq8cIRoY.mp4`) + Dual-Phone 240 fps fused showcase (`del_demo_dual_240`).
+2. **Ground-Up "Paper Instrument" UI (`0` TS errors, `237.61 kB` initial JS, `0` console/network errors across `1440×900` & dynamic `375×812` mobile):**
+   - Live real-video + sculpted 3D mannequin Command Center Home; single-clock Interactive Delivery Workbench (Split Video + 3D Pitch with 6 virtual cameras & 3D Literature Ghosts, 10-tool magenta telestration, 3-mode Strobe, tactile JogWheel, 4-lane Kinematic Sequence Waterfall, 7 Deep Cards, Coach Copilot, Audio/Text Notes, PNG Breakdown Card); Compare & Ghost Studio (Side/Blend/Dual 3D Ghost/Mirror B/Noise-Gated Delta Matrix); Release Bullseye + Spell Drift + Daily Loop + ACWR Hub; Constraint-led Drill Lab; and 4-Mode Live Camera & Upload Studio connected to the live Warm RTX 4090 GPU Worker.
+
+![SportsPostureAnalysis Studio v5 — Command Center Home](figures/studio_v5_home.png)
+![SportsPostureAnalysis Studio v5 — Dale Steyn Split Workbench](figures/studio_v5_steyn_workbench.png)
+![SportsPostureAnalysis Studio v5 — Dual-Phone 4-Lane Kinematic Sequence](figures/studio_v5_dual_sequence.png)
+![SportsPostureAnalysis Studio v5 — Compare & Noise-Gated Deltas](figures/studio_v5_compare.png)
+![SportsPostureAnalysis Studio v5 — Release Bullseye & Spell Drift](figures/studio_v5_spell_workload.png)

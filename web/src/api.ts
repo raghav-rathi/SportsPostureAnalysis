@@ -12,6 +12,12 @@ import type {
   HealthResponse,
   SessionSummary,
   TelestratorShape,
+  ArchetypesResponse,
+  ExportFormat,
+  SpellAnalyticsResponse,
+  WorkloadLog,
+  WorkloadLogRequest,
+  WorkloadResponse,
 } from "./types";
 
 const BASE = "";
@@ -214,4 +220,28 @@ export const api = {
       { method: "POST", body: fd }
     ),
   job: (jobId: string) => jsonReq<JobStatus>(`/api/jobs/${jobId}`),
+
+  // ── Studio v5 endpoints (docs/research_app_landscape_v5.md §10) ────────────
+  /** View-adaptive multi-exposure JPEG (panoramic_composite on side-on, coronal_sequence_strip on rear/front). */
+  stroboscopicUrl: (deliveryId: string, opts: { w?: number; skeleton?: boolean; trails?: boolean } = {}) =>
+    `${BASE}/api/deliveries/${deliveryId}/stroboscopic.jpg?w=${opts.w ?? 1280}&skeleton=${opts.skeleton ? "true" : "false"}&trails=${
+      opts.trails === false ? "false" : "true"
+    }`,
+  videoUrl: (deliveryId: string) => `${BASE}/api/deliveries/${deliveryId}/video`,
+  exportUrl: (deliveryId: string, format: ExportFormat = "csv") =>
+    `${BASE}/api/deliveries/${deliveryId}/export?format=${format}`,
+  archetypes: (arm: "right" | "left" = "right") => jsonReq<ArchetypesResponse>(`/api/archetypes?arm=${arm}`),
+  workload: (bowlerId: string) => jsonReq<WorkloadResponse>(`/api/bowlers/${bowlerId}/workload`),
+  logWorkload: (bowlerId: string, body: WorkloadLogRequest) =>
+    jsonReq<{ log: WorkloadLog } & Partial<WorkloadResponse>>(`/api/bowlers/${bowlerId}/workload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  deleteWorkload: (bowlerId: string, logId: string) =>
+    jsonReq<{ deleted: boolean; log_id: string }>(`/api/bowlers/${bowlerId}/workload/${logId}`, { method: "DELETE" }),
+  spellAnalytics: (bowlerId: string, sessionId?: string | null) =>
+    jsonReq<SpellAnalyticsResponse>(
+      `/api/bowlers/${bowlerId}/spell-analytics${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`
+    ),
 };

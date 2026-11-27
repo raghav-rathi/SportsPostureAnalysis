@@ -1,27 +1,43 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Tiny dependency-free hash router for Studio v4.
+ * Tiny dependency-free hash router for Studio v5.
  *
  * Routes:
- *   #/                       home
- *   #/deliveries             deliveries library
- *   #/d/:id[/:tab]           delivery (tab: story | practice | details | lab | card)
- *   #/compare?a=&b=          compare 2 balls
- *   #/progress?bowler=       progress
- *   #/new?bowler=            guided new analysis
+ *   #/                                 home (Command Center)
+ *   #/deliveries?bowler=               ball library
+ *   #/d/:id[/:tab][?f=frame]           delivery workbench (tab: story | practice | details | card)
+ *   #/compare?a=&b=&ref=               compare & ghost studio (ref = archetype id or delivery id)
+ *   #/spell?bowler=&session=           spell, release tunnel & workload hub   (alias: #/progress)
+ *   #/practice?bowler=&d=              practice & drill lab
+ *   #/upload?bowler=&mode=             new analysis: live | clip | net | dual (alias: #/new)
+ *   #/card/:id                         shareable coach card
  */
-export type DeliveryTab = "story" | "practice" | "details" | "lab" | "card";
+export type DeliveryTab = "story" | "practice" | "details" | "card" | "lab"; // "lab" = legacy alias → details
+export type UploadMode = "live" | "clip" | "net" | "dual";
 
 export type Route =
   | { name: "home" }
   | { name: "deliveries"; bowler: string | null }
-  | { name: "delivery"; id: string; tab: DeliveryTab }
-  | { name: "compare"; a: string | null; b: string | null }
-  | { name: "progress"; bowler: string | null }
-  | { name: "new"; bowler: string | null };
+  | { name: "delivery"; id: string; tab: DeliveryTab; frame?: number | null }
+  | { name: "compare"; a: string | null; b: string | null; ref?: string | null }
+  | { name: "spell"; bowler: string | null; session?: string | null }
+  | { name: "practice"; bowler: string | null; delivery?: string | null }
+  | { name: "upload"; bowler: string | null; mode?: UploadMode }
+  | { name: "card"; id: string };
 
-const TABS: DeliveryTab[] = ["story", "practice", "details", "lab", "card"];
+/** Legacy v4 route objects still accepted by `navigate` / `routeToHash`. */
+export type LegacyRoute = { name: "progress"; bowler: string | null } | { name: "new"; bowler: string | null };
+export type RouteInput = Route | LegacyRoute;
+
+const TABS: DeliveryTab[] = ["story", "practice", "details", "card", "lab"];
+const MODES: UploadMode[] = ["live", "clip", "net", "dual"];
+
+function normaliseTab(t: string | undefined): DeliveryTab {
+  const tab = (t || "story") as DeliveryTab;
+  if (!TABS.includes(tab)) return "story";
+  return tab === "lab" ? "details" : tab;
+}
 
 export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, "") || "/";
@@ -35,48 +51,71 @@ export function parseHash(hash: string): Route {
     case "d": {
       const id = decodeURIComponent(parts[1] ?? "");
       if (!id) return { name: "home" };
-      const tab = (parts[2] as DeliveryTab) || "story";
-      return { name: "delivery", id, tab: TABS.includes(tab) ? tab : "story" };
+      const f = q.get("f");
+      const frame = f !== null && f !== "" && Number.isFinite(Number(f)) ? Math.max(0, Math.round(Number(f))) : null;
+      return { name: "delivery", id, tab: normaliseTab(parts[2]), frame };
     }
     case "compare":
-      return { name: "compare", a: q.get("a"), b: q.get("b") };
+      return { name: "compare", a: q.get("a"), b: q.get("b"), ref: q.get("ref") };
+    case "spell":
     case "progress":
-      return { name: "progress", bowler: q.get("bowler") };
-    case "new":
-      return { name: "new", bowler: q.get("bowler") };
+    case "workload":
+      return { name: "spell", bowler: q.get("bowler"), session: q.get("session") };
+    case "practice":
+      return { name: "practice", bowler: q.get("bowler"), delivery: q.get("d") };
+    case "upload":
+    case "new": {
+      const m = q.get("mode") as UploadMode | null;
+      return { name: "upload", bowler: q.get("bowler"), mode: m && MODES.includes(m) ? m : "clip" };
+    }
+    case "card": {
+      const id = decodeURIComponent(parts[1] ?? "");
+      return id ? { name: "card", id } : { name: "home" };
+    }
     default:
       return { name: "home" };
   }
 }
 
-export function routeToHash(r: Route): string {
-  const qs = (o: Record<string, string | null | undefined>) => {
-    const p = new URLSearchParams();
-    Object.entries(o).forEach(([k, v]) => v && p.set(k, v));
-    const s = p.toString();
-    return s ? `?${s}` : "";
-  };
+const qs = (o: Record<string, string | number | null | undefined>) => {
+  const p = new URLSearchParams();
+  Object.entries(o).forEach(([k, v]) => {
+    if (v !== null && v !== undefined && v !== "") p.set(k, String(v));
+  });
+  const s = p.toString();
+  return s ? `?${s}` : "";
+};
+
+export function routeToHash(r: RouteInput): string {
   switch (r.name) {
     case "home":
       return "#/";
     case "deliveries":
       return `#/deliveries${qs({ bowler: r.bowler })}`;
-    case "delivery":
-      return `#/d/${encodeURIComponent(r.id)}${r.tab === "story" ? "" : `/${r.tab}`}`;
+    case "delivery": {
+      const tab = normaliseTab(r.tab);
+      return `#/d/${encodeURIComponent(r.id)}${tab === "story" ? "" : `/${tab}`}${qs({ f: r.frame ?? null })}`;
+    }
     case "compare":
-      return `#/compare${qs({ a: r.a, b: r.b })}`;
+      return `#/compare${qs({ a: r.a, b: r.b, ref: r.ref ?? null })}`;
+    case "spell":
+      return `#/spell${qs({ bowler: r.bowler, session: r.session ?? null })}`;
     case "progress":
-      return `#/progress${qs({ bowler: r.bowler })}`;
+      return `#/spell${qs({ bowler: r.bowler })}`;
+    case "practice":
+      return `#/practice${qs({ bowler: r.bowler, d: r.delivery ?? null })}`;
+    case "upload":
+      return `#/upload${qs({ bowler: r.bowler, mode: r.mode && r.mode !== "clip" ? r.mode : null })}`;
     case "new":
-      return `#/new${qs({ bowler: r.bowler })}`;
+      return `#/upload${qs({ bowler: r.bowler })}`;
+    case "card":
+      return `#/card/${encodeURIComponent(r.id)}`;
   }
 }
 
-export function navigate(r: Route | string) {
+export function navigate(r: RouteInput | string) {
   const h = typeof r === "string" ? r : routeToHash(r);
-  if (window.location.hash !== h) {
-    window.location.hash = h;
-  }
+  if (window.location.hash !== h) window.location.hash = h;
   window.scrollTo({ top: 0 });
 }
 
@@ -90,7 +129,40 @@ export function useRoute(): Route {
   return parseHash(hash);
 }
 
-// ── Pro Lab opt-in switch (persisted) ───────────────────────────────────────
+// ── Current bowler (persisted; scopes Home / Deliveries / Spell / Practice) ──
+const BOWLER_KEY = "spa.bowlerId";
+const bowlerListeners = new Set<() => void>();
+
+export function getCurrentBowlerId(): string | null {
+  try {
+    return window.localStorage.getItem(BOWLER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setCurrentBowlerId(id: string | null) {
+  try {
+    if (id) window.localStorage.setItem(BOWLER_KEY, id);
+    else window.localStorage.removeItem(BOWLER_KEY);
+  } catch {
+    /* ignore */
+  }
+  bowlerListeners.forEach((l) => l());
+}
+
+export function useCurrentBowlerId(): string | null {
+  return useSyncExternalStore(
+    (cb) => {
+      bowlerListeners.add(cb);
+      return () => bowlerListeners.delete(cb);
+    },
+    getCurrentBowlerId,
+    () => null
+  );
+}
+
+// ── Legacy Pro Lab switch (v4). v5 has no Pro switch; kept so older components compile. ──
 const PRO_LAB_KEY = "spa.proLab";
 const proLabListeners = new Set<() => void>();
 

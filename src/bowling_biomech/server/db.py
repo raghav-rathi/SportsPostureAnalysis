@@ -122,6 +122,18 @@ class StudioDatabase:
             if "timestamp_s" not in cols:
                 con.execute("ALTER TABLE coach_notes ADD COLUMN timestamp_s REAL")
 
+            # Safe idempotent Studio v5 migration on `workload_logs` (RPE, spell length, soreness & pain flags)
+            wkl_cols = {r[1] for r in con.execute("PRAGMA table_info(workload_logs)").fetchall()}
+            for col_name, col_def in [
+                ("rpe", "INTEGER NOT NULL DEFAULT 6"),
+                ("max_spell_balls", "INTEGER"),
+                ("soreness_lumbar", "INTEGER"),
+                ("fatigue_level", "INTEGER"),
+                ("pain_when_bowling", "INTEGER NOT NULL DEFAULT 0"),
+            ]:
+                if col_name not in wkl_cols:
+                    con.execute(f"ALTER TABLE workload_logs ADD COLUMN {col_name} {col_def}")
+
     def create_bowler(self, name: str, bowling_arm: str = "right", age_band: str = "adult", bowler_id: Optional[str] = None) -> Dict[str, Any]:
         bid = bowler_id or f"bwl_{uuid.uuid4().hex[:10]}"
         now = _utc_now()
@@ -409,16 +421,41 @@ class StudioDatabase:
         deliveries_count: int,
         session_type: str = "net",
         notes: str = "",
+        rpe: int = 6,
+        max_spell_balls: Optional[int] = None,
+        soreness_lumbar: Optional[int] = None,
+        fatigue_level: Optional[int] = None,
+        pain_when_bowling: bool = False,
     ) -> Dict[str, Any]:
         wid = f"wkl_{uuid.uuid4().hex[:10]}"
         now = _utc_now()
+        rpe_use = int(max(1, min(10, int(rpe))))
+        spell_use = int(max_spell_balls) if max_spell_balls is not None else None
+        sore_use = int(max(0, min(10, int(soreness_lumbar)))) if soreness_lumbar is not None else None
+        fat_use = int(max(1, min(10, int(fatigue_level)))) if fatigue_level is not None else None
+        pain_int = 1 if pain_when_bowling else 0
         with self._conn() as con:
             con.execute(
                 """
-                INSERT INTO workload_logs (id, bowler_id, log_date, deliveries_count, session_type, notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO workload_logs (
+                    id, bowler_id, log_date, deliveries_count, session_type, notes,
+                    rpe, max_spell_balls, soreness_lumbar, fatigue_level, pain_when_bowling, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (wid, bowler_id, log_date, int(deliveries_count), session_type, notes, now),
+                (
+                    wid,
+                    bowler_id,
+                    log_date,
+                    int(deliveries_count),
+                    session_type,
+                    notes,
+                    rpe_use,
+                    spell_use,
+                    sore_use,
+                    fat_use,
+                    pain_int,
+                    now,
+                ),
             )
         return {
             "id": wid,
@@ -427,6 +464,11 @@ class StudioDatabase:
             "deliveries_count": int(deliveries_count),
             "session_type": session_type,
             "notes": notes,
+            "rpe": rpe_use,
+            "max_spell_balls": spell_use,
+            "soreness_lumbar": sore_use,
+            "fatigue_level": fat_use,
+            "pain_when_bowling": bool(pain_int),
             "created_at": now,
         }
 
@@ -436,7 +478,17 @@ class StudioDatabase:
                 "SELECT * FROM workload_logs WHERE bowler_id = ? ORDER BY log_date DESC, created_at DESC",
                 (bowler_id,),
             ).fetchall()
-            return [dict(r) for r in rows]
+            out: List[Dict[str, Any]] = []
+            for r in rows:
+                d = dict(r)
+                d["pain_when_bowling"] = bool(d.get("pain_when_bowling") or 0)
+                out.append(d)
+            return out
+
+    def delete_workload_log(self, bowler_id: str, log_id: str) -> bool:
+        with self._conn() as con:
+            cur = con.execute("DELETE FROM workload_logs WHERE id = ? AND bowler_id = ?", (log_id, bowler_id))
+            return cur.rowcount > 0
 
     def delete_delivery(self, delivery_id: str) -> bool:
         with self._conn() as con:

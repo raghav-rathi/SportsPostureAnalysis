@@ -1,468 +1,744 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowLeftRight, ArrowRight, ArrowUp, Info } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeftRight, ExternalLink } from "lucide-react";
 import { api } from "../api";
 import { navigate } from "../router";
-import type {
-  BodyCheckpoint,
-  CheckpointStatus,
-  CompareSide,
-  CompareStory,
-  DeliveryCard,
-  DeliveryDetailResponse,
-  MomentId,
-  OverviewResponse,
-} from "../types";
+import type { Archetype, CompareStory, DeliveryCard, DeliveryDetailResponse, OverviewResponse } from "../types";
+import { SEG } from "../theme";
+import { PitchStage3D } from "../workbench/Stage/PitchStage3D";
+import { GuardrailStrip, JogWheel, SpeedDetent } from "../components/ui/PaperPrimitives";
+import { CompareCanvas } from "../components/compare/CompareCanvas";
+import { SequenceOverlay, type SequenceTrack } from "../components/compare/SequenceOverlay";
+import { ArchetypeEnvelopeMatrix, DeltaMatrix } from "../components/compare/DeltaMatrix";
 import {
-  Card,
-  CheckpointDots,
-  EmptyState,
-  NoticeFooter,
-  SectionTitle,
-  Spinner,
-  StatusBadge,
-  ValueWithRange,
-  formatDate,
-} from "../components/story/ui";
-import { DualComparePlayer, type DualMode, type DualMoment, type DualSide } from "../components/story/DualComparePlayer";
-
-const MOMENT_ORDER: MomentId[] = ["back_foot_land", "front_foot_plant", "arm_horizontal", "ball_release"];
-const MOMENT_FALLBACK_LABEL: Record<MomentId, string> = {
-  back_foot_land: "Back foot lands",
-  front_foot_plant: "Front foot plants",
-  arm_horizontal: "Arm level",
-  ball_release: "Ball release",
-};
-
-type Diff = CompareStory["rows"][number]["difference"];
+  SYNC_LABEL,
+  type SyncEvent,
+  analysisFps,
+  defaultPair,
+  formatMs,
+  formatShortDate,
+  frameAtTime,
+  nFrames,
+  syncFrameOf,
+  timesRelFfc,
+} from "../components/compare/compareMath";
 
 /**
- * Default pair (older = A, newer = B). Skips unusable clips, then prefers the newest pair from the
- * same bowler with the same camera view, then the same bowler, then anything.
+ * Compare & Ghost Overlay Studio (docs/research_app_landscape_v5.md §8.3).
+ * Side-by-side (one FFC-locked clock) · Blend overlay (SimulCam-style opacity + nudge) · Dual 3D ghost,
+ * overlaid kinematic-sequence lanes and the backend's noise-gated delta matrix. Statuses/differences are never
+ * computed client-side; "Within noise" is a calm, first-class state.
  */
-function defaultPair(list: DeliveryCard[], keepA: string | null, keepB: string | null): { a: string; b: string } | null {
-  const sorted = [...list].sort((x, y) => (y.created_at || "").localeCompare(x.created_at || ""));
-  const byId = (id: string | null) => (id ? sorted.find((d) => d.id === id) ?? null : null);
-  const usable = sorted.filter((d) => d.capture_grade !== "unusable");
-  const tiers: Array<(x: DeliveryCard, y: DeliveryCard) => boolean> = [
-    (x, y) => x.bowler_id === y.bowler_id && x.view_label === y.view_label,
-    (x, y) => x.bowler_id === y.bowler_id,
-    () => true,
-  ];
-  const order = (x: DeliveryCard, y: DeliveryCard) =>
-    (x.created_at || "") <= (y.created_at || "") ? { a: x.id, b: y.id } : { a: y.id, b: x.id };
 
-  const fixed = byId(keepB) ?? byId(keepA);
-  if (fixed) {
-    const pool = usable.filter((d) => d.id !== fixed.id);
-    const fallback = sorted.filter((d) => d.id !== fixed.id);
-    for (const tier of tiers) {
-      const other = pool.find((d) => tier(fixed, d));
-      if (other) return keepB && byId(keepB) ? { a: other.id, b: fixed.id } : { a: fixed.id, b: other.id };
-    }
-    if (!fallback.length) return null;
-    return keepB && byId(keepB) ? { a: fallback[0].id, b: fixed.id } : { a: fixed.id, b: fallback[0].id };
-  }
+type StageMode = "side" | "blend" | "ghost3d";
+type Rate = 0.1 | 0.25 | 0.5 | 1;
 
-  const rank = (d: DeliveryCard) => (d.capture_grade === "great" ? 3 : d.capture_grade === "partial" ? 2 : d.capture_grade === "limited" ? 1 : 0);
-  for (const pool of [usable, sorted]) {
-    for (const tier of tiers) {
-      // Best qualifying pair: clearest worst-view first (more checkpoints comparable), then newest.
-      let best: { x: DeliveryCard; y: DeliveryCard; q: number; i: number } | null = null;
-      for (let i = 0; i < pool.length; i++) {
-        for (let j = i + 1; j < pool.length; j++) {
-          if (!tier(pool[i], pool[j])) continue;
-          const q = Math.min(rank(pool[i]), rank(pool[j]));
-          if (!best || q > best.q) best = { x: pool[i], y: pool[j], q, i };
-        }
-      }
-      if (best) return order(best.x, best.y);
-    }
-  }
-  return null;
+interface Side {
+  detail: DeliveryDetailResponse;
+  times: number[]; // ms rel FFC
+  syncFrame: number;
+  relSync: number[]; // ms rel sync event
+  n: number;
 }
 
-const ChangePill: React.FC<{ diff: Diff; text: string }> = ({ diff, text }) => {
-  const cls =
-    diff === "clearly_higher" || diff === "clearly_lower"
-      ? "text-[#171717] border-[#171717] font-[500]"
-      : diff === "within_noise"
-      ? "text-[#8f8f8f] border-[#ebebeb]"
-      : "text-[#8f8f8f] border-dashed border-[#c9c9c9] bg-[#fafafa]";
-  return (
-    <span className={`inline-flex items-center gap-1 min-h-6 px-2.5 py-0.5 rounded-full border text-[12px] leading-snug ${cls}`}>
-      {diff === "clearly_higher" && <ArrowUp className="w-3 h-3 shrink-0" aria-hidden />}
-      {diff === "clearly_lower" && <ArrowDown className="w-3 h-3 shrink-0" aria-hidden />}
-      {text}
-    </span>
-  );
-};
+function buildSide(detail: DeliveryDetailResponse, ev: SyncEvent): Side {
+  const t = detail.telemetry;
+  const n = nFrames(t);
+  const ffc = syncFrameOf(detail.fact_sheet, "ffc", n);
+  const times = timesRelFfc(t, ffc);
+  const syncFrame = syncFrameOf(detail.fact_sheet, ev, n) ?? ffc ?? 0;
+  const t0 = times[syncFrame] ?? 0;
+  return { detail, times, syncFrame, relSync: times.map((x) => x - t0), n };
+}
 
-const SideCell: React.FC<{ tag: string; side: CompareSide; checkpoint: BodyCheckpoint | undefined }> = ({ tag, side, checkpoint }) => {
-  // Use the story's own label/unlock reason only when it agrees with the backend compare status.
-  const sameStatus = checkpoint && checkpoint.status === side.status;
-  return (
-    <div className="flex items-center justify-between md:justify-start md:flex-col md:items-start gap-2 md:gap-1.5 min-w-0">
-      <span className="md:hidden text-[12px] text-[#8f8f8f] w-12 shrink-0">{tag}</span>
-      <StatusBadge
-        status={side.status as CheckpointStatus}
-        label={sameStatus ? checkpoint!.status_label : null}
-        unlockReason={sameStatus ? checkpoint!.unlock_reason : null}
-        compact
-      />
-      <span className="ml-auto md:ml-0">
-        <ValueWithRange value={side.value_text} range={side.range_text} size="sm" inline />
-      </span>
-    </div>
-  );
-};
-
-const PickerCard: React.FC<{
-  tag: string;
-  selectedId: string | null;
-  otherId: string | null;
-  options: DeliveryCard[];
-  onPick: (id: string) => void;
-}> = ({ tag, selectedId, otherId, options, onPick }) => {
-  const sel = options.find((d) => d.id === selectedId) ?? null;
-  const groups = useMemo(() => {
-    const m = new Map<string, { name: string; items: DeliveryCard[] }>();
-    options.forEach((d) => {
-      const g = m.get(d.bowler_id) ?? { name: d.bowler_name, items: [] };
-      g.items.push(d);
-      m.set(d.bowler_id, g);
-    });
-    return [...m.values()];
-  }, [options]);
-  return (
-    <Card className="p-3 md:p-4 flex gap-3 min-w-0">
-      <div className="w-[72px] h-[72px] md:w-[88px] md:h-[88px] rounded-[6px] bg-[#f4f4f5] overflow-hidden shrink-0">
-        {sel?.thumbnail_url && <img src={sel.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
-      </div>
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[12px] text-[#8f8f8f]">{tag}</span>
-          {sel && (
-            <button
-              type="button"
-              className="text-[12px] text-[#4d4d4d] hover:text-[#171717] inline-flex items-center gap-1"
-              onClick={() => navigate({ name: "delivery", id: sel.id, tab: "story" })}
-            >
-              Open story <ArrowRight className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-        <select
-          className="v-input h-8 px-2 text-[13px] w-full min-w-0"
-          value={selectedId ?? ""}
-          onChange={(e) => e.target.value && onPick(e.target.value)}
-          aria-label={`Choose ${tag}`}
-        >
-          {!sel && <option value="">Choose a ball…</option>}
-          {groups.map((g) => (
-            <optgroup key={g.name} label={g.name}>
-              {g.items.map((d) => (
-                <option key={d.id} value={d.id} disabled={d.id === otherId}>
-                  {d.label || "Delivery"} · {formatDate(d.created_at)}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        {sel && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[#4d4d4d] min-w-0">
-            <span className="truncate">{sel.bowler_name}</span>
-            <span className="text-[#c9c9c9]">·</span>
-            <span>{sel.view_label}</span>
-            <span className="ml-auto">
-              <CheckpointDots statuses={sel.checkpoint_statuses} />
-            </span>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-};
-
-export const CompareView: React.FC<{ a: string | null; b: string | null }> = ({ a, b }) => {
-  const [overview, setOverview] = useState<OverviewResponse | null>(null);
-  const [overviewErr, setOverviewErr] = useState<string | null>(null);
-  const [cmp, setCmp] = useState<CompareStory | null>(null);
-  const [cmpErr, setCmpErr] = useState<string | null>(null);
-  const [cmpLoading, setCmpLoading] = useState(false);
-  const [detail, setDetail] = useState<{ a: DeliveryDetailResponse | null; b: DeliveryDetailResponse | null }>({ a: null, b: null });
-  const [detailErr, setDetailErr] = useState<{ a: string | null; b: string | null }>({ a: null, b: null });
-  const [mode, setMode] = useState<DualMode>("side");
-
+function useDelivery(id: string | null) {
+  const [state, setState] = useState<{ data: DeliveryDetailResponse | null; loading: boolean; error: string | null }>({
+    data: null,
+    loading: false,
+    error: null,
+  });
   useEffect(() => {
-    let cancelled = false;
+    if (!id) {
+      setState({ data: null, loading: false, error: null });
+      return;
+    }
+    let alive = true;
+    setState({ data: null, loading: true, error: null });
+    api
+      .getDelivery(id)
+      .then((d) => alive && setState({ data: d, loading: false, error: null }))
+      .catch((e: Error) => alive && setState({ data: null, loading: false, error: e.message || "Could not load" }));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+  return state;
+}
+
+const deliveryOptionLabel = (d: DeliveryCard) =>
+  `${d.label} · ${d.bowler_name} · ${formatShortDate(d.created_at)} · ${d.view_label}${d.capture_grade === "unusable" ? " (unusable)" : ""}`;
+
+const isPanUnverified = (d: DeliveryDetailResponse) =>
+  !!d.fact_sheet?.calibration?.is_panning_camera && !d.delivery?.pan_summary?.is_verified;
+
+export const CompareView: React.FC<{ a: string | null; b: string | null; refId?: string | null }> = ({ a, b, refId }) => {
+  const [ov, setOv] = useState<OverviewResponse | null>(null);
+  const [ovError, setOvError] = useState<string | null>(null);
+  const [syncEvent, setSyncEvent] = useState<SyncEvent>("ffc");
+  const [mode, setMode] = useState<StageMode>("side");
+  const [mirrorB, setMirrorB] = useState(false);
+  const [opacity, setOpacity] = useState(0.5);
+  const [nudge, setNudge] = useState<[number, number]>([0, 0]);
+  const [tMs, setTMs] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [rate, setRate] = useState<Rate>(0.25);
+  const [archetypes, setArchetypes] = useState<Archetype[] | null>(null);
+  const [archError, setArchError] = useState<string | null>(null);
+  const [compare, setCompare] = useState<{ data: CompareStory | null; loading: boolean; error: string | null }>({
+    data: null,
+    loading: false,
+    error: null,
+  });
+
+  const bIsArchetype = !!refId;
+
+  // ── overview + default pairing ──
+  useEffect(() => {
+    let alive = true;
     api
       .overview()
-      .then((o) => !cancelled && setOverview(o))
-      .catch((e) => !cancelled && setOverviewErr(String(e?.message || e)));
+      .then((o) => alive && setOv(o))
+      .catch((e: Error) => alive && setOvError(e.message || "Could not load your deliveries"));
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, []);
 
-  const options = overview?.recent_deliveries ?? [];
-
-  // Fill in missing picks with the latest two balls by the same bowler.
   useEffect(() => {
-    if (!overview || (a && b && a !== b)) return;
-    const pair = defaultPair(options, a, a === b ? null : b);
-    if (pair) navigate({ name: "compare", a: pair.a, b: pair.b });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overview, a, b]);
+    if (!ov) return;
+    if (a && (b || refId)) return;
+    const pair = defaultPair(ov);
+    if (!a) {
+      if (pair) navigate({ name: "compare", a: pair.a, b: refId ? null : pair.b, ref: refId ?? null });
+      return;
+    }
+    // A chosen (e.g. from the Workbench "Compare" button): pick a partner, preferring the default pairing.
+    const partner =
+      (pair && pair.b !== a ? pair.b : pair && pair.a !== a ? pair.a : null) ??
+      ov.recent_deliveries.find((d) => d.id !== a && d.capture_grade !== "unusable")?.id ??
+      ov.recent_deliveries.find((d) => d.id !== a)?.id ??
+      null;
+    if (partner) navigate({ name: "compare", a, b: partner, ref: null });
+  }, [ov, a, b, refId]);
 
-  const ready = !!a && !!b && a !== b;
+  const A = useDelivery(a);
+  const B = useDelivery(bIsArchetype ? null : b);
+  const armA: "right" | "left" = A.data?.fact_sheet?.bowling_arm ?? "right";
 
+  // ── archetypes (literature reference ghosts) ──
   useEffect(() => {
-    if (!ready) return;
-    let cancelled = false;
-    setCmp(null);
-    setCmpErr(null);
-    setCmpLoading(true);
+    if (!bIsArchetype) return;
+    let alive = true;
+    setArchError(null);
     api
-      .compare(a!, b!)
-      .then((c) => !cancelled && setCmp(c))
-      .catch((e) => !cancelled && setCmpErr(String(e?.message || e)))
-      .finally(() => !cancelled && setCmpLoading(false));
+      .archetypes(armA)
+      .then((r) => alive && setArchetypes(r.archetypes ?? []))
+      .catch((e: Error) => alive && setArchError(e.message || "Reference archetypes unavailable"));
     return () => {
-      cancelled = true;
+      alive = false;
     };
-  }, [a, b, ready]);
+  }, [bIsArchetype, armA]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const archetype = useMemo(
+    () => (bIsArchetype ? archetypes?.find((x) => x.id === refId) ?? null : null),
+    [bIsArchetype, archetypes, refId]
+  );
+
+  // ── backend compare story (only for two real deliveries) ──
+  useEffect(() => {
+    if (!a || !b || bIsArchetype) {
+      setCompare({ data: null, loading: false, error: null });
+      return;
+    }
+    let alive = true;
+    setCompare({ data: null, loading: true, error: null });
+    api
+      .compare(a, b)
+      .then((c) => alive && setCompare({ data: c, loading: false, error: null }))
+      .catch((e: Error) => alive && setCompare({ data: null, loading: false, error: e.message || "Could not compare" }));
+    return () => {
+      alive = false;
+    };
+  }, [a, b, bIsArchetype]);
+
+  // Archetypes have no video → only the 3D ghost stage applies.
+  useEffect(() => {
+    if (bIsArchetype) {
+      setMode("ghost3d");
+      setSyncEvent("ffc");
+    }
+  }, [bIsArchetype]);
+
+  const sideA = useMemo(() => (A.data ? buildSide(A.data, syncEvent) : null), [A.data, syncEvent]);
+  const sideB = useMemo(() => (B.data && !bIsArchetype ? buildSide(B.data, syncEvent) : null), [B.data, syncEvent, bIsArchetype]);
+  const armB: "right" | "left" = sideB?.detail.fact_sheet.bowling_arm ?? (archetype?.bowling_arm as "right" | "left" | undefined) ?? armA;
+
+  // ── shared compare clock range (intersection of both clips, ms rel sync) ──
+  const range = useMemo<[number, number]>(() => {
+    if (!sideA) return [-400, 300];
+    let lo = sideA.relSync[0];
+    let hi = sideA.relSync[sideA.relSync.length - 1];
+    const bTimes = sideB?.relSync ?? archetype?.time_rel_ffc_ms ?? null;
+    if (bTimes && bTimes.length > 1) {
+      lo = Math.max(lo, bTimes[0]);
+      hi = Math.min(hi, bTimes[bTimes.length - 1]);
+    }
+    if (!(hi > lo)) return [sideA.relSync[0], sideA.relSync[sideA.relSync.length - 1]];
+    return [lo, hi];
+  }, [sideA, sideB, archetype]);
 
   useEffect(() => {
-    if (!ready) return;
-    let cancelled = false;
-    setDetail({ a: null, b: null });
-    setDetailErr({ a: null, b: null });
-    (["a", "b"] as const).forEach((k) => {
-      const id = k === "a" ? a! : b!;
-      api
-        .getDelivery(id)
-        .then((d) => !cancelled && setDetail((p) => ({ ...p, [k]: d })))
-        .catch((e) => !cancelled && setDetailErr((p) => ({ ...p, [k]: String(e?.message || e) })));
-    });
+    setTMs((t) => Math.min(range[1], Math.max(range[0], t)));
+  }, [range]);
+
+  // ── playback (capture-time ms advance at `rate`) ──
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!playing) return;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      setTMs((t) => {
+        const nt = t + dt * rate;
+        return nt > range[1] ? range[0] : nt;
+      });
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
     return () => {
-      cancelled = true;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [a, b, ready]);
+  }, [playing, rate, range]);
 
-  const pick = (which: "a" | "b", id: string) => {
-    navigate({ name: "compare", a: which === "a" ? id : a, b: which === "b" ? id : b });
+  const fpsA = sideA ? analysisFps(sideA.detail.telemetry) : 30;
+  const frameA = sideA ? frameAtTime(sideA.relSync, tMs) : 0;
+  const frameB = sideB ? frameAtTime(sideB.relSync, tMs) : 0;
+  const step = useCallback(
+    (delta: number) => {
+      setPlaying(false);
+      setTMs((t) => Math.min(range[1], Math.max(range[0], t + (delta * 1000) / fpsA)));
+    },
+    [fpsA, range]
+  );
+
+  const setPick = (which: "a" | "b", id: string) => {
+    if (which === "a") navigate({ name: "compare", a: id, b: bIsArchetype ? null : b, ref: refId ?? null });
+    else navigate({ name: "compare", a, b: id, ref: null });
+  };
+  const setArchetypePick = (id: string) => navigate({ name: "compare", a, b: null, ref: id });
+
+  const switchBSource = (src: "delivery" | "archetype") => {
+    if (src === "archetype") {
+      if (archetypes?.length) setArchetypePick(String(archetypes[0].id));
+      else {
+        api
+          .archetypes(armA)
+          .then((r) => {
+            setArchetypes(r.archetypes ?? []);
+            if (r.archetypes?.length) setArchetypePick(String(r.archetypes[0].id));
+            else setArchError("No reference archetypes are available yet.");
+          })
+          .catch((e: Error) => setArchError(e.message || "Reference archetypes unavailable"));
+      }
+    } else {
+      const pair = defaultPair(ov);
+      const other = ov?.recent_deliveries.find((d) => d.id !== a)?.id ?? null;
+      navigate({ name: "compare", a, b: pair && pair.b !== a ? pair.b : other, ref: null });
+    }
   };
 
-  const cardA = cmp?.a ?? options.find((d) => d.id === a) ?? null;
-  const cardB = cmp?.b ?? options.find((d) => d.id === b) ?? null;
+  // ── derived notices ──
+  const viewA = A.data?.story?.capture?.view ?? A.data?.fact_sheet?.calibration?.view_class ?? null;
+  const viewB = B.data?.story?.capture?.view ?? B.data?.fact_sheet?.calibration?.view_class ?? null;
+  const viewsDiffer = !!(viewA && viewB && viewA !== viewB);
+  const panIssue = (A.data && isPanUnverified(A.data)) || (B.data && isPanUnverified(B.data));
+  const blendVideoOk = !viewsDiffer && !panIssue;
+  const armsDiffer = armA !== armB;
 
-  const moments: DualMoment[] = useMemo(() => {
-    const ka = detail.a?.story?.key_moments ?? [];
-    const kb = detail.b?.story?.key_moments ?? [];
-    return MOMENT_ORDER.filter((id) => ka.some((m) => m.id === id) || kb.some((m) => m.id === id)).map((id) => {
-      const ma = ka.find((m) => m.id === id);
-      const mb = kb.find((m) => m.id === id);
-      return { id, label: ma?.label || mb?.label || MOMENT_FALLBACK_LABEL[id], a: ma?.frame_idx ?? null, b: mb?.frame_idx ?? null };
-    });
-  }, [detail.a, detail.b]);
+  // ── 3D ghost inputs (aligned at the sync moment in A's FFC-relative time) ──
+  const ghost = useMemo(() => {
+    if (!sideA) return null;
+    const aSyncRelFfc = sideA.times[sideA.syncFrame] ?? 0;
+    if (sideB) {
+      const bSyncRelFfc = sideB.times[sideB.syncFrame] ?? 0;
+      return {
+        joints: sideB.detail.telemetry.joints3d_world_m,
+        times: sideB.times.map((t) => t - bSyncRelFfc + aSyncRelFfc),
+        label: `B · ${sideB.detail.delivery.label}`,
+      };
+    }
+    if (archetype) {
+      return { joints: archetype.joints3d_world_m, times: archetype.time_rel_ffc_ms, label: `${archetype.title} (synthetic)` };
+    }
+    return null;
+  }, [sideA, sideB, archetype]);
 
-  const syncFrames = useMemo(() => {
-    const ffp = moments.find((m) => m.id === "front_foot_plant");
-    return {
-      a: cmp?.sync_frames?.a ?? ffp?.a ?? null,
-      b: cmp?.sync_frames?.b ?? ffp?.b ?? null,
-    };
-  }, [cmp, moments]);
+  const seqA: SequenceTrack | null = sideA
+    ? { times: sideA.relSync, series: sideA.detail.telemetry.sequence_series, fps: sideA.detail.fact_sheet.audit?.fps ?? fpsA }
+    : null;
+  const seqB: SequenceTrack | null = sideB
+    ? {
+        times: sideB.relSync,
+        series: sideB.detail.telemetry.sequence_series,
+        fps: sideB.detail.fact_sheet.audit?.fps ?? analysisFps(sideB.detail.telemetry),
+      }
+    : archetype
+    ? { times: archetype.time_rel_ffc_ms, series: archetype.sequence_series, fps: archetype.fps ?? null }
+    : null;
 
-  const toSide = (tag: string, d: DeliveryDetailResponse | null, card: DeliveryCard | null): DualSide | null => {
-    if (!d || !d.telemetry || !d.delivery?.video_proxy_url) return null;
-    return {
-      id: d.delivery.id,
-      tag,
-      caption: card ? formatDate(card.created_at) : undefined,
-      videoUrl: d.delivery.video_proxy_url,
-      telemetry: d.telemetry,
-      bowlingArm: d.fact_sheet?.bowling_arm ?? "right",
-    };
-  };
-  const sideA = useMemo(() => toSide("Ball A", detail.a, cardA), [detail.a, cardA?.created_at]); // eslint-disable-line react-hooks/exhaustive-deps
-  const sideB = useMemo(() => toSide("Ball B", detail.b, cardB), [detail.b, cardB?.created_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  const eventChips = useMemo(() => {
+    if (!sideA) return [];
+    const evs: SyncEvent[] = ["bfc", "ffc", "br"];
+    return evs
+      .map((ev) => {
+        const f = syncFrameOf(sideA.detail.fact_sheet, ev, sideA.n);
+        return f === null ? null : { ev, t: sideA.relSync[f] };
+      })
+      .filter((x): x is { ev: SyncEvent; t: number } => !!x && x.t >= range[0] && x.t <= range[1]);
+  }, [sideA, range]);
 
-  const notices = detail.a?.story?.notices ?? detail.b?.story?.notices ?? null;
-  const viewsDiffer = !!cardA && !!cardB && cardA.view_label !== cardB.view_label;
+  const deliveries = ov?.recent_deliveries ?? [];
+  const bProvenance = bIsArchetype
+    ? "Synthetic archetype — not a real player"
+    : B.data
+    ? deliveries.find((d) => d.id === b)?.kind === "sample_real"
+      ? "Analysed pro clip — inherits its own camera limits"
+      : "Your analysed clip"
+    : null;
 
-  // ── Page states ────────────────────────────────────────────────────────────
-  if (overviewErr && !ready) {
+  // ── render ──
+  if (ovError && !a) {
     return (
-      <div className="max-w-[1200px] mx-auto px-4 md:px-6 py-8">
-        <EmptyState title="Couldn't load your deliveries" body={overviewErr} action={<button className="v-btn-ghost h-9 px-4 text-[13px]" onClick={() => window.location.reload()}>Try again</button>} />
+      <div className="max-w-3xl mx-auto v-panel p-6 text-[14px] text-[#4d4d4d]">
+        Could not load your deliveries ({ovError}). Make sure the Studio server is running.
       </div>
     );
   }
-  if (overview && options.length < 2 && !ready) {
+  if (ov && deliveries.length < 2 && !a) {
     return (
-      <div className="max-w-[1200px] mx-auto px-4 md:px-6 py-8">
-        <EmptyState
-          title="You need two balls to compare"
-          body="Analyse at least two deliveries and they'll line up here side by side, matched at the moment the front foot plants."
-          action={
-            <>
-              <button className="v-btn-primary h-9 px-4 text-[13px]" onClick={() => navigate({ name: "new", bowler: null })}>
-                New analysis
-              </button>
-              <button className="v-btn-ghost h-9 px-4 text-[13px]" onClick={() => navigate({ name: "home" })}>
-                Back to home
-              </button>
-            </>
-          }
-        />
+      <div className="max-w-3xl mx-auto space-y-4">
+        <h1 className="text-[24px] font-[500] tracking-[-0.02em]">Compare</h1>
+        <div className="v-panel p-6 text-[14px] text-[#4d4d4d]">
+          You need at least two analysed balls to compare. Analyse another delivery, or compare one ball against a literature
+          reference archetype once you have one.
+          <div className="mt-4">
+            <button className="v-btn-primary h-9 px-4 text-[13px]" onClick={() => navigate({ name: "upload", bowler: null })}>
+              New analysis
+            </button>
+          </div>
+        </div>
+        <GuardrailStrip />
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto px-4 md:px-6 py-6 md:py-8 flex flex-col gap-5">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[24px] md:text-[28px] font-[500] tracking-[-0.03em] text-[#171717]">Compare 2 balls</h1>
-        <p className="text-[13px] text-[#4d4d4d]">Both videos are lined up at the moment the front foot plants. Changes only count when the ranges don't overlap.</p>
-      </header>
-
-      {/* Pickers */}
-      <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] items-stretch">
-        <PickerCard tag="Ball A" selectedId={a} otherId={b} options={options} onPick={(id) => pick("a", id)} />
-        <div className="flex items-center justify-center">
-          <button
-            type="button"
-            className="v-btn-ghost h-8 w-8 inline-flex items-center justify-center"
-            title="Swap Ball A and Ball B"
-            aria-label="Swap Ball A and Ball B"
-            disabled={!ready}
-            onClick={() => navigate({ name: "compare", a: b, b: a })}
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-          </button>
+    <div className="space-y-4 min-w-0">
+      {/* ── Header & controls bar ── */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[24px] font-[500] tracking-[-0.02em] text-[#171717]">Compare</h1>
+          <p className="text-[13px] text-[#8f8f8f]">Two balls on one clock, locked at a key moment.</p>
         </div>
-        <PickerCard tag="Ball B" selectedId={b} otherId={a} options={options} onPick={(id) => pick("b", id)} />
       </div>
 
-      {!overview && !overviewErr && !ready && (
-        <div className="flex items-center gap-2 text-[13px] text-[#4d4d4d]">
-          <Spinner /> Loading your deliveries…
+      <div className="v-panel p-3 sm:p-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end min-w-0">
+        <label className="block min-w-0">
+          <div className="min-h-[30px] flex items-center">
+            <span className="v-label">Delivery A · solid</span>
+          </div>
+          <select
+            className="v-input mt-1 w-full min-w-0 h-10 px-2.5 text-[13px] truncate"
+            value={a ?? ""}
+            onChange={(e) => setPick("a", e.target.value)}
+          >
+            {!a && <option value="">Choose a ball…</option>}
+            {deliveries.map((d) => (
+              <option key={d.id} value={d.id}>
+                {deliveryOptionLabel(d)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="min-w-0">
+          <div className="min-h-[30px] flex flex-wrap items-center justify-between gap-2">
+            <span className="v-label">B · dashed slate</span>
+            <div className="v-seg">
+              <button aria-pressed={!bIsArchetype} onClick={() => switchBSource("delivery")}>
+                Delivery
+              </button>
+              <button aria-pressed={bIsArchetype} onClick={() => switchBSource("archetype")}>
+                Literature archetype
+              </button>
+            </div>
+          </div>
+          {bIsArchetype ? (
+            <select
+              className="v-input mt-1 w-full min-w-0 h-10 px-2.5 text-[13px] truncate"
+              value={refId ?? ""}
+              onChange={(e) => setArchetypePick(e.target.value)}
+            >
+              {!archetypes && <option value={refId ?? ""}>Loading archetypes…</option>}
+              {archetypes?.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.title} · {x.action_class}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              className="v-input mt-1 w-full min-w-0 h-10 px-2.5 text-[13px] truncate"
+              value={b ?? ""}
+              onChange={(e) => setPick("b", e.target.value)}
+            >
+              {!b && <option value="">Choose a ball…</option>}
+              {deliveries
+                .filter((d) => d.id !== a)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {deliveryOptionLabel(d)}
+                  </option>
+                ))}
+            </select>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2 min-w-0">
+          <div>
+            <span className="v-label block">Sync at</span>
+            <div className="v-seg mt-1 h-10 items-center">
+              {(["bfc", "ffc", "br"] as SyncEvent[]).map((ev) => (
+                <button
+                  key={ev}
+                  aria-pressed={syncEvent === ev}
+                  disabled={bIsArchetype && ev !== "ffc"}
+                  title={SYNC_LABEL[ev]}
+                  onClick={() => setSyncEvent(ev)}
+                  className="disabled:opacity-40"
+                >
+                  {ev.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="max-w-full">
+            <span className="v-label block">Stage</span>
+            <div className="v-seg mt-1 h-10 items-center max-w-full overflow-x-auto">
+              <button aria-pressed={mode === "side"} disabled={bIsArchetype} onClick={() => setMode("side")} className="disabled:opacity-40">
+                Side-by-side
+              </button>
+              <button aria-pressed={mode === "blend"} disabled={bIsArchetype} onClick={() => setMode("blend")} className="disabled:opacity-40">
+                Blend
+              </button>
+              <button aria-pressed={mode === "ghost3d"} onClick={() => setMode("ghost3d")}>
+                Dual 3D ghost
+              </button>
+            </div>
+          </div>
+          <button
+            className={`h-10 px-3 text-[13px] inline-flex items-center gap-1.5 ${mirrorB ? "v-btn-primary" : "v-btn-ghost"}`}
+            aria-pressed={mirrorB}
+            onClick={() => setMirrorB((m) => !m)}
+            title="Flip B left↔right to compare a left-arm and a right-arm action"
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" /> Mirror B {mirrorB ? "· Mirrored" : ""}
+          </button>
+        </div>
+      </div>
+
+      {/* ── provenance & notices ── */}
+      <div className="flex flex-wrap items-center gap-2 text-[12px]">
+        {bProvenance && <span className={`v-chip ${bIsArchetype ? "v-chip-ink" : ""}`}>B: {bProvenance}</span>}
+        {mirrorB && <span className="v-chip">B is mirrored</span>}
+        {armsDiffer && !mirrorB && (
+          <span className="v-chip">A bowls {armA}-arm, B bowls {armB}-arm — try Mirror B</span>
+        )}
+        {archetype && <span className="text-[#4d4d4d] leading-[1.5]">{archetype.disclaimer}</span>}
+        {archError && <span className="text-[#4d4d4d]">Reference archetypes: {archError}</span>}
+      </div>
+
+      {(A.error || B.error) && (
+        <div className="v-panel p-3 text-[13px] text-[#4d4d4d]">
+          {A.error && <div>Ball A could not be loaded: {A.error}</div>}
+          {B.error && <div>Ball B could not be loaded: {B.error}</div>}
         </div>
       )}
 
-      {ready && (
-        <>
-          {/* Player */}
-          <Card className="p-3 md:p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <SectionTitle className="!mb-0">Watch them together</SectionTitle>
-              <div className="inline-flex p-0.5 rounded-[6px] bg-[#f4f4f5]" role="tablist" aria-label="View mode">
-                {(
-                  [
-                    ["side", "Side by side"],
-                    ["overlay", "Overlay"],
-                  ] as Array<[DualMode, string]>
-                ).map(([m, label]) => (
-                  <button
-                    key={m}
-                    type="button"
-                    role="tab"
-                    aria-selected={mode === m}
-                    onClick={() => setMode(m)}
-                    className={`h-7 px-3 rounded-[5px] text-[12.5px] transition-colors duration-150 ${
-                      mode === m ? "bg-white text-[#171717] font-[500] shadow-[0_0_0_1px_#ebebeb]" : "text-[#4d4d4d] hover:text-[#171717]"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+      {/* ── stage ── */}
+      {!sideA ? (
+        <div className="v-stage h-[360px] flex items-center justify-center text-[13px] text-[#8f8f8f]">
+          {A.loading || B.loading || !ov ? "Loading both balls…" : "Pick Delivery A to start."}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {mode === "side" && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <CompareCanvas
+                primary={{
+                  videoUrl: sideA.detail.delivery.video_proxy_url || api.videoUrl(sideA.detail.delivery.id),
+                  telemetry: sideA.detail.telemetry,
+                  arm: armA,
+                  frame: frameA,
+                }}
+                tag={`A · ${sideA.detail.delivery.label}`}
+                caption={sideA.detail.story?.capture?.view_label ?? undefined}
+              />
+              {sideB ? (
+                <CompareCanvas
+                  primary={{
+                    videoUrl: sideB.detail.delivery.video_proxy_url || api.videoUrl(sideB.detail.delivery.id),
+                    telemetry: sideB.detail.telemetry,
+                    arm: armB,
+                    frame: frameB,
+                  }}
+                  tag={`B · ${sideB.detail.delivery.label}`}
+                  caption={sideB.detail.story?.capture?.view_label ?? undefined}
+                  mirrorPrimary={mirrorB}
+                  primaryGhostStyle
+                />
+              ) : (
+                <div className="v-stage h-[320px] md:h-[440px] flex items-center justify-center text-[13px] text-[#8f8f8f]">
+                  {B.loading ? "Loading B…" : "Pick Delivery B."}
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "blend" && (
+            <div className="grid gap-3 lg:grid-cols-[1fr_260px]">
+              <CompareCanvas
+                primary={{
+                  videoUrl: sideA.detail.delivery.video_proxy_url || api.videoUrl(sideA.detail.delivery.id),
+                  telemetry: sideA.detail.telemetry,
+                  arm: armA,
+                  frame: frameA,
+                }}
+                tag={`A solid · B dashed${mirrorB ? " (mirrored)" : ""}`}
+                heightClass="h-[340px] md:h-[520px]"
+                overlay={
+                  sideB
+                    ? {
+                        videoUrl: sideB.detail.delivery.video_proxy_url || api.videoUrl(sideB.detail.delivery.id),
+                        telemetry: sideB.detail.telemetry,
+                        arm: armB,
+                        frame: frameB,
+                        syncFramePrimary: sideA.syncFrame,
+                        syncFrameOverlay: sideB.syncFrame,
+                        opacity,
+                        nudge,
+                        mirror: mirrorB,
+                        showVideo: blendVideoOk,
+                      }
+                    : null
+                }
+              />
+              <div className="v-panel p-3 space-y-4">
+                <div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="v-label">B opacity</span>
+                    <span className="v-num text-[12px]">{Math.round(opacity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Math.round(opacity * 100)}
+                    onChange={(e) => setOpacity(Number(e.target.value) / 100)}
+                    className="w-full accent-[#171717]"
+                    disabled={!blendVideoOk}
+                    aria-label="Opacity of delivery B"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="v-label">Micro-align B</span>
+                    <span className="v-num text-[11px] text-[#8f8f8f]">
+                      x {nudge[0] > 0 ? "+" : ""}
+                      {nudge[0]} · y {nudge[1] > 0 ? "+" : ""}
+                      {nudge[1]} px
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-1 w-[120px]">
+                    <span />
+                    <button className="v-btn-ghost h-8 text-[13px]" onClick={() => setNudge(([x, y]) => [x, y - 2])} aria-label="Nudge B up">
+                      ↑
+                    </button>
+                    <span />
+                    <button className="v-btn-ghost h-8 text-[13px]" onClick={() => setNudge(([x, y]) => [x - 2, y])} aria-label="Nudge B left">
+                      ←
+                    </button>
+                    <button className="v-btn-ghost h-8 text-[11px]" onClick={() => setNudge([0, 0])} aria-label="Reset alignment">
+                      0
+                    </button>
+                    <button className="v-btn-ghost h-8 text-[13px]" onClick={() => setNudge(([x, y]) => [x + 2, y])} aria-label="Nudge B right">
+                      →
+                    </button>
+                    <span />
+                    <button className="v-btn-ghost h-8 text-[13px]" onClick={() => setNudge(([x, y]) => [x, y + 2])} aria-label="Nudge B down">
+                      ↓
+                    </button>
+                    <span />
+                  </div>
+                </div>
+                <p className="text-[12px] leading-[1.5] text-[#4d4d4d]">
+                  B is registered to A by the skeleton at {SYNC_LABEL[syncEvent].toLowerCase()} (hip position and body size).
+                  {!blendVideoOk && (
+                    <>
+                      {" "}
+                      <span className="text-[#171717]">
+                        {viewsDiffer ? "The two clips were filmed from different camera views" : "At least one camera was moving without a verified pan track"}
+                        , so B's video is hidden and only its skeleton outline is overlaid.
+                      </span>
+                    </>
+                  )}
+                </p>
               </div>
             </div>
-            {mode === "overlay" && (
-              <p className="text-[12px] text-[#4d4d4d] mb-2">
-                Ball B's body outline is drawn as a dashed line over Ball A's video, matched in position and size at the moment the front foot plants.
-                {viewsDiffer && " The two balls were filmed from different angles, so the outlines won't line up closely."}
+          )}
+
+          {mode === "ghost3d" && (
+            <div className="space-y-2">
+              <PitchStage3D
+                telemetry={sideA.detail.telemetry}
+                bowlingArm={armA}
+                frame={frameA}
+                ghostJoints3d={ghost?.joints}
+                ghostTimeRelFfcMs={ghost?.times}
+                ghostLabel={ghost?.label}
+                mirrorGhost={mirrorB}
+                defaultPreset="side"
+                eventFrames={{
+                  bfc: sideA.detail.fact_sheet.events?.bfc?.frame_idx ?? null,
+                  ffc: sideA.detail.fact_sheet.events?.ffc?.frame_idx ?? null,
+                  uah: sideA.detail.fact_sheet.events?.uah?.frame_idx ?? null,
+                  br: sideA.detail.fact_sheet.events?.br?.frame_idx ?? null,
+                  ft: sideA.detail.fact_sheet.events?.ft_peak?.frame_idx ?? null,
+                }}
+                heightClass="h-[380px] md:h-[520px]"
+              />
+              <p className="text-[12px] leading-[1.5] text-[#4d4d4d]">
+                A is the coloured mannequin; B is the slate ghost, timed to A at {SYNC_LABEL[syncEvent].toLowerCase()} and placed
+                at A's pelvis position.
+                The ghost body is never rescaled to fake a match
+                {archetype ? ` (archetype stature ${archetype.stature_m.toFixed(2)} m)` : ""}.
+                {!ghost && " Pick B to show the ghost."}
               </p>
-            )}
-            {sideA && sideB ? (
-              <DualComparePlayer a={sideA} b={sideB} syncFrames={syncFrames} moments={moments} mode={mode} speed={0.5} />
-            ) : detailErr.a || detailErr.b ? (
-              <div className="py-10 text-center text-[13px] text-[#4d4d4d]">
-                The videos couldn't be loaded right now. The comparison below still applies.
+            </div>
+          )}
+
+          {/* ── shared transport ── */}
+          <div className="v-panel p-3 flex flex-wrap items-center gap-3 min-w-0 overflow-hidden">
+            <JogWheel
+              frame={frameA}
+              numFrames={sideA.n}
+              playing={playing}
+              onTogglePlay={() => setPlaying((p) => !p)}
+              onStep={step}
+            />
+            <SpeedDetent rate={rate} onChange={setRate} captureFps={fpsA} />
+            <div className="flex-1 min-w-[220px] max-w-full">
+              <input
+                type="range"
+                min={Math.floor(range[0])}
+                max={Math.ceil(range[1])}
+                step={1}
+                value={Math.round(tMs)}
+                onChange={(e) => {
+                  setPlaying(false);
+                  setTMs(Number(e.target.value));
+                }}
+                className="w-full accent-[#171717]"
+                aria-label={`Time relative to ${SYNC_LABEL[syncEvent]}`}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
+                <span className="v-num text-[12px] text-[#171717]">
+                  {formatMs(tMs)} rel {syncEvent.toUpperCase()}
+                </span>
+                <span className="flex gap-1">
+                  {eventChips.map((c) => (
+                    <button
+                      key={c.ev}
+                      className="v-chip text-[11px] hover:bg-[#f4f4f5]"
+                      onClick={() => {
+                        setPlaying(false);
+                        setTMs(c.t);
+                      }}
+                      title={`Jump to ${SYNC_LABEL[c.ev]}`}
+                    >
+                      {c.ev.toUpperCase()}
+                    </button>
+                  ))}
+                </span>
               </div>
+            </div>
+          </div>
+
+          {/* ── sequence overlay + delta matrix ── */}
+          <div className="grid gap-3 xl:grid-cols-2">
+            {seqA && (
+              <SequenceOverlay
+                a={seqA}
+                b={seqB}
+                bLabel={archetype ? "Archetype (synthetic)" : "B"}
+                tMs={tMs}
+                range={range}
+                syncLabel={SYNC_LABEL[syncEvent].toLowerCase()}
+                onSeek={(t) => {
+                  setPlaying(false);
+                  setTMs(t);
+                }}
+              />
+            )}
+            {bIsArchetype ? (
+              archetype ? (
+                <ArchetypeEnvelopeMatrix factSheet={sideA.detail.fact_sheet} archetype={archetype} />
+              ) : (
+                <div className="v-panel p-4 text-[13px] text-[#8f8f8f]">Loading the reference archetype…</div>
+              )
             ) : (
-              <div className="py-10 flex items-center justify-center gap-2 text-[13px] text-[#4d4d4d]">
-                <Spinner /> Loading videos…
-              </div>
+              <DeltaMatrix story={compare.data} loading={compare.loading} error={compare.error} />
             )}
-          </Card>
-
-          {/* Summary + table */}
-          <Card className="p-4 md:p-5">
-            <SectionTitle hint={cmp && !cmp.comparable ? "Limited comparison" : undefined}>What changed</SectionTitle>
-            {cmpLoading && (
-              <div className="flex items-center gap-2 text-[13px] text-[#4d4d4d] py-4">
-                <Spinner /> Comparing the two balls…
-              </div>
-            )}
-            {cmpErr && !cmpLoading && (
-              <div className="text-[13px] text-[#4d4d4d] py-2">
-                The side-by-side measurements aren't available right now. Try again in a moment.
-                <span className="block mt-1 text-[12px] text-[#8f8f8f] break-words">{cmpErr}</span>
-              </div>
-            )}
-            {cmp && (
-              <>
-                <p className="text-[15px] leading-relaxed text-[#171717]">{cmp.summary}</p>
-                {cmp.caveat_plain && (
-                  <p className="mt-2 flex gap-2 items-start text-[12.5px] leading-[1.55] text-[#4d4d4d]">
-                    <Info className="w-4 h-4 mt-[1px] text-[#666666] shrink-0" />
-                    <span>{cmp.caveat_plain}</span>
-                  </p>
-                )}
-
-                <div className="mt-4 border-t border-[#ebebeb]">
-                  <div className="hidden md:grid grid-cols-[1.1fr_1fr_1fr_1.2fr] gap-4 py-2 text-[12px] text-[#8f8f8f] border-b border-[#ebebeb]">
-                    <span>Checkpoint</span>
-                    <span>Ball A</span>
-                    <span>Ball B</span>
-                    <span>Change</span>
-                  </div>
-                  {cmp.rows.map((row) => {
-                    const cpA = detail.a?.story?.checkpoints.find((c) => c.id === row.checkpoint_id);
-                    const cpB = detail.b?.story?.checkpoints.find((c) => c.id === row.checkpoint_id);
-                    return (
-                      <div
-                        key={row.checkpoint_id}
-                        className="grid gap-2 md:gap-4 md:grid-cols-[1.1fr_1fr_1fr_1.2fr] py-3 border-b border-[#ebebeb] last:border-b-0 md:items-center"
-                      >
-                        <div className="text-[14px] font-[500] text-[#171717]">{row.title}</div>
-                        <SideCell tag="Ball A" side={row.a} checkpoint={cpA} />
-                        <SideCell tag="Ball B" side={row.b} checkpoint={cpB} />
-                        <div className="flex items-center gap-2">
-                          <span className="md:hidden text-[12px] text-[#8f8f8f] w-12 shrink-0">Change</span>
-                          <ChangePill diff={row.difference} text={row.difference_plain} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </Card>
+          </div>
 
           <div className="flex flex-wrap gap-2">
-            {cardB && (
-              <button className="v-btn-ghost h-9 px-4 text-[13px]" onClick={() => navigate({ name: "progress", bowler: cardB.bowler_id })}>
-                See {cardB.bowler_name}'s progress
+            <button
+              className="v-btn-ghost h-9 px-3 text-[13px] inline-flex items-center gap-1.5"
+              onClick={() => a && navigate({ name: "delivery", id: a, tab: "story", frame: frameA })}
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Open A in Workbench
+            </button>
+            {sideB && (
+              <button
+                className="v-btn-ghost h-9 px-3 text-[13px] inline-flex items-center gap-1.5"
+                onClick={() => b && navigate({ name: "delivery", id: b, tab: "story", frame: frameB })}
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Open B in Workbench
               </button>
             )}
           </div>
-        </>
+        </div>
       )}
 
-      <NoticeFooter notices={notices} />
+      <div className="text-[11px] text-[#8f8f8f] flex items-center gap-2">
+        <span className="inline-block w-3 h-[2px]" style={{ background: SEG.pelvis }} />
+        <span className="inline-block w-3 h-[2px]" style={{ background: SEG.thorax }} />
+        <span className="inline-block w-3 h-[2px]" style={{ background: SEG.arm }} />
+        <span className="inline-block w-3 h-[2px]" style={{ background: SEG.wrist }} />
+        A segments · <span className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: SEG.ghost }} /> B / reference
+      </div>
+
+      <GuardrailStrip />
     </div>
   );
 };

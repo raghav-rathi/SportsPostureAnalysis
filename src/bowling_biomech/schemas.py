@@ -415,6 +415,12 @@ class StoryMetricRow(BaseModel):
         "side_bend",
         "shoulder_alignment",
         "runup_stride",
+        "kinematic_sequence",
+        "com_braking",
+        "head_stability",
+        "lead_arm",
+        "crease_tunnel",
+        "tempo_rhythm",
         "other",
     ]
     label_plain: str
@@ -428,6 +434,115 @@ class StoryMetricRow(BaseModel):
     plain_note: str
     definition_note: str
     literature_source: str
+
+
+SequenceVerdict = Literal[
+    "optimal_proximal_to_distal",
+    "simultaneous_rotational",
+    "out_of_order",
+    "unmeasurable",
+]
+
+
+class SequenceSegmentPeak(BaseModel):
+    segment: Literal["pelvis", "thorax", "bowling_arm", "wrist_whip"]
+    label_plain: str
+    peak_dps: MetricEstimate
+    peak_time_rel_ffc_ms: Optional[float] = None
+    peak_time_rel_br_ms: Optional[float] = None
+    timing_sigma_ms: Optional[float] = None
+
+
+class KinematicSequenceAnalysis(BaseModel):
+    verdict: SequenceVerdict
+    verdict_label_plain: str
+    summary_plain: str
+    segments: List[SequenceSegmentPeak] = Field(default_factory=list)
+    pelvis_to_thorax_lag_ms: MetricEstimate
+    thorax_to_arm_lag_ms: MetricEstimate
+    arm_to_wrist_lag_ms: MetricEstimate
+    whip_gain_arm_over_thorax: MetricEstimate
+    pelvis_braking_decel_pct: MetricEstimate
+
+
+class COMBrakingAnalysis(BaseModel):
+    model_reference: str = "de Leva (1996) 14-segment anthropometric COM (correlated-depth covariance)"
+    summary_plain: str
+    com_ffc_speed_mps: MetricEstimate
+    com_br_speed_mps: MetricEstimate
+    com_braking_delta_vx_mps: MetricEstimate
+    com_braking_efficiency_pct: MetricEstimate
+    com_vertical_sink_pct_stature: MetricEstimate
+    front_leg_plant_angle_ffc_deg: MetricEstimate
+
+
+class HeadStabilityAnalysis(BaseModel):
+    summary_plain: str
+    head_coronal_angle_br_deg: MetricEstimate
+    head_fall_away_ffc_to_br_deg: MetricEstimate
+    head_lateral_offset_from_ankle_br_pct_stature: MetricEstimate
+    head_lateral_offset_from_ankle_br_cm: MetricEstimate
+    head_vertical_drop_ffc_to_br_pct_stature: MetricEstimate
+
+
+class LeadArmAnalysis(BaseModel):
+    summary_plain: str
+    lead_arm_gather_peak_elev_deg: MetricEstimate
+    lead_arm_early_drop_pre_ffc_deg: MetricEstimate
+    lead_arm_pulldown_peak_vel_dps: MetricEstimate
+    lead_elbow_ribcage_flare_br_pct_stature: MetricEstimate
+
+
+class CreaseReleaseTunnelAnalysis(BaseModel):
+    corridor_verdict: Literal["train_tracks_open", "tightrope_inline", "crossed_over", "unmeasurable"]
+    corridor_label_plain: str
+    summary_plain: str
+    foot_plant_corridor_offset_cm: MetricEstimate
+    stride_alignment_angle_deg: MetricEstimate
+    front_heel_crease_margin_cm: MetricEstimate
+    release_height_pct_stature: MetricEstimate
+    release_lateral_from_ankle_m: MetricEstimate
+    release_lateral_from_stump_m: MetricEstimate
+    release_extension_past_crease_m: MetricEstimate
+
+
+class TempoPhaseSegment(BaseModel):
+    id: Literal["stride_bfc_ffc", "early_braking_ffc_uah", "whip_uah_br", "braking_ffc_br", "follow_through"]
+    label_plain: str
+    start_rel_ffc_ms: float
+    end_rel_ffc_ms: float
+    duration_ms: float
+    uncertainty_ms: float
+    reference_range_ms: Optional[Tuple[float, float]] = None
+
+
+class TempoRhythmAnalysis(BaseModel):
+    summary_plain: str
+    tempo_stride_duration_ms: MetricEstimate
+    tempo_braking_to_br_ms: MetricEstimate
+    tempo_uah_to_br_whip_ms: MetricEstimate
+    tempo_gather_to_whip_ratio: MetricEstimate
+    waterfall_phases: List[TempoPhaseSegment] = Field(default_factory=list)
+
+
+class V5InsightCard(BaseModel):
+    id: Literal[
+        "kinematic_sequence",
+        "com_braking",
+        "head_stability",
+        "lead_arm",
+        "crease_tunnel",
+        "tempo_rhythm",
+    ]
+    title: str
+    badge_label: str
+    status: CheckpointStatus
+    headline_value_text: Optional[str] = None
+    headline_range_text: Optional[str] = None
+    plain_summary: str
+    unlock_tip: Optional[str] = None
+    moment_id: Optional[MomentId] = None
+    frame_idx: Optional[int] = None
 
 
 class ActionStyleSummary(BaseModel):
@@ -466,6 +581,9 @@ class CoachingStory(BaseModel):
     headline_stats: List[HeadlineStat] = Field(default_factory=list)
     drills: List[DrillCard] = Field(default_factory=list)
     detail_rows: List[StoryMetricRow] = Field(default_factory=list)
+    v5_insights: List[V5InsightCard] = Field(default_factory=list)
+    v5_detail_rows: List[StoryMetricRow] = Field(default_factory=list)
+    stroboscopic_url: Optional[str] = None
     notices: StoryNotices
 
 
@@ -490,6 +608,9 @@ class CompareSideCell(BaseModel):
     status_label: CheckpointStatusLabel
     value_text: Optional[str] = None
     range_text: Optional[str] = None
+    value: Optional[float] = None
+    ci_low: Optional[float] = None
+    ci_high: Optional[float] = None
 
 
 class CompareCheckpointRow(BaseModel):
@@ -497,6 +618,20 @@ class CompareCheckpointRow(BaseModel):
     title: str
     a: CompareSideCell
     b: CompareSideCell
+    difference: Literal["clearly_higher", "clearly_lower", "within_noise", "not_comparable"]
+    difference_plain: str
+
+
+class CompareExtendedRow(BaseModel):
+    metric_key: str
+    group: str
+    title: str
+    a: CompareSideCell
+    b: CompareSideCell
+    delta_value: Optional[float] = None
+    delta_ci_half: Optional[float] = None
+    delta_text: Optional[str] = None
+    unit: str = ""
     difference: Literal["clearly_higher", "clearly_lower", "within_noise", "not_comparable"]
     difference_plain: str
 
@@ -510,6 +645,7 @@ class CompareStory(BaseModel):
     summary: str
     caveat_plain: Optional[str] = None
     rows: List[CompareCheckpointRow] = Field(default_factory=list)
+    extended_rows: List[CompareExtendedRow] = Field(default_factory=list)
 
 
 class BiomechanicalFactSheet(BaseModel):
@@ -527,6 +663,7 @@ class BiomechanicalFactSheet(BaseModel):
     workload_context: WorkloadContext = Field(default_factory=WorkloadContext)
     workload_guidance: Optional[WorkloadGuidance] = None
     metrics: Dict[str, MetricEstimate]
+    v5_metrics: Dict[str, MetricEstimate] = Field(default_factory=dict)
     cohort_comparisons: List[CohortComparison] = Field(default_factory=list)
     # Retained for schema compatibility; composite 0-100 scores are retired (score=None) pending external validation.
     kinetic_efficiency: PillarScore
@@ -539,6 +676,12 @@ class BiomechanicalFactSheet(BaseModel):
     capture_upgrades: List[PrioritizedCue] = Field(default_factory=list)
     corrective_drills: List[CorrectiveDrill] = Field(default_factory=list)
     coaching_story: Optional[CoachingStory] = None
+    kinematic_sequence: Optional[KinematicSequenceAnalysis] = None
+    com_braking: Optional[COMBrakingAnalysis] = None
+    head_stability: Optional[HeadStabilityAnalysis] = None
+    lead_arm: Optional[LeadArmAnalysis] = None
+    crease_tunnel: Optional[CreaseReleaseTunnelAnalysis] = None
+    tempo_rhythm: Optional[TempoRhythmAnalysis] = None
     hard_guardrails: List[str] = Field(
         default_factory=lambda: [
             "ICC 15-degree elbow legality CANNOT be adjudicated from monocular or casual 2D/3D video; accredited >=250 Hz 3D optical lab testing is required.",
@@ -547,6 +690,12 @@ class BiomechanicalFactSheet(BaseModel):
         ]
     )
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    def all_metric_estimates(self) -> Dict[str, MetricEstimate]:
+        """Return merged dictionary of canonical 23 metrics + extended Studio v5 MetricEstimates."""
+        if not self.v5_metrics:
+            return dict(self.metrics)
+        return {**self.v5_metrics, **self.metrics}
 
 
 class CoachingReport(BaseModel):

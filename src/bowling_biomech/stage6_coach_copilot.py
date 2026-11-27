@@ -104,6 +104,42 @@ _METRIC_SYNONYM_MAP: Dict[str, Tuple[str, ...]] = {
     "release_height_m": ("release height",),
     "follow_through_drift_deg": ("follow-through drift", "follow through drift"),
     "ball_release_speed_kph": ("ball release speed", "ball speed", "release speed", "bowling speed", "pace"),
+    # Studio v5 extended biomechanical metric stems
+    "seq_pelvis_peak_dps": ("pelvis rotational velocity", "hip rotational speed"),
+    "seq_thorax_peak_dps": ("thorax rotational velocity", "chest rotational speed"),
+    "seq_arm_peak_dps": ("upper-arm circumduction velocity",),
+    "seq_wrist_whip_peak_dps": ("wrist whip velocity", "hand whip speed"),
+    "seq_pelvis_to_thorax_lag_ms": ("pelvis-to-thorax lag", "hip-to-chest timing gap"),
+    "seq_thorax_to_arm_lag_ms": ("thorax-to-arm lag", "chest-to-arm timing gap"),
+    "seq_arm_to_wrist_lag_ms": ("arm-to-wrist lag",),
+    "seq_whip_gain_arm_over_thorax": ("whip gain", "arm-over-thorax gain"),
+    "seq_pelvis_braking_decel_pct": ("pelvis pre-release deceleration",),
+    "com_ffc_speed_mps": ("com horizontal speed at ffc", "center-of-mass speed at front-foot"),
+    "com_br_speed_mps": ("com horizontal speed at release",),
+    "com_braking_delta_vx_mps": ("com braking loss", "com horizontal braking", "horizontal braking speed converted"),
+    "com_braking_efficiency_pct": ("braking conversion", "com braking efficiency"),
+    "com_vertical_sink_pct_stature": ("com vertical sink", "center-of-mass vertical sink"),
+    "front_leg_plant_angle_ffc_deg": ("front-leg plant angle", "sagittal plant angle"),
+    "head_coronal_angle_br_deg": ("head-pelvis coronal tilt", "sideways head-spine tilt"),
+    "head_fall_away_ffc_to_br_deg": ("head fall-away sweep",),
+    "head_lateral_offset_from_ankle_br_pct_stature": ("head lateral offset past front foot",),
+    "head_lateral_offset_from_ankle_br_cm": ("head offset past front foot (cm)",),
+    "head_vertical_drop_ffc_to_br_pct_stature": ("head vertical drop",),
+    "lead_arm_gather_peak_elev_deg": ("lead-arm gather peak", "front-arm peak height"),
+    "lead_arm_early_drop_pre_ffc_deg": ("lead-arm premature drop", "front-arm drop before foot plant"),
+    "lead_arm_pulldown_peak_vel_dps": ("lead-arm pull-down speed", "front-arm pull-down speed"),
+    "lead_elbow_ribcage_flare_br_pct_stature": ("lead-elbow lateral flare", "front-elbow flare"),
+    "foot_plant_corridor_offset_cm": ("foot-plant corridor", "foot lateral corridor"),
+    "stride_alignment_angle_deg": ("stride alignment angle",),
+    "front_heel_crease_margin_cm": ("popping-crease margin", "front-heel crease margin"),
+    "release_height_pct_stature": ("release height (% stature)",),
+    "release_lateral_from_ankle_m": ("release slot width",),
+    "release_lateral_from_stump_m": ("release lateral offset from middle stump",),
+    "release_extension_past_crease_m": ("release extension past popping crease",),
+    "tempo_stride_duration_ms": ("tempo stride duration",),
+    "tempo_braking_to_br_ms": ("braking-to-release duration",),
+    "tempo_uah_to_br_whip_ms": ("final arm-whip duration", "uah-to-br whip"),
+    "tempo_gather_to_whip_ratio": ("gather-to-whip ratio", "gather-to-snap tempo", "tempo ratio"),
 }
 
 # Broader family stems activated ONLY when ALL sibling metrics in that family are suppressed
@@ -149,7 +185,7 @@ def _build_allowed_numbers(fact_sheet: BiomechanicalFactSheet) -> Set[float]:
             allowed.add(float(v))
             allowed.add(abs(float(v)))
 
-    for m in fact_sheet.metrics.values():
+    for m in fact_sheet.all_metric_estimates().values():
         if (not m.suppressed) and m.value is not None:
             for v in (m.value, m.ci_low, m.ci_high, m.sigma_total):
                 if v is not None:
@@ -157,7 +193,7 @@ def _build_allowed_numbers(fact_sheet: BiomechanicalFactSheet) -> Set[float]:
                     allowed.add(fv)
                     allowed.add(abs(fv))
                     # Allow canonical CoachingStory display rounding for non-suppressed metrics only
-                    if m.unit in ("deg", "kph", "km/h", "% stature"):
+                    if m.unit in ("deg", "kph", "km/h", "% stature", "%", "cm", "ms"):
                         allowed.add(float(round(fv)))
                         allowed.add(abs(float(round(fv))))
                     elif m.unit == "deg/s":
@@ -165,8 +201,9 @@ def _build_allowed_numbers(fact_sheet: BiomechanicalFactSheet) -> Set[float]:
                         allowed.add(abs(float(round(fv, -1))))
                     elif m.unit == "m/s":
                         allowed.add(float(round(fv, 1)))
-                    elif m.unit == "m":
+                    elif m.unit in ("m", "ratio"):
                         allowed.add(float(round(fv, 2)))
+                        allowed.add(abs(float(round(fv, 2))))
 
     for comp in fact_sheet.cohort_comparisons:
         for v in (comp.value, comp.ci_low, comp.ci_high, comp.cohort_mean, comp.cohort_sd, comp.z_score):
@@ -196,30 +233,31 @@ def _build_allowed_numbers(fact_sheet: BiomechanicalFactSheet) -> Set[float]:
 
 
 def _suppressed_stems_for_fact_sheet(fact_sheet: BiomechanicalFactSheet) -> List[Tuple[str, List[str]]]:
-    """Return `(metric_key, [match_stems...])` for every suppressed or REFUSED metric."""
+    """Return `(metric_key, [match_stems...])` for every suppressed or REFUSED metric (canonical + v5)."""
+    all_m = fact_sheet.all_metric_estimates()
     sup_keys = {
         m.key
-        for m in fact_sheet.metrics.values()
+        for m in all_m.values()
         if m.suppressed or m.observability == ObservabilityGrade.REFUSED
     }
     # Always treat optical ball speed as suppressed if absent or suppressed
-    if "ball_release_speed_kph" not in fact_sheet.metrics:
+    if "ball_release_speed_kph" not in all_m:
         sup_keys.add("ball_release_speed_kph")
 
     out: List[Tuple[str, List[str]]] = []
     for key in sorted(sup_keys):
         stems: List[str] = []
-        m = fact_sheet.metrics.get(key)
+        m = all_m.get(key)
         if m is not None:
             stems.append(m.label.lower())
-        short_key = re.sub(r"_(?:deg|mps|kph|dps|pct_stature|m)$", "", key).replace("_", " ")
-        if len(short_key) >= 4:
+        short_key = re.sub(r"_(?:deg|mps|kph|dps|pct_stature|pct|cm|ms|m)$", "", key).replace("_", " ")
+        if len(short_key) >= 6:
             stems.append(short_key)
         stems.extend(_METRIC_SYNONYM_MAP.get(key, ()))
         out.append((key, list(dict.fromkeys(stems))))
 
     for fam_keys, fam_stems in _METRIC_FAMILY_STEMS.items():
-        present = [k for k in fam_keys if k in fact_sheet.metrics]
+        present = [k for k in fam_keys if k in all_m]
         if present and all(k in sup_keys for k in present):
             out.append((present[0], list(fam_stems)))
 
@@ -292,7 +330,7 @@ def verify_coach_response(
     # Strip exact verbatim FactSheet diagnostic prose (suppression reasons, workload note, capture upgrades)
     # ONLY in Step 3 (after Step 1 ICC/composite & Step 2 suppressed-clause checks already passed!)
     verbatim_prose: List[str] = []
-    for m in fact_sheet.metrics.values():
+    for m in fact_sheet.all_metric_estimates().values():
         if m.suppression_reason:
             verbatim_prose.append(_strip_markdown(m.suppression_reason))
     if fact_sheet.workload_guidance is not None:

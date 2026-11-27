@@ -38,6 +38,7 @@ from .schemas import (
     CoachingStory,
     CohortComparison,
     CompareCheckpointRow,
+    CompareExtendedRow,
     CompareSideCell,
     CompareStory,
     CorrectiveDrill,
@@ -60,12 +61,14 @@ from .schemas import (
     StoryTakeaway,
     SupportingMetricItem,
     UnlockReason,
+    V5InsightCard,
     VideoAudit,
     ViewClarity,
     WorkloadContext,
     WorkloadGuidance,
 )
 from .stage3_kinematics import classify_action_portus
+from .stage3_v5_metrics import V5DeepBiomechBundle
 
 
 def _normal_cdf_pct(z: float) -> float:
@@ -787,8 +790,9 @@ def build_fact_sheet(
     workload: Optional[WorkloadContext] = None,
     metadata: Optional[Dict] = None,
     interval_type: IntervalType = "analytical_uncertainty",
+    v5_bundle: Optional[V5DeepBiomechBundle] = None,
 ) -> BiomechanicalFactSheet:
-    """Assemble the complete, strictly verified BiomechanicalFactSheet (schema v2.0.0)."""
+    """Assemble the complete, strictly verified BiomechanicalFactSheet (schema v2.0.0 + additive v5 modules)."""
     wk = workload if workload is not None else WorkloadContext()
     gated_action = _gate_action_class(action_class, metrics) if events.is_complete_delivery else BowlerActionClass.UNKNOWN
     cohort_comps = build_cohort_comparisons(metrics, wk)
@@ -820,6 +824,7 @@ def build_fact_sheet(
         workload_context=wk,
         workload_guidance=wk_guidance,
         metrics=metrics,
+        v5_metrics=dict(v5_bundle.v5_metrics) if v5_bundle is not None else {},
         cohort_comparisons=cohort_comps,
         kinetic_efficiency=kinetic,
         lumbar_load_screening=durability,
@@ -830,6 +835,12 @@ def build_fact_sheet(
         inconclusive_observations=inconclusive,
         capture_upgrades=upgrades,
         corrective_drills=drills,
+        kinematic_sequence=v5_bundle.kinematic_sequence if v5_bundle is not None else None,
+        com_braking=v5_bundle.com_braking if v5_bundle is not None else None,
+        head_stability=v5_bundle.head_stability if v5_bundle is not None else None,
+        lead_arm=v5_bundle.lead_arm if v5_bundle is not None else None,
+        crease_tunnel=v5_bundle.crease_tunnel if v5_bundle is not None else None,
+        tempo_rhythm=v5_bundle.tempo_rhythm if v5_bundle is not None else None,
         metadata=metadata or {},
     )
     return fs.model_copy(update={"coaching_story": build_coaching_story(fs)})
@@ -944,6 +955,17 @@ def format_metric_display(m: Optional[MetricEstimate]) -> Tuple[Optional[str], O
     if u == "% stature":
         v, lo, hi = int(round(m.value)), int(round(m.ci_low)), int(round(m.ci_high))
         return f"{v}% of height", f"{lo}%–{hi}%"
+    if u == "%":
+        v, lo, hi = int(round(m.value)), int(round(m.ci_low)), int(round(m.ci_high))
+        return f"{v}%", f"{lo}%–{hi}%"
+    if u == "cm":
+        v, lo, hi = int(round(m.value)), int(round(m.ci_low)), int(round(m.ci_high))
+        return f"{v} cm", f"{lo}–{hi} cm"
+    if u == "ms":
+        v, lo, hi = int(round(m.value)), int(round(m.ci_low)), int(round(m.ci_high))
+        return f"{v} ms", f"{lo}–{hi} ms"
+    if u == "ratio":
+        return f"{m.value:.2f}×", f"{m.ci_low:.2f}–{m.ci_high:.2f}×"
     if u == "m":
         return f"{m.value:.2f} m", f"{m.ci_low:.2f}–{m.ci_high:.2f} m"
     if u == "m/s":
@@ -1338,7 +1360,9 @@ def build_coaching_story(
         vt, rt = format_metric_display(pm)
         s_lbl = _status_label_for(st, None)
         ref_obj = _format_cohort_reference(cohort_by_key.get(p_key))
-        plain_m = _build_checkpoint_plain_meaning(cid, st, vt or "", rt or "")
+        plain_m = _build_checkpoint_plain_meaning(
+            cid, st, vt or "", rt or "", fps=float(audit.fps), timebase_unreliable=bool(audit.timebase_unreliable)
+        )
         checkpoints.append(
             BodyCheckpoint(
                 id=cid,
@@ -1632,6 +1656,9 @@ def build_coaching_story(
     subhead = f"{arm_lbl} · {view_lbl} · {fps_lbl}"
     s_kind: Optional[str] = sample_kind if sample_kind in ("real", "synthetic") else None
 
+    v5_insights, v5_detail_rows = _build_v5_story_extensions(fs)
+    strobo_url = f"/api/deliveries/{delivery_id}/stroboscopic.jpg" if (delivery_id and ev.is_complete_delivery) else None
+
     return CoachingStory(
         schema_version="coaching_story/1",
         delivery_id=delivery_id,
@@ -1648,17 +1675,30 @@ def build_coaching_story(
         headline_stats=headline_stats,
         drills=drills,
         detail_rows=detail_rows,
+        v5_insights=v5_insights,
+        v5_detail_rows=v5_detail_rows,
+        stroboscopic_url=strobo_url,
         notices=notices,
     )
 
 
-def _build_checkpoint_plain_meaning(cid: CheckpointId, status: CheckpointStatus, vt: str, rt: str) -> str:
+def _build_checkpoint_plain_meaning(
+    cid: CheckpointId,
+    status: CheckpointStatus,
+    vt: str,
+    rt: str,
+    fps: float = 30.0,
+    timebase_unreliable: bool = False,
+) -> str:
+    already_slowmo = (fps >= 120.0) and (not timebase_unreliable)
     if cid == "front_leg_brace":
         if status == "strong":
             return f"Your front knee stays firm at {vt} (likely {rt}) at ball release, giving a solid block to whip over."
         if status == "focus":
             return f"Your front knee bends to {vt} (likely {rt}) by ball release, softening the block as you let the ball go."
         if status == "watch":
+            if already_slowmo:
+                return f"Your front knee measured {vt} (likely {rt}) — the uncertainty range crosses the yielding line, so confirm across 2–3 more deliveries (or add a second camera angle) before changing technique."
             return f"Your front knee measured {vt} (likely {rt}) — the uncertainty range crosses the yielding line, so film in crisp slow-mo before changing technique."
         return f"Your front knee measured {vt} (likely {rt}) at ball release — steady braking support."
     if cid == "trunk_whip":
@@ -1667,6 +1707,8 @@ def _build_checkpoint_plain_meaning(cid: CheckpointId, status: CheckpointStatus,
         if status == "focus":
             return f"Forward chest drive measured {vt} (likely {rt}) after front-foot plant, leaving extra whip on the table."
         if status == "watch":
+            if already_slowmo:
+                return f"Forward chest drive measured {vt} (likely {rt}) — the range crosses the coaching threshold, so confirm across 2–3 more deliveries (or add a second camera angle) before changing technique."
             return f"Forward chest drive measured {vt} (likely {rt}) — the range crosses the coaching threshold, so confirm on slow-mo video."
         return f"Your chest drives forward by {vt} (likely {rt}) from front-foot plant to ball release."
     if cid == "side_bend":
@@ -1679,6 +1721,8 @@ def _build_checkpoint_plain_meaning(cid: CheckpointId, status: CheckpointStatus,
         if status == "focus":
             return f"Your shoulders twist back by {vt} (likely {rt}) after back-foot landing — keeping hips and shoulders aligned reduces abrupt trunk recoil."
         if status == "watch":
+            if already_slowmo:
+                return f"Shoulder twist measured {vt} (likely {rt}) — the range straddles the mixed-action line, so confirm across 2–3 more deliveries (or add a second camera angle) before adjusting your action."
             return f"Shoulder twist measured {vt} (likely {rt}) — the range straddles the mixed-action line, so film at 120–240 fps to confirm before adjusting your action."
         if status == "strong":
             return f"Your shoulders twist back by only {vt} (likely {rt}), keeping hips and chest moving smoothly together."
@@ -1741,17 +1785,25 @@ def _build_headline_and_takeaway(
     if watch_cps:
         wc = watch_cps[0]
         good = strong_cps[0] if strong_cps else (on_track_cps[0] if on_track_cps else None)
+        already_slowmo_cap = capture.fps >= 120.0
         if good is not None:
             hl = f"{good.title} is steady — {wc.title.lower()} is borderline on this clip."
+        elif already_slowmo_cap:
+            hl = f"{wc.title} sits near the coaching line — confirm across 2–3 deliveries before changing technique."
         else:
             hl = f"{wc.title} sits near the coaching line and needs a clearer clip."
+        fallback_watch_try = (
+            "Confirm across 2–3 more deliveries (or add a second camera angle) before changing technique."
+            if already_slowmo_cap
+            else "Film in 120–240 fps slow-motion from a steady tripod before changing your action."
+        )
         return (
             hl,
             StoryTakeaway(
                 kind="watch",
                 title=f"{wc.title} is borderline",
                 plain_explanation=wc.plain_meaning,
-                what_to_try=capture.next_clip_tip or "Film in 120–240 fps slow-motion from a steady tripod before changing your action.",
+                what_to_try=capture.next_clip_tip or fallback_watch_try,
                 checkpoint_id=wc.id,
                 moment_id=wc.moment_id,
                 frame_idx=wc.frame_idx,
@@ -1792,7 +1844,8 @@ def _build_headline_and_takeaway(
                 kind="strength",
                 title=f"{sc.title} is a clear strength",
                 plain_explanation=sc.plain_meaning,
-                what_to_try=capture.next_clip_tip or "Keep this repeatable rhythm across a full multi-ball spell.",
+                # BUGFIX (#53): NEVER place capture_upgrades inside a strength takeaway's action cue!
+                what_to_try="Keep this repeatable rhythm across a full multi-ball spell and check later deliveries for fatigue.",
                 checkpoint_id=sc.id,
                 moment_id=sc.moment_id,
                 frame_idx=sc.frame_idx,
@@ -1806,13 +1859,274 @@ def _build_headline_and_takeaway(
             kind="all_clear",
             title="Steady posture across visible checks",
             plain_explanation="None of the visible body checkpoints crossed a coaching limiter threshold.",
-            what_to_try=capture.next_clip_tip or "Compare another ball from your spell to check repeatability.",
+            what_to_try="Compare another ball from your spell to check repeatability across deliveries.",
             checkpoint_id=on_track_cps[0].id if on_track_cps else None,
             moment_id=on_track_cps[0].moment_id if on_track_cps else None,
             frame_idx=on_track_cps[0].frame_idx if on_track_cps else None,
             linked_drill_id=None,
         ),
     )
+
+
+_V5_GROUP_FOR_KEY: Dict[str, Tuple[str, str, str]] = {
+    "seq_pelvis_peak_dps": ("kinematic_sequence", "Peak hip rotational speed", "transverse"),
+    "seq_thorax_peak_dps": ("kinematic_sequence", "Peak chest rotational speed", "transverse"),
+    "seq_arm_peak_dps": ("kinematic_sequence", "Peak upper-arm whip speed", "sagittal"),
+    "seq_wrist_whip_peak_dps": ("kinematic_sequence", "Peak wrist & hand whip speed", "sagittal"),
+    "seq_pelvis_to_thorax_lag_ms": ("kinematic_sequence", "Hip-to-chest peak timing gap", "transverse"),
+    "seq_thorax_to_arm_lag_ms": ("kinematic_sequence", "Chest-to-arm peak timing gap", "sagittal"),
+    "seq_arm_to_wrist_lag_ms": ("kinematic_sequence", "Arm-to-wrist whip timing gap", "sagittal"),
+    "seq_whip_gain_arm_over_thorax": ("kinematic_sequence", "Arm-over-chest speed gain", "sagittal"),
+    "seq_pelvis_braking_decel_pct": ("kinematic_sequence", "Hip pre-release deceleration", "transverse"),
+    "com_ffc_speed_mps": ("com_braking", "Center-of-mass speed at front-foot plant", "metric_scale"),
+    "com_br_speed_mps": ("com_braking", "Center-of-mass speed at ball release", "metric_scale"),
+    "com_braking_delta_vx_mps": ("com_braking", "Horizontal braking speed converted", "metric_scale"),
+    "com_braking_efficiency_pct": ("com_braking", "Front-leg linear braking conversion", "sagittal"),
+    "com_vertical_sink_pct_stature": ("com_braking", "Center-of-mass vertical sink", "sagittal"),
+    "front_leg_plant_angle_ffc_deg": ("com_braking", "Front-leg plant angle at landing", "sagittal"),
+    "head_coronal_angle_br_deg": ("head_stability", "Sideways head-spine tilt at release", "coronal"),
+    "head_fall_away_ffc_to_br_deg": ("head_stability", "Head fall-away sweep after plant", "coronal"),
+    "head_lateral_offset_from_ankle_br_pct_stature": ("head_stability", "Head offset past front foot (% height)", "coronal"),
+    "head_lateral_offset_from_ankle_br_cm": ("head_stability", "Head offset past front foot (cm)", "coronal"),
+    "head_vertical_drop_ffc_to_br_pct_stature": ("head_stability", "Head vertical drop (plant to release)", "sagittal"),
+    "lead_arm_gather_peak_elev_deg": ("lead_arm", "Front-arm peak height in gather", "sagittal"),
+    "lead_arm_early_drop_pre_ffc_deg": ("lead_arm", "Front-arm drop before foot plant", "sagittal"),
+    "lead_arm_pulldown_peak_vel_dps": ("lead_arm", "Front-arm pull-down speed", "sagittal"),
+    "lead_elbow_ribcage_flare_br_pct_stature": ("lead_arm", "Front-elbow flare from ribs at release", "coronal"),
+    "foot_plant_corridor_offset_cm": ("crease_tunnel", "Back-to-front foot corridor width", "metric_scale"),
+    "stride_alignment_angle_deg": ("crease_tunnel", "Delivery stride corridor angle", "metric_scale"),
+    "front_heel_crease_margin_cm": ("crease_tunnel", "Front-heel popping-crease margin", "metric_scale"),
+    "release_height_pct_stature": ("crease_tunnel", "Release height (% of height)", "sagittal"),
+    "release_lateral_from_ankle_m": ("crease_tunnel", "Release width from front foot", "coronal"),
+    "release_lateral_from_stump_m": ("crease_tunnel", "Release distance from middle stump", "metric_scale"),
+    "release_extension_past_crease_m": ("crease_tunnel", "Release reach past popping crease", "metric_scale"),
+    "tempo_stride_duration_ms": ("tempo_rhythm", "Stride duration (back foot to front foot)", "sagittal"),
+    "tempo_braking_to_br_ms": ("tempo_rhythm", "Snap duration (front foot to release)", "sagittal"),
+    "tempo_uah_to_br_whip_ms": ("tempo_rhythm", "Final overhead whip (arm level to release)", "sagittal"),
+    "tempo_gather_to_whip_ratio": ("tempo_rhythm", "Gather-to-snap tempo ratio", "sagittal"),
+}
+
+
+def _build_v5_story_extensions(fs: BiomechanicalFactSheet) -> Tuple[List[V5InsightCard], List[StoryMetricRow]]:
+    """Build deterministic jargon-free Studio v5 deep-biomechanics cards and detail rows."""
+    ev = fs.events
+    audit = fs.audit
+    v5m = fs.v5_metrics
+    if not v5m:
+        return [], []
+
+    bfc_idx = int(ev.bfc.frame_idx) if ev.is_complete_delivery else None
+    ffc_idx = int(ev.ffc.frame_idx) if ev.is_complete_delivery else None
+    br_idx = int(ev.br.frame_idx) if ev.is_complete_delivery else None
+
+    v5_rows: List[StoryMetricRow] = []
+    for mk, (grp, lbl_plain, plane_h) in _V5_GROUP_FOR_KEY.items():
+        dm = v5m.get(mk)
+        if dm is None:
+            continue
+        if (not ev.is_complete_delivery) or dm.suppressed or dm.value is None:
+            ur, u_plain, _ = _classify_unlock_reason(dm, plane_h, audit, ev)
+            v5_rows.append(
+                StoryMetricRow(
+                    metric_key=mk,
+                    group=grp,  # type: ignore[arg-type]
+                    label_plain=lbl_plain,
+                    value_text=None,
+                    range_text=None,
+                    view_clarity=None,
+                    status="not_visible",
+                    status_label=_status_label_for("not_visible", ur),
+                    suppressed=True,
+                    suppression_plain=u_plain,
+                    plain_note=u_plain,
+                    definition_note=_humanize_coaching_copy(dm.definition_note),
+                    literature_source=dm.literature_source,
+                )
+            )
+        else:
+            vt, rt = format_metric_display(dm)
+            v5_rows.append(
+                StoryMetricRow(
+                    metric_key=mk,
+                    group=grp,  # type: ignore[arg-type]
+                    label_plain=lbl_plain,
+                    value_text=vt,
+                    range_text=rt,
+                    view_clarity=_view_clarity_for(dm.observability),
+                    status="on_track",
+                    status_label="On Track",
+                    suppressed=False,
+                    suppression_plain=None,
+                    plain_note=f"Measured at {vt} (likely {rt}).",
+                    definition_note=_humanize_coaching_copy(dm.definition_note),
+                    literature_source=dm.literature_source,
+                )
+            )
+
+    cards: List[V5InsightCard] = []
+
+    # 1. Kinematic Sequence Card
+    if fs.kinematic_sequence is not None:
+        ks = fs.kinematic_sequence
+        gain_vt, gain_rt = format_metric_display(ks.whip_gain_arm_over_thorax)
+        if ks.verdict == "unmeasurable":
+            st_ks: CheckpointStatus = "not_visible"
+            if audit.fps >= 120.0 and not audit.timebase_unreliable:
+                tip_ks = "Add a second camera angle (dual-phone side + rear or 45° open-side view) to unlock all 4 segments of the kinematic sequence."
+            else:
+                tip_ks = "Film in 120–240 fps slow-motion from a 45° open-side or dual-phone view to unlock 4-segment timing."
+        elif ks.verdict == "optimal_proximal_to_distal":
+            st_ks = "strong"
+            tip_ks = None
+        elif ks.verdict == "out_of_order":
+            st_ks = "focus"
+            tip_ks = None
+        else:
+            st_ks = "on_track"
+            tip_ks = None
+        cards.append(
+            V5InsightCard(
+                id="kinematic_sequence",
+                title="Kinematic Whip Sequence",
+                badge_label=ks.verdict_label_plain,
+                status=st_ks,
+                headline_value_text=gain_vt,
+                headline_range_text=gain_rt,
+                plain_summary=_humanize_coaching_copy(ks.summary_plain),
+                unlock_tip=tip_ks,
+                moment_id="ball_release" if ev.is_complete_delivery else None,
+                frame_idx=br_idx,
+            )
+        )
+
+    # 2. COM & Braking Card
+    if fs.com_braking is not None:
+        cb = fs.com_braking
+        primary_cb = cb.com_braking_delta_vx_mps if not cb.com_braking_delta_vx_mps.suppressed else cb.front_leg_plant_angle_ffc_deg
+        vt_cb, rt_cb = format_metric_display(primary_cb)
+        st_cb: CheckpointStatus = "not_visible" if vt_cb is None else ("strong" if (not cb.com_braking_efficiency_pct.suppressed and (cb.com_braking_efficiency_pct.ci_low or 0) >= 26.0) else "on_track")
+        cards.append(
+            V5InsightCard(
+                id="com_braking",
+                title="Center-of-Mass Braking",
+                badge_label="Braced Momentum Check" if st_cb == "strong" else ("Measured" if st_cb != "not_visible" else "Needs Side-On View"),
+                status=st_cb,
+                headline_value_text=vt_cb,
+                headline_range_text=rt_cb,
+                plain_summary=_humanize_coaching_copy(cb.summary_plain),
+                unlock_tip="Use a steady side-on tripod framing visible creases to measure full braking deceleration." if st_cb == "not_visible" else None,
+                moment_id="front_foot_plant" if ev.is_complete_delivery else None,
+                frame_idx=ffc_idx,
+            )
+        )
+
+    # 3. Head Stability Card
+    if fs.head_stability is not None:
+        hs = fs.head_stability
+        p_hs = hs.head_lateral_offset_from_ankle_br_pct_stature if not hs.head_lateral_offset_from_ankle_br_pct_stature.suppressed else hs.head_coronal_angle_br_deg
+        vt_hs, rt_hs = format_metric_display(p_hs)
+        if vt_hs is None:
+            st_hs: CheckpointStatus = "not_visible"
+            b_hs = "Needs Rear / Front View"
+        elif (not hs.head_lateral_offset_from_ankle_br_pct_stature.suppressed) and (hs.head_lateral_offset_from_ankle_br_pct_stature.ci_low or 0.0) > 16.0:
+            st_hs = "focus"
+            b_hs = "Falling Off-Line"
+        else:
+            st_hs = "on_track"
+            b_hs = "Stacked Balance"
+        cards.append(
+            V5InsightCard(
+                id="head_stability",
+                title="Head Balance & Fall-Away",
+                badge_label=b_hs,
+                status=st_hs,
+                headline_value_text=vt_hs,
+                headline_range_text=rt_hs,
+                plain_summary=_humanize_coaching_copy(hs.summary_plain),
+                unlock_tip="Film from behind or in front of the stumps to track sideways head balance." if st_hs == "not_visible" else None,
+                moment_id="ball_release" if ev.is_complete_delivery else None,
+                frame_idx=br_idx,
+            )
+        )
+
+    # 4. Lead Arm Card
+    if fs.lead_arm is not None:
+        la = fs.lead_arm
+        p_la = la.lead_arm_early_drop_pre_ffc_deg if not la.lead_arm_early_drop_pre_ffc_deg.suppressed else la.lead_elbow_ribcage_flare_br_pct_stature
+        vt_la, rt_la = format_metric_display(p_la)
+        if vt_la is None:
+            st_la: CheckpointStatus = "not_visible"
+            b_la = "Not Visible"
+        elif (not la.lead_arm_early_drop_pre_ffc_deg.suppressed) and (la.lead_arm_early_drop_pre_ffc_deg.ci_low or 0.0) >= 38.0:
+            st_la = "focus"
+            b_la = "Early Front-Arm Drop"
+        else:
+            st_la = "on_track"
+            b_la = "Controlled Front Arm"
+        cards.append(
+            V5InsightCard(
+                id="lead_arm",
+                title="Front-Arm Gather & Tuck",
+                badge_label=b_la,
+                status=st_la,
+                headline_value_text=vt_la,
+                headline_range_text=rt_la,
+                plain_summary=_humanize_coaching_copy(la.summary_plain),
+                unlock_tip=None,
+                moment_id="front_foot_plant" if ev.is_complete_delivery else None,
+                frame_idx=ffc_idx,
+            )
+        )
+
+    # 5. Crease & Release Tunnel Card
+    if fs.crease_tunnel is not None:
+        ct = fs.crease_tunnel
+        p_ct = ct.foot_plant_corridor_offset_cm if not ct.foot_plant_corridor_offset_cm.suppressed else ct.release_height_pct_stature
+        vt_ct, rt_ct = format_metric_display(p_ct)
+        if ct.corridor_verdict == "crossed_over":
+            st_ct: CheckpointStatus = "focus"
+        elif ct.corridor_verdict == "train_tracks_open":
+            st_ct = "strong"
+        elif vt_ct is not None:
+            st_ct = "on_track"
+        else:
+            st_ct = "not_visible"
+        cards.append(
+            V5InsightCard(
+                id="crease_tunnel",
+                title="Foot Corridor & Release Slot",
+                badge_label=ct.corridor_label_plain if ct.corridor_verdict != "unmeasurable" else ("Release Slot Measured" if vt_ct else "Needs Crease Calibration"),
+                status=st_ct,
+                headline_value_text=vt_ct,
+                headline_range_text=rt_ct,
+                plain_summary=_humanize_coaching_copy(ct.summary_plain),
+                unlock_tip="Click 4 crease corners on a static tripod clip to measure foot corridor and popping-crease margin." if ct.corridor_verdict == "unmeasurable" else None,
+                moment_id="front_foot_plant" if ev.is_complete_delivery else None,
+                frame_idx=ffc_idx,
+            )
+        )
+
+    # 6. Tempo & Rhythm Card
+    if fs.tempo_rhythm is not None:
+        tr = fs.tempo_rhythm
+        vt_tr, rt_tr = format_metric_display(tr.tempo_gather_to_whip_ratio)
+        st_tr: CheckpointStatus = "on_track" if vt_tr is not None else "not_visible"
+        cards.append(
+            V5InsightCard(
+                id="tempo_rhythm",
+                title="Delivery Tempo & Rhythm",
+                badge_label="Gather-to-Snap Tempo" if vt_tr else "Timing Withheld",
+                status=st_tr,
+                headline_value_text=vt_tr,
+                headline_range_text=rt_tr,
+                plain_summary=_humanize_coaching_copy(tr.summary_plain),
+                unlock_tip="Upload original unedited camera-roll slow-motion for millisecond phase timing." if vt_tr is None else None,
+                moment_id="back_foot_land" if ev.is_complete_delivery else None,
+                frame_idx=bfc_idx,
+            )
+        )
+
+    return cards, v5_rows
 
 
 def hydrate_coaching_story(
@@ -1919,6 +2233,108 @@ def build_compare_story(
     else:
         summary = f"Across {comparable_count} comparable checkpoints, differences stay within measurement ranges."
 
+    # Build noise-gated extended metric delta matrix (`|delta| > 1.96 * sqrt(sigma_a^2 + sigma_b^2)`)
+    ext_specs = [
+        ("release_height_m", "crease_tunnel", "Ball release height"),
+        ("peak_arm_angular_vel_dps", "kinematic_sequence", "Peak upper-arm whip speed"),
+        ("seq_pelvis_to_thorax_lag_ms", "kinematic_sequence", "Hip-to-chest peak timing gap"),
+        ("seq_thorax_to_arm_lag_ms", "kinematic_sequence", "Chest-to-arm peak timing gap"),
+        ("front_leg_plant_angle_ffc_deg", "com_braking", "Front-leg plant angle"),
+        ("com_braking_delta_vx_mps", "com_braking", "COM horizontal braking loss"),
+        ("com_vertical_sink_pct_stature", "com_braking", "COM vertical sink"),
+        ("head_coronal_angle_br_deg", "head_stability", "Sideways head-spine tilt"),
+        ("head_lateral_offset_from_ankle_br_pct_stature", "head_stability", "Head offset past front foot"),
+        ("lead_arm_early_drop_pre_ffc_deg", "lead_arm", "Front-arm drop before plant"),
+        ("lead_elbow_ribcage_flare_br_pct_stature", "lead_arm", "Front-elbow flare at release"),
+        ("foot_plant_corridor_offset_cm", "crease_tunnel", "Foot-plant corridor width"),
+        ("tempo_stride_duration_ms", "tempo_rhythm", "Delivery stride duration"),
+        ("tempo_braking_to_br_ms", "tempo_rhythm", "Braking-to-release snap"),
+        ("tempo_gather_to_whip_ratio", "tempo_rhythm", "Gather-to-snap tempo ratio"),
+    ]
+    all_a = fs_a.all_metric_estimates()
+    all_b = fs_b.all_metric_estimates()
+    ext_rows: List[CompareExtendedRow] = []
+    for mk, grp, m_title in ext_specs:
+        ma = all_a.get(mk)
+        mb = all_b.get(mk)
+        va_t, ra_t = format_metric_display(ma)
+        vb_t, rb_t = format_metric_display(mb)
+        ok_a = bool(fs_a.events.is_complete_delivery and ma is not None and not ma.suppressed and ma.value is not None)
+        ok_b = bool(fs_b.events.is_complete_delivery and mb is not None and not mb.suppressed and mb.value is not None)
+        cell_ma = CompareSideCell(
+            status="on_track" if ok_a else "not_visible",
+            status_label="On Track" if ok_a else "Not Visible",
+            value_text=va_t if ok_a else None,
+            range_text=ra_t if ok_a else None,
+            value=ma.value if (ok_a and ma) else None,
+            ci_low=ma.ci_low if (ok_a and ma) else None,
+            ci_high=ma.ci_high if (ok_a and ma) else None,
+        )
+        cell_mb = CompareSideCell(
+            status="on_track" if ok_b else "not_visible",
+            status_label="On Track" if ok_b else "Not Visible",
+            value_text=vb_t if ok_b else None,
+            range_text=rb_t if ok_b else None,
+            value=mb.value if (ok_b and mb) else None,
+            ci_low=mb.ci_low if (ok_b and mb) else None,
+            ci_high=mb.ci_high if (ok_b and mb) else None,
+        )
+        if not (ok_a and ok_b and ma is not None and mb is not None and ma.value is not None and mb.value is not None):
+            ext_rows.append(
+                CompareExtendedRow(
+                    metric_key=mk,
+                    group=grp,
+                    title=m_title,
+                    a=cell_ma,
+                    b=cell_mb,
+                    unit=ma.unit if ma else (mb.unit if mb else ""),
+                    difference="not_comparable",
+                    difference_plain="Not measurable in both clips",
+                )
+            )
+            continue
+
+        delta_v = float(mb.value) - float(ma.value)
+        sig_comb = math.hypot(float(ma.sigma_total or 0.0), float(mb.sigma_total or 0.0))
+        ci_half = 1.96 * sig_comb
+        if ma.unit == "deg":
+            d_txt = f"{int(round(delta_v)):+d}°"
+        elif ma.unit == "m":
+            d_txt = f"{delta_v:+.2f} m"
+        elif ma.unit in ("cm", "ms"):
+            d_txt = f"{int(round(delta_v)):+d} {ma.unit}"
+        elif ma.unit == "% stature":
+            d_txt = f"{int(round(delta_v)):+d}%"
+        elif ma.unit == "deg/s":
+            d_txt = f"{int(round(delta_v, -1)):+d} °/s"
+        else:
+            d_txt = f"{delta_v:+.2f} {ma.unit}"
+        if delta_v > ci_half:
+            d_kind = "clearly_higher"
+            d_plain = f"Higher in second ball ({va_t} → {vb_t})"
+        elif delta_v < -ci_half:
+            d_kind = "clearly_lower"
+            d_plain = f"Lower in second ball ({va_t} → {vb_t})"
+        else:
+            d_kind = "within_noise"
+            d_plain = "Within measurement noise"
+
+        ext_rows.append(
+            CompareExtendedRow(
+                metric_key=mk,
+                group=grp,
+                title=m_title,
+                a=cell_ma,
+                b=cell_mb,
+                delta_value=round(delta_v, 2),
+                delta_ci_half=round(ci_half, 2),
+                delta_text=d_txt,
+                unit=ma.unit,
+                difference=d_kind,  # type: ignore[arg-type]
+                difference_plain=d_plain,
+            )
+        )
+
     return CompareStory(
         a=card_a,
         b=card_b,
@@ -1928,4 +2344,5 @@ def build_compare_story(
         summary=summary,
         caveat_plain=" ".join(caveats) if caveats else None,
         rows=rows,
+        extended_rows=ext_rows,
     )

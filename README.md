@@ -2,26 +2,32 @@
 
 A scientifically grounded, pitch-calibrated, uncertainty-gated 3D sports biomechanics engine and interactive Coaching Studio.
 
-> **Living Project Ledger:** See **[AGENTS.md](AGENTS.md)** for the global engineering rules, scientific guardrails, and chronological **Experiment & Modification Ledger** (`EXP-001`–`EXP-011`) updated after every experiment, audit, and modification.
+> **Living Project Ledger:** See **[AGENTS.md](AGENTS.md)** for the global engineering rules, scientific guardrails, and chronological **Experiment & Modification Ledger** (`EXP-001`–`EXP-012`) updated after every experiment, audit, and modification.
 
 ---
 
-## Interactive Coaching Studio v4 (`v7`, Consumer-First Guided UX + Pro Lab)
+## Coaching Studio v5 (`v8`, "Paper Instrument" 3D Biomechanics Platform)
 
-![SportsPostureAnalysis Studio v4 — Home Hub](docs/figures/studio_v4_home.png)
+![SportsPostureAnalysis Studio v5 — Command Center Home](docs/figures/studio_v5_home.png)
 
-Built atop our verified Phase 0–3 7-stage metrology engine (`v4`–`v6`), **Studio v4** (`FastAPI + SQLite + Vite/React/Three.js/uPlot`) delivers an effortless consumer sports-coaching user journey in a calm Vercel light-paper interface — while preserving every biomechanist power tool behind a 1-click **Pro Lab** toggle:
+Designed from an exhaustive 30-product cross-sport teardown ([docs/research_app_landscape_v5.md](docs/research_app_landscape_v5.md)) and 11-module peer-reviewed biomechanics architecture ([docs/research_biomechanics_v5.md](docs/research_biomechanics_v5.md)), **Studio v5** (`FastAPI + SQLite + Vite/React/Three.js`) combines crisp monochrome light-paper chrome with high-clarity segment-colored data visualizations (`Pelvis emerald · Thorax cobalt · Arm amber · Wrist crimson · Ghost slate · User drawing magenta`) — with **zero buried Pro toggle**:
 
-- **3-Second Start Hub (`Home`, `Deliveries`, `Progress` + `+ New analysis`):** No cluttered session menus or developer jargon. First-time bowlers land on a calm hero (`Analyse my bowling` or 1-click `Try a sample: Dale Steyn — Real Net Video`) with a 3-step guide and 4 curated sample deliveries.
-- **Plain-English `CoachingStory` & Interactive Body Map (`Delivery › Story`):** Deterministic, 100% interval-grounded coaching narrative (`coaching_story/1`) pairing the full video player with human moment chips (`Back foot lands → Front foot plants → Arm level → Ball release`), a **Camera Angle Coach** (mini top-down pitch diagram explaining what the angle can/can't see), **Your #1 Takeaway**, and a clickable **Body Map** of 5 everyday checkpoints (`Front-Leg Brace`, `Trunk Whip`, `Side-Bend Load`, `Shoulder Alignment`, `Run-Up & Stride`) that seeks the video and draws Terminal Green joint highlights & angle arcs right on the bowler.
+- **Command Center Home (`Home`, `Deliveries`, `Compare`, `Spell & Workload`, `Practice` + `Record` + `+ New analysis`):** Opens directly into real cricket footage (**Dale Steyn** rear-on net video & **Indoor 120 fps** front-on slow-mo, plus **Dual-Phone 240 fps** full 3D sequence) playing with 2px white-haloed segment skeletons and crimson wrist whip trails synced 1:1 to a studio-lit **sculpted 3D mannequin** on an MCC Law 6–8 pitch with 3D stumps & bails.
+- **Interactive Delivery Workbench (Single Clock Across Video, 3D, Telestration, Strobe & Sequence):**
+  - **Split Video + 3D Pitch:** 6 Sportsbox-style virtual cameras (`Match`, `Side-on`, `Behind`, `Front`, `Top`, `Arm`), 1-σ uncertainty spheres, 3D wrist/head/COM ribbons, and 4 peer-reviewed **Literature Reference Ghosts** (`Side-On Express`, `Semi-Open`, `Front-On Power`, `High-Arm Bounce`) with explicit Glazier (2010) non-template disclaimers.
+  - **10-Tool Magenta Telestration & 3-Mode Strobe:** Line, joint-snapping 2D+3D Angle, calibrated-gravity Plumb, Circle, Arrow, Freehand, calibrated Metre Ruler, Spotlight, Text, Zoom/Minimap; plus pan-stabilized **Photo Strobe** (`/stroboscopic.jpg`), **3D Strobe**, and **2×4 Kinogram Grid**.
+  - **4-Lane Kinematic Sequence Waterfall & 7 Deep Cards:** Tactile circular **JogWheel** + staggered **PhaseTimeline** driving synchronized `Pelvis → Thorax → Bowling Arm → Wrist Whip` curves with peak timing CIs (honestly ghosted `<90 fps`), alongside **de Leva (1996) 14-Segment COM & Braking**, **Head Stability**, **Lead-Arm Pull-Down**, **Crease Corridor & Release Tunnel**, **Delivery Tempo**, grounded Coach Copilot, Frame Notes + Audio, and 1080×1350 PNG Breakdown Card / 9:16 Reel / CSV / JSON export.
 
-| Real Cricket Net Video (`Dale Steyn Story`) | 240 fps Calibrated Anatomy (`Front-Leg Brace 171°`) |
+| Real Cricket Split Workbench (`Dale Steyn` Video + 3D) | Dual-Phone 240 fps (`4-Lane Kinematic Sequence Waterfall`) |
 |---|---|
-| ![Studio v4 Dale Steyn Story](docs/figures/studio_v4_steyn_story.png) | ![Studio v4 Ball 1 Story](docs/figures/studio_v4_ball1_story.png) |
+| ![Studio v5 Dale Steyn Workbench](docs/figures/studio_v5_steyn_workbench.png) | ![Studio v5 Dual Sequence](docs/figures/studio_v5_dual_sequence.png) |
 
-- **Practice Drills, Compare 2 Balls, Progress Matrix & Shareable Coach Card:** Evidence-grounded **Practice** drills mapped strictly from non-straddling verified limiters (never generic drills), **Compare 2 Balls** (Side-by-Side or Ghost Overlay synced at `Front foot plants` with interval-overlap change verdicts), **Progress** checkpoint dot-matrix + ECB (2024) / Cricket Australia (2026) workload guidance, a 4-step bowler-first **New Analysis** flow (with multi-ball net auto-clipping and live Warm RTX 4090 GPU support), a slide-over **How to film** guide, and a printable white-paper **Coach Card** (`Print / PDF` + 9:16 Truthful Breakdown Reel).
-- **Opt-In Pro Lab (Lazy-Loaded `LabTab`, `308 kB` Initial Bundle):** Flipping **Pro Lab** ON unlocks the full v3 biomechanics workbench — light-paper Three.js 3D MCC Pitch Viewport, synchronized `uPlot` waveforms, interactive frame-bound Telestrator, 4-Click MCC Crease Calibration with 4× pixel loupe, 3-DOF SO(3) rotational pan tracking, 87-marker `bml_movi_87` ISB anatomy (`N_eff` correlated-depth guardrail), Dual-Phone 3D ray-precision fusion, causal event nudging, and verifier-guarded Coach AI.
-- **Uncompromising Scientific Guardrails:** Permanent, non-truncating plain-English **ICC 15° Elbow Legality Refusal** and **Medical Non-Diagnosis** notices on every Story, Details, Compare, and Coach Card screen; zero unvalidated 0–100 composite scores; every displayed measurement paired with its likely range.
+| Compare & Ghost Studio (`Overlaid Sequence + Noise-Gated Deltas`) | Spell & Workload Hub (`TrackMan Release Bullseye + Spell Drift`) |
+|---|---|
+| ![Studio v5 Compare](docs/figures/studio_v5_compare.png) | ![Studio v5 Spell & Workload](docs/figures/studio_v5_spell_workload.png) |
+
+- **Compare & Ghost Studio, Spell/ACWR Hub, Drill Lab & Live Camera:** FFC-synced Side-by-Side, **Blended Opacity Overlay**, **Dual 3D Ghost**, **Mirror B**, and noise-gated Delta Matrix; **Release-Point Bullseye** (MCC Law 8 scale, 95% confidence ellipses, tap-to-open) + **Verified Spell Fatigue Drift** (`-25.6°` Ball 1→4) + **Morning Daily Loop** + **ECB (2024) / Cricket Australia (2026) Official Limits** FIRST + 28-day Calendar + Secondary **EWMA/Uncoupled/Coupled ACWR** (with Lolli/Impellizzeri caveats) + Lumbar Soreness log; Constraint-led **Practice Drill Lab** (animated schematics, L1–L4 progression); and **4-Mode New Analysis** (`Live Camera` with spirit level & zero live metrics, `Upload Clip` powered by Warm RTX 4090 GPU, `Net Session` auto-clipper, `Two Phones` dual sync).
+- **Uncompromising Scientific Guardrails:** Permanent, non-truncating **ICC 15° Elbow Legality Refusal** and **Medical Non-Diagnosis** notices across every view and exported card/reel; zero unvalidated 0–100 composite scores; every metric paired with its uncertainty interval and observability grade.
 
 ---
 
@@ -37,11 +43,12 @@ Built atop our verified Phase 0–3 7-stage metrology engine (`v4`–`v6`), **St
 
 ---
 
-## Verified Baseline Results (`v7`, Studio v4 + Zero-Regression `v4`–`v6` Metrology)
+## Verified Baseline Results (`v8`, Studio v5 + Zero-Regression `v4`–`v7` Metrology)
 
-- **Automated Regression Suite (`pytest -v`):** **30 / 30 passed** (`72.8 s` macOS, `70.7 s` Linux RTX 4090), covering 18 core/real-clip fixture tests + 12 Studio v3–v4, `CoachingStory` jargon-free contract, verifier, `/api/overview`, `/frame/{idx}.jpg`, `/api/compare`, `/api/bowlers/{id}/progress`, bowler-first upload/scan/jobs, CV, dual-fusion, ISB anatomy, and 1080p ball-speed tests; `cd web && npm run build` passes with **0 TypeScript errors** (`308 kB` initial bundle, **0 browser console errors**, **0 failed network requests**).
-- **Phase 1.5 Metrology Zero-Regression (`docs/results/v4/synthetic_benchmark_results.json`):**
-  - **All 22 / 22 metrics scored** (3,003 observable AR(1) correlated-noise evaluations): **96.4%** pooled coverage, per-metric **91.1%–100.0%**, `rmse/sigma` in **`[0.71, 1.21]`**, **`0 / 240`** false incomplete trials.
+- **Automated Regression Suite (`pytest -v`):** **36 / 36 passed** (`161.95 s`), covering 18 core/real-clip fixture tests + 12 Studio v2–v4 tests + 6 comprehensive Studio v5 non-circular right/left-arm kinematics, de Leva COM, stroboscopic JPEG, 4 Pro Archetypes, ACWR/EWMA, Release Bullseye/Spell Drift, and verifier tests; `cd web && npm run build` passes with **0 TypeScript errors** (`237.61 kB` initial bundle, **0 browser console errors**, **0 failed network requests**).
+- **Canonical 22-Metric + Studio v5 Deep-Module AR(1) Benchmarks:**
+  - **Canonical 22 / 22 metrics (`docs/results/v4/synthetic_benchmark_results.json`):** **Exact `96.4%`** pooled coverage (`3,003` observable AR(1) evaluations, per-metric `91.1%–100.0%`, `rmse/sigma` in `[0.71, 1.21]`, **`0 / 240`** false incomplete trials, `0.00%` regression).
+  - **Studio v5 Deep Modules (`docs/results/v5/v5_modules_benchmark.json`):** **`96.9%`** pooled 95% CI coverage across **`2,596` observable AR(1) evaluations** (96 deliveries, `0°/45°/90°`, `120/240 fps`, right & left arm).
   - **Unmodified `EXP-007` S1–S9 (`docs/results/v4/synthetic_diagnostics.json`):** `S1` 91.7%–100.0% (pooled 97.1%), `S6` 100.0% release-height coverage across 15 lean/approach scenarios, `S8a` `+6.0°`, `S8b` 4/4 pan/tilt/zoom detected, `S9` 100.0% (`34 / 34`) cue precision & recall.
 - **RTX 4090 GPU 1 Phase II Verification (`docs/results/v5/phase2_gpu_verification.json`, Dale Steyn net clip):**
   - **Warm GPU Worker (`nlf_l_multi.torchscript`):** Lifespan JIT warmup `26.6 s`, steady-state SMPL-24 + `bml_movi_87` inference **`6.83 s`** (63 frames, 6 tracks), SHA-256 cache hit **`7.84 ms`**, Law-8 `two_wicket_geometry` (`fx = 10,207.6 px`, cam `24.7 m` back) preserved via `auto_cal_json`.
@@ -65,7 +72,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,server]"
 
-# Run full 30-test unit, real-clip fixture & Studio v4 suite
+# Run full 36-test unit, real-clip fixture, Studio & v5 biomechanics suite
 pytest -v
 ```
 
@@ -101,10 +108,12 @@ bowling-biomech analyze path/to/delivery.mp4 \
 ```
 
 ## Documentation & Evidence
-- **[AGENTS.md](AGENTS.md)** — Global agent instructions, scientific guardrails, and living Experiment & Modification Ledger (`EXP-001`–`EXP-011`)
-- **[docs/studio_v4_ux_blueprint.md](docs/studio_v4_ux_blueprint.md)** — Studio v4 consumer-first UX architecture & deterministic `CoachingStory` contract
+- **[AGENTS.md](AGENTS.md)** — Global agent instructions, scientific guardrails, and living Experiment & Modification Ledger (`EXP-001`–`EXP-012`)
+- **[docs/research_app_landscape_v5.md](docs/research_app_landscape_v5.md)** — 30-product cross-sport competitive teardown & Studio v5 "Paper Instrument" UX blueprint
+- **[docs/research_biomechanics_v5.md](docs/research_biomechanics_v5.md)** — 11-module Studio v5 biomechanics, kinematic sequence, COM, ACWR, and API specification
+- **[docs/results/v5/v5_modules_benchmark.json](docs/results/v5/v5_modules_benchmark.json)** — Studio v5 deep-module AR(1) benchmark (`96.9%` coverage across 2,596 evaluations)
 - **[docs/research_report.md](docs/research_report.md)** — First-principles scientific investigation, forensic Reel analysis, and corrected primary-source bibliography
-- **[docs/walkthrough.md](docs/walkthrough.md)** — Phase 0–2 build, audit hardening, Coaching Studio, and RTX 4090 validation walkthrough
+- **[docs/walkthrough.md](docs/walkthrough.md)** — Phase 0–5 build, audit hardening, Coaching Studio v5, and RTX 4090 validation walkthrough
 - **[docs/results/v5/phase2_gpu_verification.json](docs/results/v5/phase2_gpu_verification.json)** — RTX 4090 Warm GPU Worker, `bml_movi_87` ISB anatomy, and 3-DOF pan tracking verification on Dale Steyn
 - **[docs/results/v4/](docs/results/v4/)** — Per-metric 22/22 synthetic benchmark, S1–S9 diagnostics, and RTX 4090 real-video Fact Sheets
 - **[docs/independent_audit_and_improvements.md](docs/independent_audit_and_improvements.md)** — Independent audit (`EXP-007`) documenting all 27 bugs (`B1–B27`) resolved in Phase 1.5

@@ -1,0 +1,288 @@
+{
+  "benchmark": "studio_v5_deep_modules_ar1",
+  "total_deliveries": 96,
+  "total_observable_evals": 2596,
+  "pooled_95_ci_coverage_pct": 96.9,
+  "per_metric": {
+    "com_br_speed_mps": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 100.0,
+      "rmse": 0.17,
+      "mean_sigma": 0.41,
+      "rmse_over_sigma": 0.42
+    },
+    "com_braking_delta_vx_mps": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 94.8,
+      "rmse": 0.48,
+      "mean_sigma": 0.48,
+      "rmse_over_sigma": 0.98
+    },
+    "com_braking_efficiency_pct": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 96.9,
+      "rmse": 5.6,
+      "mean_sigma": 6.87,
+      "rmse_over_sigma": 0.81
+    },
+    "com_ffc_speed_mps": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 91.7,
+      "rmse": 0.43,
+      "mean_sigma": 0.4,
+      "rmse_over_sigma": 1.08
+    },
+    "com_vertical_sink_pct_stature": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 95.8,
+      "rmse": 1.41,
+      "mean_sigma": 1.46,
+      "rmse_over_sigma": 0.97
+    },
+    "foot_plant_corridor_offset_cm": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 100.0,
+      "rmse": 3.76,
+      "mean_sigma": 6.67,
+      "rmse_over_sigma": 0.56
+    },
+    "front_heel_crease_margin_cm": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 90.6,
+      "rmse": 8.26,
+      "mean_sigma": 9.01,
+      "rmse_over_sigma": 0.92
+    },
+    "front_leg_plant_angle_ffc_deg": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 1.49,
+      "mean_sigma": 2.43,
+      "rmse_over_sigma": 0.61
+    },
+    "head_coronal_angle_br_deg": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 2.09,
+      "mean_sigma": 3.21,
+      "rmse_over_sigma": 0.65
+    },
+    "head_fall_away_ffc_to_br_deg": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 98.4,
+      "rmse": 2.93,
+      "mean_sigma": 3.83,
+      "rmse_over_sigma": 0.76
+    },
+    "head_lateral_offset_from_ankle_br_cm": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 3.07,
+      "mean_sigma": 4.27,
+      "rmse_over_sigma": 0.72
+    },
+    "head_lateral_offset_from_ankle_br_pct_stature": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 1.67,
+      "mean_sigma": 2.42,
+      "rmse_over_sigma": 0.69
+    },
+    "head_vertical_drop_ffc_to_br_pct_stature": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 94.8,
+      "rmse": 1.5,
+      "mean_sigma": 1.57,
+      "rmse_over_sigma": 0.96
+    },
+    "lead_arm_early_drop_pre_ffc_deg": {
+      "n_obs": 95,
+      "n_suppressed": 1,
+      "coverage_95_pct": 92.6,
+      "rmse": 9.16,
+      "mean_sigma": 7.09,
+      "rmse_over_sigma": 1.29
+    },
+    "lead_arm_gather_peak_elev_deg": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 90.6,
+      "rmse": 8.43,
+      "mean_sigma": 6.76,
+      "rmse_over_sigma": 1.25
+    },
+    "lead_arm_pulldown_peak_vel_dps": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 90.6,
+      "rmse": 209.16,
+      "mean_sigma": 183.66,
+      "rmse_over_sigma": 1.14
+    },
+    "lead_elbow_ribcage_flare_br_pct_stature": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 1.38,
+      "mean_sigma": 1.9,
+      "rmse_over_sigma": 0.73
+    },
+    "release_extension_past_crease_m": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 0.09,
+      "mean_sigma": 0.14,
+      "rmse_over_sigma": 0.65
+    },
+    "release_height_pct_stature": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 100.0,
+      "rmse": 1.83,
+      "mean_sigma": 3.05,
+      "rmse_over_sigma": 0.6
+    },
+    "release_lateral_from_ankle_m": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 0.04,
+      "mean_sigma": 0.04,
+      "rmse_over_sigma": 0.82
+    },
+    "release_lateral_from_stump_m": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 93.8,
+      "rmse": 0.06,
+      "mean_sigma": 0.06,
+      "rmse_over_sigma": 0.97
+    },
+    "seq_arm_peak_dps": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 157.68,
+      "mean_sigma": 223.45,
+      "rmse_over_sigma": 0.71
+    },
+    "seq_arm_to_wrist_lag_ms": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 8.39,
+      "mean_sigma": 13.6,
+      "rmse_over_sigma": 0.62
+    },
+    "seq_pelvis_braking_decel_pct": {
+      "n_obs": 7,
+      "n_suppressed": 89,
+      "coverage_95_pct": 85.7,
+      "rmse": 33.07,
+      "mean_sigma": 39.25,
+      "rmse_over_sigma": 0.84
+    },
+    "seq_pelvis_peak_dps": {
+      "n_obs": 56,
+      "n_suppressed": 40,
+      "coverage_95_pct": 100.0,
+      "rmse": 177.59,
+      "mean_sigma": 258.48,
+      "rmse_over_sigma": 0.69
+    },
+    "seq_pelvis_to_thorax_lag_ms": {
+      "n_obs": 7,
+      "n_suppressed": 89,
+      "coverage_95_pct": 57.1,
+      "rmse": 87.86,
+      "mean_sigma": 64.46,
+      "rmse_over_sigma": 1.36
+    },
+    "seq_thorax_peak_dps": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 99.0,
+      "rmse": 140.53,
+      "mean_sigma": 233.07,
+      "rmse_over_sigma": 0.6
+    },
+    "seq_thorax_to_arm_lag_ms": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 96.9,
+      "rmse": 27.52,
+      "mean_sigma": 26.74,
+      "rmse_over_sigma": 1.03
+    },
+    "seq_whip_gain_arm_over_thorax": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 0.36,
+      "mean_sigma": 0.52,
+      "rmse_over_sigma": 0.69
+    },
+    "seq_wrist_whip_peak_dps": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 96.9,
+      "rmse": 89.14,
+      "mean_sigma": 116.89,
+      "rmse_over_sigma": 0.76
+    },
+    "stride_alignment_angle_deg": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 100.0,
+      "rmse": 1.15,
+      "mean_sigma": 2.23,
+      "rmse_over_sigma": 0.52
+    },
+    "tempo_braking_to_br_ms": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 93.8,
+      "rmse": 10.22,
+      "mean_sigma": 9.69,
+      "rmse_over_sigma": 1.05
+    },
+    "tempo_gather_to_whip_ratio": {
+      "n_obs": 95,
+      "n_suppressed": 1,
+      "coverage_95_pct": 96.8,
+      "rmse": 0.28,
+      "mean_sigma": 0.28,
+      "rmse_over_sigma": 0.99
+    },
+    "tempo_stride_duration_ms": {
+      "n_obs": 96,
+      "n_suppressed": 0,
+      "coverage_95_pct": 96.9,
+      "rmse": 12.46,
+      "mean_sigma": 14.62,
+      "rmse_over_sigma": 0.85
+    },
+    "tempo_uah_to_br_whip_ms": {
+      "n_obs": 64,
+      "n_suppressed": 32,
+      "coverage_95_pct": 100.0,
+      "rmse": 3.87,
+      "mean_sigma": 5.99,
+      "rmse_over_sigma": 0.65
+    }
+  }
+}

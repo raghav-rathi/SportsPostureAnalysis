@@ -55,6 +55,7 @@ from .stage4_uncertainty import (
     quantify_and_gate_metrics,
 )
 from .stage5_evaluator import build_fact_sheet
+from .stage3_v5_metrics import extract_and_quantify_v5_biomechanics
 
 
 @dataclass
@@ -87,6 +88,7 @@ class DualFusionResult:
     events: DeliveryEvents
     kinematics: KinematicsResult
     fact_sheet: BiomechanicalFactSheet
+    v5_bundle: Optional[object] = None
     notes: List[str] = field(default_factory=list)
 
 
@@ -707,6 +709,14 @@ def fuse_dual_view_3d_trajectories(
     base_metrics = quantify_metrics_from_fused_covariance(
         kin, fused_audit, fused_cal, ev, cov_fused, baseline_sin
     )
+    v5_bundle = extract_and_quantify_v5_biomechanics(
+        kin=kin,
+        audit=fused_audit,
+        cal=fused_cal,
+        events=ev,
+        dual_baseline_sin=baseline_sin,
+        cov_world_fused=cov_fused,
+    )
 
     fs = build_fact_sheet(
         bowler_id=bowler_id,
@@ -717,6 +727,7 @@ def fuse_dual_view_3d_trajectories(
         cal=fused_cal,
         events=ev,
         metrics=base_metrics,
+        v5_bundle=v5_bundle,
     )
 
     return DualFusionResult(
@@ -732,5 +743,6 @@ def fuse_dual_view_3d_trajectories(
         events=ev,
         kinematics=kin,
         fact_sheet=fs,
+        v5_bundle=v5_bundle,
         notes=notes,
     )

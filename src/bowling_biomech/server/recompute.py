@@ -41,13 +41,19 @@ from ..stage1_pitch_calibration import (
     transform_cam_to_pitch_world,
 )
 from ..stage2_ball_release import estimate_ball_release_speed_video
-from ..stage2_dual_sync_fusion import quantify_metrics_from_fused_covariance
+from ..stage2_dual_sync_fusion import fuse_dual_view_3d_trajectories, quantify_metrics_from_fused_covariance
 from ..stage2_event_spotting import detect_delivery_events
 from ..stage2_isb_anatomy import extract_isb_anatomy_kinematics
 from ..stage3_kinematics import extract_fast_bowling_kinematics
+from ..stage3_v5_metrics import (
+    compute_3d_com_trajectory,
+    extract_and_quantify_v5_biomechanics,
+    synthesize_bml_movi_87_from_smpl24,
+)
 from ..stage4_uncertainty import METRIC_SPECS, _clamp_ci, quantify_and_gate_metrics
 from ..stage5_evaluator import build_fact_sheet, evaluate_repeatability, hydrate_coaching_story
 from ..stage6_coach_llm import generate_grounded_report, render_report_markdown
+from ..stage6_stroboscopic import build_multi_joint_trails
 from ..synthetic_ground_truth import (
     SyntheticDeliveryParams,
     generate_synthetic_delivery,
@@ -171,8 +177,12 @@ def build_telemetry_v2(
     camera_poses_per_frame: Optional[List[Dict[str, Any]]] = None,
     isb_summary: Optional[Dict[str, Any]] = None,
     needs_gpu_refit_for_K: bool = False,
+    bowling_arm: BowlingArm = BowlingArm.RIGHT,
+    com_world_m: Optional[np.ndarray] = None,
+    sequence_series: Optional[Dict[str, np.ndarray]] = None,
+    wrist_rel_speed_mps: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
-    """Build versioned `telemetry.json` (`schema_version = "2.0"`) for 60-120 fps browser scrubbing."""
+    """Build versioned `telemetry.json` (`schema_version = "2.0"`, minor `2.1`) for 60-120 fps browser scrubbing."""
     n = joints_world_m.shape[0]
     src_map = audit.source_frame_indices if (audit.source_frame_indices and len(audit.source_frame_indices) == n) else list(range(n))
     pts_ms = [round(i * 1000.0 / max(proxy_fps, 1.0), 3) for i in range(n)]
@@ -183,9 +193,33 @@ def build_telemetry_v2(
     jw_render = joints_world_m.copy()
     jw_render[:, :, 1] -= y_ground
 
-    # Round floats compactly (3 decimals = 1 mm precision!) to keep telemetry payload crisp & fast (<250 KB)
+    com_raw = com_world_m if (com_world_m is not None and len(com_world_m) == n) else compute_3d_com_trajectory(joints_world_m)
+    com_render = com_raw.copy()
+    com_render[:, 1] -= y_ground
+
+    # Project 3D COM into 2D camera pixels
+    K_mat = np.asarray(cal.camera_matrix_K, dtype=np.float64).reshape(3, 3)
+    R_mat = np.asarray(cal.rotation_matrix_R, dtype=np.float64).reshape(3, 3)
+    t_vec = np.asarray(cal.translation_t, dtype=np.float64).reshape(3)
+    com_cam = (R_mat @ com_raw.T).T + t_vec[None, :]
+    com_uvh = (K_mat @ com_cam.T).T
+    com_2d_px = com_uvh[:, :2] / np.maximum(com_uvh[:, 2:3], 0.2)
+
+    trails = build_multi_joint_trails(
+        joints_world_render_m=jw_render,
+        joints2d_px=joints2d_px,
+        com_world_render_m=com_render,
+        com_2d_px=com_2d_px,
+        wrist_rel_speed_mps=wrist_rel_speed_mps,
+        events=events,
+        fps=audit.fps,
+        bowling_arm=bowling_arm,
+    )
+
+    # Round floats compactly (3-4 decimals = <=1 mm precision!) to keep telemetry payload crisp & fast
     return {
         "schema_version": "2.0",
+        "telemetry_minor_version": "2.1",
         "joint_names": list(SMPL24_JOINTS),
         "num_frames": n,
         "analysis_fps": audit.fps,
@@ -198,9 +232,17 @@ def build_telemetry_v2(
         "y_ground_offset_m": round(y_ground, 4),
         "joints3d_world_m": np.round(jw_render, 4).tolist(),
         "joints2d_px": np.round(joints2d_px, 1).tolist(),
+        "com_world_m": np.round(com_render, 4).tolist(),
+        "com_2d_px": np.round(com_2d_px, 1).tolist(),
         "joint_uncertainties_m": np.round(joint_uncertainties_m, 4).tolist(),
         "joint_in_frame": joint_in_frame.astype(bool).tolist(),
         "kin_series": {k: np.round(np.asarray(v, dtype=np.float64), 2).tolist() for k, v in kin_series.items()},
+        "sequence_series": (
+            {k: np.round(np.asarray(v, dtype=np.float64), 2).tolist() for k, v in sequence_series.items()}
+            if sequence_series
+            else {}
+        ),
+        "trails": trails,
         "mcc_wireframe_2d": project_mcc_wireframe_2d(cal) if cal.is_intrinsics_calibrated else {},
         "camera_position_world_m": [round(float(x), 3) for x in cal.camera_position_world_m],
         "camera_poses_per_frame": camera_poses_per_frame,
@@ -423,6 +465,8 @@ def recompute_delivery_cpu(
                     }
                 )
 
+    isb_obj = None
+    bml87_world_use: Optional[np.ndarray] = None
     isb_summary: Optional[Dict[str, Any]] = None
     if bml87_cam is not None and bml87_cam.shape[0] == j3d_cam.shape[0]:
         # De-rotate bml_movi_87 per-frame when 3-DOF pan tracking is verified (P0-2 #4)
@@ -430,6 +474,7 @@ def recompute_delivery_cpu(
             bml87_world = transform_cam_to_pitch_world_per_frame(bml87_cam, pan_res_verified.R_per_frame, pan_res_verified.t_per_frame)
         else:
             bml87_world = transform_cam_to_pitch_world(bml87_cam, cal)
+        bml87_world_use = bml87_world
         isb = extract_isb_anatomy_kinematics(
             bml87_world,
             events,
@@ -437,6 +482,7 @@ def recompute_delivery_cpu(
             markers_unc_87=bml87_unc,
             cal=cal,
         )
+        isb_obj = isb
         isb_summary = {
             "scalars": isb.scalars,
             "metrics": {k: m.model_dump() for k, m in isb.metrics.items()},
@@ -540,6 +586,25 @@ def recompute_delivery_cpu(
 
         metrics["ball_release_speed_kph"] = MetricEstimate.model_validate(base_meta["cached_ball_speed_metric"])
 
+    use_fused_cov = (
+        cov_world_fused is not None
+        and cov_world_fused.shape[:2] == (j3d_world.shape[0], 24)
+        and (not cal_overridden)
+        and pan_res_verified is None
+    )
+    v5_bundle = extract_and_quantify_v5_biomechanics(
+        kin=kin,
+        audit=audit,
+        cal=cal,
+        events=events,
+        workload=workload_ctx,
+        isb=isb_obj,
+        markers_world_87=bml87_world_use,
+        unc_scale_factor=unc_scale,
+        dual_baseline_sin=dual_baseline_sin,
+        cov_world_fused=cov_world_fused if use_fused_cov else None,
+    )
+
     fs = build_fact_sheet(
         bowler_id=bowler_id,
         bowling_arm=arm,
@@ -550,6 +615,7 @@ def recompute_delivery_cpu(
         events=events,
         metrics=metrics,
         workload=workload_ctx,
+        v5_bundle=v5_bundle,
     )
     has_real_vid = bool(base_meta.get("has_real_video", False))
     s_kind = "real" if (is_synthetic_proxy and has_real_vid) else ("synthetic" if is_synthetic_proxy else None)
@@ -577,6 +643,10 @@ def recompute_delivery_cpu(
         camera_poses_per_frame=camera_poses_per_frame,
         isb_summary=isb_summary,
         needs_gpu_refit_for_K=needs_gpu_refit_for_K,
+        bowling_arm=arm,
+        com_world_m=v5_bundle.com_world_m,
+        sequence_series=v5_bundle.sequence_series,
+        wrist_rel_speed_mps=v5_bundle.wrist_rel_speed_mps,
     )
 
     # Persist updated fact_sheet.json & telemetry.json locally
@@ -691,19 +761,29 @@ def seed_demo_session(
     fixtures_dir: Optional[Path] = None,
     public_clips_dir: Optional[Path] = None,
 ) -> str:
-    """Seed an immediately usable offline demo session (Real Dale Steyn clip when present + 240 fps Dual-View Synthetic)."""
+    """Seed Studio v5 Demo Session:
+    - Real Dale Steyn rear-on net video (`uiZN5FHWjJk.mp4`) + Real Indoor 120 fps front-on video (`ZpBNq8cIRoY.mp4`)
+    - 4-Ball MCC-calibrated 240 fps spell (`Ball 1` fresh -> `Ball 4` late-spell fatigue) + Rear Dual-Sync Mate + ISB `bml_movi_87`
+    - 28-day realistic ACWR & governing-body workload history (`108 balls/7d`, Coupled ACWR ~1.01, EWMA ~1.03)
+    """
     existing = db.list_sessions()
     demo_ses_dir = sessions_root / "ses_demo"
     marker_file = demo_ses_dir / ".demo_seed_version"
+    v5_marker_file = demo_ses_dir / ".demo_v5_version"
     has_demo_ses = any(s.get("id") == "ses_demo" for s in existing)
     any_deliveries = any(int(s.get("delivery_count", 0)) > 0 for s in existing)
 
     if any_deliveries:
         if not has_demo_ses:
             return existing[0]["id"]
-        if marker_file.exists() and marker_file.read_text(encoding="utf-8").strip() == _DEMO_SEED_VERSION:
+        if (
+            marker_file.exists()
+            and marker_file.read_text(encoding="utf-8").strip() == _DEMO_SEED_VERSION
+            and v5_marker_file.exists()
+            and v5_marker_file.read_text(encoding="utf-8").strip() == "5.1"
+        ):
             return existing[0]["id"]
-        # Existing pre-v4 `ses_demo` detected -> upgrade built-in demo proxies & CoachingStory in place!
+        # Upgrade pre-v5 `ses_demo` in place while keeping `.demo_seed_version == "4.0"` backward compatibility!
 
     if not db.get_bowler("bwl_demo"):
         bowler = db.create_bowler("Demo Pace Bowler (Studio Showcase)", bowling_arm="right", age_band="adult", bowler_id="bwl_demo")
@@ -713,18 +793,44 @@ def seed_demo_session(
     if not db.get_session("ses_demo"):
         session = db.create_session(
             bowler_id=bowler["id"],
-            title="Phase 2 Showcase — Calibrated 240 fps Spell & Real-Clip Fixtures",
-            notes="Includes MCC-calibrated 240 fps Side-On & Rear-On views for Dual-Phone 3D Fusion plus verified v4 real-clip fixtures.",
+            title="Studio v5 Showcase — 4-Ball 240 fps Spell & Real Net Footage",
+            notes="Includes real Dale Steyn & Indoor 120 fps videos plus a 4-ball MCC-calibrated 240 fps spell with ISB 87-marker anatomy.",
             session_id="ses_demo",
         )
     else:
         session = db.get_session("ses_demo") or {"id": "ses_demo"}
 
-    if not db.list_workload_logs(bowler["id"]):
+    if len(db.list_workload_logs(bowler["id"])) < 6:
+        # Clear partial 3-row v4 seed if upgrading so 28-day ACWR series is clean & non-duplicated
+        for old_w in db.list_workload_logs(bowler["id"]):
+            db.delete_workload_log(bowler["id"], str(old_w["id"]))
         today = datetime.now(timezone.utc).date()
-        db.add_workload_log(bowler["id"], (today - timedelta(days=5)).isoformat(), 36, "net", "High-intensity target bowling")
-        db.add_workload_log(bowler["id"], (today - timedelta(days=3)).isoformat(), 42, "match", "Club 7-over spell")
-        db.add_workload_log(bowler["id"], (today - timedelta(days=1)).isoformat(), 24, "net", "Technical front-leg brace drill")
+        seeded_logs = [
+            (26, 30, "net", "Pre-spell rhythm & crease alignment", 6, 18, 1),
+            (24, 42, "match", "Saturday club 7-over spell", 7, 30, 1),
+            (21, 36, "net", "Target corridor bowling", 6, 24, 1),
+            (19, 30, "net", "Technical front-arm gather session", 6, 18, 1),
+            (17, 36, "match", "Midweek T20 + warm-up overs", 7, 24, 2),
+            (14, 42, "net", "High-intensity new-ball spell", 8, 30, 2),
+            (12, 24, "net", "Short-run front-leg brace drill", 5, 18, 1),
+            (10, 42, "match", "League 7-over spell", 8, 30, 2),
+            (8, 36, "net", "Yorker & bouncer execution", 7, 24, 1),
+            (5, 36, "net", "High-intensity target bowling", 7, 24, 1),
+            (3, 42, "match", "Club 7-over spell", 8, 30, 2),
+            (1, 30, "net", "Technical front-leg brace & tempo check", 6, 18, 1),
+        ]
+        for d_ago, n_balls, s_type, note_txt, rpe_v, max_sp, sore_v in seeded_logs:
+            db.add_workload_log(
+                bowler["id"],
+                (today - timedelta(days=d_ago)).isoformat(),
+                n_balls,
+                s_type,
+                note_txt,
+                rpe=rpe_v,
+                max_spell_balls=max_sp,
+                soreness_lumbar=sore_v,
+                fatigue_level=2,
+            )
 
     clips_root = (
         Path(public_clips_dir)
@@ -736,26 +842,107 @@ def seed_demo_session(
         "bowling_crease_off", "bowling_crease_leg", "popping_crease_off",
         "popping_crease_leg", "stump_middle_base", "stump_middle_top",
     ]
+    def _sstep(t_val: float, t0: float, t1: float) -> float:
+        x = float(np.clip((t_val - t0) / max(t1 - t0, 1e-6), 0.0, 1.0))
+        return x * x * (3.0 - 2.0 * x)
+
+    def _apply_demo_proximal_to_distal_uncoil(jw_in: np.ndarray, p_in: SyntheticDeliveryParams) -> np.ndarray:
+        """Apply realistic post-FFC proximal-to-distal pelvis (+28 ms) -> thorax (+64 ms) rotational uncoiling
+        while preserving exact BFC alignment, SCR minimum, knee angle, and shoulder-to-wrist arm kinematics.
+        """
+        out = jw_in.copy()
+        n_f = len(out)
+        ffc_t, br_t = float(p_in.ffc_time_s), float(p_in.br_time_s)
+        lhip_i, rhip_i = JOINT_IDX["lhip"], JOINT_IDX["rhip"]
+        lsho_i, rsho_i = JOINT_IDX["lsho"], JOINT_IDX["rsho"]
+        lcla_i, rcla_i = JOINT_IDX["lcla"], JOINT_IDX["rcla"]
+        pelv_i, neck_i, spi3_i = JOINT_IDX["pelv"], JOINT_IDX["neck"], JOINT_IDX["spi3"]
+        r_arm_chain = [JOINT_IDX["relb"], JOINT_IDX["rwri"], JOINT_IDX["rhan"]]
+        l_arm_chain = [JOINT_IDX["lelb"], JOINT_IDX["lwri"], JOINT_IDX["lhan"]]
+
+        for fi in range(n_f):
+            t_cur = fi / float(p_in.fps)
+            if t_cur <= ffc_t - 0.012:
+                continue
+            u_orig = _sstep(t_cur, ffc_t, br_t + 0.12)
+            # 1) Pelvis: fast hip uncoiling across [FFC - 10 ms, FFC + 66 ms] (peaks at FFC + 28 ms ~580 deg/s, then brakes!)
+            # Pivot rear hip `rhip` around the braced lead-hip socket `lhip` so `lhip` & front-knee brace stay 100% invariant!
+            u_pelv_fast = _sstep(t_cur, ffc_t - 0.010, ffc_t + 0.066)
+            d_pelv_rad = math.radians(42.0 * u_pelv_fast - 35.0 * u_orig)
+            if abs(d_pelv_rad) > 1e-6:
+                c_p, s_p = math.cos(d_pelv_rad), math.sin(d_pelv_rad)
+                lhip_pt = out[fi, lhip_i]
+                rel_r = out[fi, rhip_i] - lhip_pt
+                out[fi, rhip_i, 0] = lhip_pt[0] + c_p * rel_r[0] + s_p * rel_r[2]
+                out[fi, rhip_i, 2] = lhip_pt[2] - s_p * rel_r[0] + c_p * rel_r[2]
+
+            # 2) Thorax: delayed chest whip across [FFC + 16 ms, FFC + 104 ms] (peaks at FFC + 60 ms ~1020 deg/s!)
+            u_sh_fast = _sstep(t_cur, ffc_t + 0.016, ffc_t + 0.104)
+            d_sh_rad = math.radians(75.0 * (u_sh_fast - u_orig))
+            if abs(d_sh_rad) > 1e-6:
+                axis = out[fi, neck_i] - out[fi, pelv_i]
+                axis = axis / max(float(np.linalg.norm(axis)), 1e-6)
+                # Rodrigues rotation around +axis (+Y_world x +Z = +X -> +yaw right-hand rule!)
+                k_vec = axis
+                c_s, s_s = math.cos(d_sh_rad), math.sin(d_sh_rad)
+
+                def _rot_vec(v_in: np.ndarray) -> np.ndarray:
+                    return v_in * c_s + np.cross(k_vec, v_in) * s_s + k_vec * float(np.dot(k_vec, v_in)) * (1.0 - c_s)
+
+                old_rsho = out[fi, rsho_i].copy()
+                old_lsho = out[fi, lsho_i].copy()
+                neck_pt = out[fi, neck_i]
+                spi3_pt = out[fi, spi3_i]
+                out[fi, rsho_i] = neck_pt + _rot_vec(old_rsho - neck_pt)
+                out[fi, lsho_i] = neck_pt + _rot_vec(old_lsho - neck_pt)
+                out[fi, rcla_i] = spi3_pt + _rot_vec(out[fi, rcla_i] - spi3_pt)
+                out[fi, lcla_i] = spi3_pt + _rot_vec(out[fi, lcla_i] - spi3_pt)
+                # Carry upper/lower arms rigidly on their shoulder sockets so elbow/wrist angles & speeds are 100% preserved
+                d_rsho = out[fi, rsho_i] - old_rsho
+                d_lsho = out[fi, lsho_i] - old_lsho
+                out[fi, r_arm_chain] += d_rsho[None, :]
+                out[fi, l_arm_chain] += d_lsho[None, :]
+        return out
+
+    # 4-Ball 240 fps calibrated spell (Ball 1 -> Ball 4 progressive fatigue) + Ball 1 Rear Dual-Sync Mate
     demo_specs = [
-        ("del_demo_side_240", "Ball 1 — Side-On 240 fps (MCC Calibrated)", 90.0, 5.0, 171.0, 36.0, 18.0),
-        ("del_demo_rear_240", "Ball 1 — Rear 240 fps (Dual-Sync Mate)", 0.0, 6.0, 171.0, 36.0, 18.0),
-        ("del_demo_side_b2", "Ball 2 — Side-On 240 fps (Mild Fatigue)", 90.0, 5.0, 165.0, 40.0, 22.0),
+        ("del_demo_side_240", "Ball 1 — Side-On 240 fps (MCC Calibrated)", 90.0, 5.0, 5.95, 160.0, 171.0, 45.0, 36.0, 18.0, 149.0, 0.00),
+        ("del_demo_rear_240", "Ball 1 — Rear 240 fps (Dual-Sync Mate)", 0.0, 6.0, 5.95, 160.0, 171.0, 45.0, 36.0, 18.0, 149.0, 0.00),
+        ("del_demo_side_b2", "Ball 2 — Side-On 240 fps (Mild Fatigue)", 90.0, 5.0, 5.85, 160.0, 165.0, 43.0, 40.0, 22.0, 144.0, 0.03),
+        ("del_demo_side_b3", "Ball 3 — Side-On 240 fps (Mid-Spell Drift)", 90.0, 5.0, 5.72, 159.0, 157.0, 41.0, 42.0, 25.0, 138.0, 0.06),
+        ("del_demo_side_b4", "Ball 4 — Side-On 240 fps (Late-Spell Knee Yield)", 90.0, 5.0, 5.55, 159.0, 143.0, 38.0, 45.0, 28.0, 131.0, 0.09),
     ]
-    for did, lbl, az, el, fk_br, lf_br, scr in demo_specs:
+    b1_dual_inputs: Dict[str, Dict[str, Any]] = {}
+    for did, lbl, az, el, v_run, fk_ffc, fk_br, tf_br, lf_br, scr, delay_arm, z_shift_m in demo_specs:
         ddir = sessions_root / session["id"] / did
         ddir.mkdir(parents=True, exist_ok=True)
         params = SyntheticDeliveryParams(
             bowler_arm=BowlingArm.RIGHT,
             fps=240.0,
+            runup_speed_mps=v_run,
+            front_knee_ffc_deg=fk_ffc,
             front_knee_br_deg=fk_br,
+            trunk_flexion_br_deg=tf_br,
             thorax_lat_flex_br_deg=lf_br,
             shoulder_counter_rot_deg=scr,
+            delayed_arm_ffc_deg=delay_arm,
         )
         jw, _ = generate_synthetic_delivery(params)
+        jw = _apply_demo_proximal_to_distal_uncoil(jw, params)
+        # Apply realistic over-the-wicket stump corridor offset (+0.58 m + ball-to-ball lateral spread)
+        jw[:, :, 2] += 0.58 + z_shift_m
+        # Apply clean +14 cm open "train-tracks" front-foot corridor on Ball 1..3, narrowing on fatigued Ball 4
+        if did != "del_demo_side_b4":
+            jw[:, [JOINT_IDX["lhip"], JOINT_IDX["lkne"], JOINT_IDX["lank"], JOINT_IDX["ltoe"]], 2] -= 0.07
+
         K, R, t, _ = make_virtual_camera(azimuth_deg=az, elevation_deg=el, distance_m=9.8, fov_deg=46.0)
         j2d, j_cam = project_world_points(jw, K, R, t)
         lm_px = project_mcc_landmarks(K, R, t, lm_keys, noise_px=0.5)
         cal = calibrate_from_mcc_landmarks(lm_px, 1280, 720, K=K)
+
+        # Synthesize camera-space ISB 87 bony markers so ISB Pelvis/Thorax/Foot modules run cleanly
+        m87_world = synthesize_bml_movi_87_from_smpl24(jw, BowlingArm.RIGHT, anterior_pelvic_tilt_deg=16.0, front_foot_splay_deg=11.0)
+        m87_cam = np.einsum("ij,tkj->tki", R, m87_world) + t[None, None, :]
 
         n = jw.shape[0]
         j_in_arr = np.ones((n, 24), dtype=np.bool_)
@@ -784,6 +971,8 @@ def seed_demo_session(
             joint_uncertainties_m=np.full((n, 24), 0.025, dtype=np.float32),
             joint_in_frame=j_in_arr,
             valid_mask=np.ones(n, dtype=np.bool_),
+            bml_movi_87_cam_m=m87_cam.astype(np.float32),
+            bml_movi_87_unc_m=np.full((n, 87), 0.022, dtype=np.float32),
         )
         (ddir / "audit.json").write_text(audit.model_dump_json(indent=2), encoding="utf-8")
         (ddir / "base_calibration.json").write_text(cal.model_dump_json(indent=2), encoding="utf-8")
@@ -813,10 +1002,9 @@ def seed_demo_session(
             bowling_arm="right",
             br_frame_idx=int(res["fact_sheet"].events.br.frame_idx),
         )
-        # Clear any stale cached frame thumbnails if upgrading demo proxy
         frames_cache = ddir / "frames"
         if frames_cache.exists():
-            for fp_old in frames_cache.glob("*.jpg"):
+            for fp_old in frames_cache.glob("*"):
                 fp_old.unlink(missing_ok=True)
         db.upsert_delivery(
             delivery_id=did,
@@ -830,13 +1018,124 @@ def seed_demo_session(
             end_frame=n,
             status="ready",
             fact_sheet_json=res["fact_sheet"].model_dump_json(),
+            isb_summary=res["isb_summary"],
             overrides={"mcc_landmarks_px": {k: [round(v[0], 1), round(v[1], 1)] for k, v in lm_px.items()}},
         )
+        if did in ("del_demo_side_240", "del_demo_rear_240"):
+            b1_dual_inputs[did] = {
+                "jw": transform_cam_to_pitch_world(j_cam, cal),
+                "cal": cal,
+                "audit": audit,
+                "unc": np.full((n, 24), 0.025, dtype=np.float64),
+                "in_frame": j_in_arr,
+                "K": K,
+                "R": R,
+                "t": t,
+            }
 
-    # Also seed real-clip fixtures (`steyn` and `mcgrath`) — using REAL `uiZN5FHWjJk.mp4` frames for Steyn when present!
+        # Seed Dual-Phone 240 fps Showcase (`del_demo_dual_240`) immediately after Ball 1 mates so it precedes Ball 2..4!
+        if did == "del_demo_rear_240" and "del_demo_side_240" in b1_dual_inputs:
+            in_a = b1_dual_inputs["del_demo_side_240"]
+            in_b = b1_dual_inputs["del_demo_rear_240"]
+            dual_did = "del_demo_dual_240"
+            dual_lbl = "Spell Ball 1 — Dual-Phone 240 fps (Full 3D Sequence)"
+            ddir_dual = sessions_root / session["id"] / dual_did
+            ddir_dual.mkdir(parents=True, exist_ok=True)
+            fused_demo = fuse_dual_view_3d_trajectories(
+                bowler_id=dual_lbl,
+                bowling_arm=BowlingArm.RIGHT,
+                joints_world_a=in_a["jw"],
+                cal_a=in_a["cal"],
+                audit_a=in_a["audit"],
+                joints_world_b=in_b["jw"],
+                cal_b=in_b["cal"],
+                audit_b=in_b["audit"],
+                unc_a=in_a["unc"],
+                unc_b=in_b["unc"],
+                in_frame_a=in_a["in_frame"],
+                in_frame_b=in_b["in_frame"],
+                unc_scale_a=1.0,
+                unc_scale_b=1.0,
+            )
+            Ka_d, Ra_d, ta_d = in_a["K"], in_a["R"], in_a["t"]
+            jw_f = fused_demo.joints_world_fused
+            n_f_d = len(jw_f)
+            j_cam_f = np.einsum("ij,tkj->tki", Ra_d, jw_f) + ta_d[None, None, :]
+            z_safe_f = np.maximum(j_cam_f[:, :, 2:3], 0.2)
+            j2d_f = np.einsum("ij,tkj->tki", Ka_d, j_cam_f)[:, :, :2] / z_safe_f
+            m87_w_f = synthesize_bml_movi_87_from_smpl24(
+                jw_f, BowlingArm.RIGHT, anterior_pelvic_tilt_deg=16.0, front_foot_splay_deg=11.0
+            )
+            m87_cam_f = np.einsum("ij,tkj->tki", Ra_d, m87_w_f) + ta_d[None, None, :]
+
+            np.savez_compressed(
+                ddir_dual / "raw_nlf.npz",
+                joints3d_cam_m=j_cam_f.astype(np.float32),
+                joints2d_px=j2d_f.astype(np.float32),
+                joint_uncertainties_m=fused_demo.joint_uncertainties_fused.astype(np.float32),
+                joint_in_frame=fused_demo.joint_in_frame_fused.astype(np.bool_),
+                valid_mask=np.ones(n_f_d, dtype=np.bool_),
+                cov_world_fused=fused_demo.cov_world_fused.astype(np.float32),
+                dual_baseline_sin=np.array(float(fused_demo.baseline_sin), dtype=np.float64),
+                bml_movi_87_cam_m=m87_cam_f.astype(np.float32),
+                bml_movi_87_unc_m=np.full((n_f_d, 87), 0.016, dtype=np.float32),
+            )
+            (ddir_dual / "audit.json").write_text(fused_demo.fact_sheet.audit.model_dump_json(indent=2), encoding="utf-8")
+            (ddir_dual / "base_calibration.json").write_text(
+                fused_demo.fact_sheet.calibration.model_dump_json(indent=2), encoding="utf-8"
+            )
+            (ddir_dual / "meta.json").write_text(
+                json.dumps(
+                    {
+                        "bowling_arm": "right",
+                        "pipeline_mode": "dual_3d_ray_fusion",
+                        "dual_baseline_sin": float(fused_demo.baseline_sin),
+                        "nlf_fx_used": float(Ka_d[0, 0]),
+                        "unc_scale_factor": 1.0,
+                        "is_noiseless_synthetic": True,
+                        "has_real_video": False,
+                        "source_delivery_ids": ["del_demo_side_240", "del_demo_rear_240"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            res_dual = recompute_delivery_cpu(ddir_dual, bowler_id=dual_lbl, proxy_fps=30.0)
+            proxy_dual = render_synthetic_proxy_video(
+                j2d_f,
+                1280,
+                720,
+                ddir_dual / "scrub_proxy.mp4",
+                proxy_fps=30.0,
+                title=dual_lbl,
+                mcc_wireframe_2d=project_mcc_wireframe_2d(fused_demo.fact_sheet.calibration),
+                joint_in_frame=fused_demo.joint_in_frame_fused,
+                bowling_arm="right",
+                br_frame_idx=int(res_dual["fact_sheet"].events.br.frame_idx),
+            )
+            frames_cache_d = ddir_dual / "frames"
+            if frames_cache_d.exists():
+                for fp_old in frames_cache_d.glob("*"):
+                    fp_old.unlink(missing_ok=True)
+            db.upsert_delivery(
+                delivery_id=dual_did,
+                session_id=session["id"],
+                label=dual_lbl,
+                data_dir=ddir_dual,
+                video_path=str(proxy_dual),
+                proxy_path=str(proxy_dual),
+                pipeline_mode="dual_3d_ray_fusion",
+                start_frame=0,
+                end_frame=n_f_d,
+                status="ready",
+                fact_sheet_json=res_dual["fact_sheet"].model_dump_json(),
+                isb_summary=res_dual["isb_summary"],
+            )
+
+    # Seed real-clip fixtures (`steyn`, `indoor`, and `mcgrath`) — binding REAL `uiZN5FHWjJk.mp4` AND REAL `ZpBNq8cIRoY.mp4`!
     if fixtures_dir and fixtures_dir.exists():
         for fname, did, lbl in [
             ("steyn_nlf_fixture.npz", "del_real_steyn", "Dale Steyn — Real Net Video"),
+            ("indoor_nlf_fixture.npz", "del_real_indoor", "Indoor Net 120fps — Real Front-On Video"),
             ("mcgrath_nlf_fixture.npz", "del_real_mcgrath", "Glenn McGrath — Incomplete Clip Example"),
         ]:
             fp = fixtures_dir / fname
@@ -849,20 +1148,31 @@ def seed_demo_session(
             j_cam = z["joints3d_cam_m"].astype(np.float64)
             cal = PitchCalibration.model_validate(meta["calibration"])
             K = np.asarray(cal.camera_matrix_K, dtype=np.float64).reshape(3, 3)
-            # Project 3D camera joints to 2D pixels for crisp fixture overlay
             z_safe = np.maximum(j_cam[:, :, 2:3], 0.2)
             j2d = np.einsum("ij,tkj->tki", K, j_cam)[:, :, :2] / z_safe
             n = j_cam.shape[0]
             fps = float(meta["fps"])
             j_in_fix = z["joint_in_frame"].astype(np.bool_)
 
-            real_steyn_mp4 = clips_root / "uiZN5FHWjJk.mp4" if did == "del_real_steyn" else None
-            use_real_mp4 = bool(
-                real_steyn_mp4 is not None
-                and real_steyn_mp4.exists()
-                and len(_STEYN_SOURCE_FRAME_INDICES) == n
-            )
-            src_indices = list(_STEYN_SOURCE_FRAME_INDICES) if use_real_mp4 else list(range(n))
+            real_mp4: Optional[Path] = None
+            use_real_mp4 = False
+            src_indices = list(range(n))
+            proxy_fps_use = 25.0
+
+            if did == "del_real_steyn":
+                cand_mp4 = clips_root / "uiZN5FHWjJk.mp4"
+                if cand_mp4.exists() and len(_STEYN_SOURCE_FRAME_INDICES) == n:
+                    real_mp4 = cand_mp4
+                    use_real_mp4 = True
+                    src_indices = list(_STEYN_SOURCE_FRAME_INDICES)
+                    proxy_fps_use = 25.0
+            elif did == "del_real_indoor":
+                cand_mp4 = clips_root / "ZpBNq8cIRoY.mp4"
+                if cand_mp4.exists() and n == 264:
+                    real_mp4 = cand_mp4
+                    use_real_mp4 = True
+                    src_indices = list(range(n))
+                    proxy_fps_use = 30.0
 
             audit = VideoAudit(
                 video_path=f"fixture:{fname}",
@@ -871,12 +1181,12 @@ def seed_demo_session(
                 fps=fps,
                 container_fps=float(meta["container_fps"]),
                 num_frames=n,
-                raw_num_frames=75 if use_real_mp4 else n,
+                raw_num_frames=75 if (did == "del_real_steyn" and use_real_mp4) else n,
                 duration_s=round(n / max(fps, 1.0), 3),
-                median_laplacian_var=433.7 if "steyn" in fname else 209.2,
+                median_laplacian_var=433.7 if "steyn" in fname else (184.0 if "indoor" in fname else 209.2),
                 blur_grade="crisp",
                 blur_roi_method="bowler_roi",
-                fps_grade="low_25",
+                fps_grade="slow_mo_120" if fps >= 100.0 else "low_25",
                 est_arm_deg_per_frame=round(2300.0 / max(fps, 1.0), 2),
                 est_ball_m_per_frame=round(38.89 / max(fps, 1.0), 3),
                 timebase_status=str(meta["timebase_status"]),
@@ -908,14 +1218,14 @@ def seed_demo_session(
                 ),
                 encoding="utf-8",
             )
-            res = recompute_delivery_cpu(ddir, bowler_id=meta["bowler_id"], proxy_fps=25.0)
-            if use_real_mp4 and real_steyn_mp4 is not None:
+            res = recompute_delivery_cpu(ddir, bowler_id=meta["bowler_id"], proxy_fps=proxy_fps_use)
+            if use_real_mp4 and real_mp4 is not None:
                 try:
                     proxy_mp4 = build_all_intra_scrub_proxy(
-                        real_steyn_mp4,
+                        real_mp4,
                         ddir / "scrub_proxy.mp4",
                         source_frame_indices=src_indices,
-                        proxy_fps=25.0,
+                        proxy_fps=proxy_fps_use,
                     )
                 except Exception:
                     use_real_mp4 = False
@@ -924,7 +1234,7 @@ def seed_demo_session(
                         int(meta["width"]),
                         int(meta["height"]),
                         ddir / "scrub_proxy.mp4",
-                        proxy_fps=25.0,
+                        proxy_fps=proxy_fps_use,
                         title=lbl,
                         joint_in_frame=j_in_fix,
                         bowling_arm=str(meta["bowling_arm"]),
@@ -936,7 +1246,7 @@ def seed_demo_session(
                     int(meta["width"]),
                     int(meta["height"]),
                     ddir / "scrub_proxy.mp4",
-                    proxy_fps=25.0,
+                    proxy_fps=proxy_fps_use,
                     title=lbl,
                     joint_in_frame=j_in_fix,
                     bowling_arm=str(meta["bowling_arm"]),
@@ -944,14 +1254,14 @@ def seed_demo_session(
                 )
             frames_cache = ddir / "frames"
             if frames_cache.exists():
-                for fp_old in frames_cache.glob("*.jpg"):
+                for fp_old in frames_cache.glob("*"):
                     fp_old.unlink(missing_ok=True)
             db.upsert_delivery(
                 delivery_id=did,
                 session_id=session["id"],
                 label=lbl,
                 data_dir=ddir,
-                video_path=str(real_steyn_mp4) if (use_real_mp4 and real_steyn_mp4 is not None) else str(proxy_mp4),
+                video_path=str(real_mp4) if (use_real_mp4 and real_mp4 is not None) else str(proxy_mp4),
                 proxy_path=str(proxy_mp4),
                 pipeline_mode="real_clip_fixture",
                 start_frame=0,
@@ -962,4 +1272,5 @@ def seed_demo_session(
 
     demo_ses_dir.mkdir(parents=True, exist_ok=True)
     marker_file.write_text(_DEMO_SEED_VERSION, encoding="utf-8")
+    v5_marker_file.write_text("5.1", encoding="utf-8")
     return session["id"]

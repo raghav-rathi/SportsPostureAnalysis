@@ -20,6 +20,45 @@
   --color-terminal-green: #297a3a;
   --font-geist-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* ── Studio v5 "Paper Instrument" tokens (docs/research_app_landscape_v5.md §6) ──
+     Chrome stays monochrome on paper. Segment colours live ONLY inside canvases, 3D and charts.
+     Mirror of web/src/theme.ts (canvas / three.js read the TS constants). */
+  --paper: #fafafa;
+  --surface: #ffffff;
+  --hairline: #ebebeb;
+  --hairline-strong: #d4d4d4;
+  --ink: #171717;
+  --ink-2: #4d4d4d;
+  --graphite: #8f8f8f;
+  --positive: #297a3a;
+
+  --seg-pelvis: #059669; /* emerald — pelvis, hips, legs, feet */
+  --seg-pelvis-tint: #d1fae5;
+  --seg-thorax: #2451d6; /* cobalt — spine, shoulder girdle, trunk */
+  --seg-thorax-tint: #dbe4fb;
+  --seg-arm: #d97706; /* amber — bowling upper arm / forearm */
+  --seg-arm-tint: #fef3c7;
+  --seg-wrist: #dc2626; /* crimson — bowling wrist / hand / release */
+  --seg-wrist-tint: #fee2e2;
+  --seg-lead: #7c9bea; /* cobalt-300 — non-bowling (lead) arm */
+  --seg-head: #171717; /* ink, dashed — head path */
+  --seg-com: #525252; /* graphite crosshair — centre of mass */
+  --seg-ghost: #64748b; /* slate — reference ghost (draw at ~45% opacity) */
+  --seg-ghost-tint: #e2e8f0;
+  --tele-ink: #c026d3; /* magenta — user telestration, never a measurement */
+  --grass: #eef3ea; /* pale pitch tint for 3D / bullseye grounds */
+
+  /* Observability glyph tones (chrome) */
+  --obs-high: #171717;
+  --obs-moderate: #4d4d4d;
+  --obs-low: #8f8f8f;
+  --obs-none: #c9c9c9;
+
+  --radius: 6px;
+  --dur-fast: 160ms;
+  --dur-base: 220ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 * {
@@ -127,6 +166,118 @@ body {
 
 .v-tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Studio v5 instrument primitives ───────────────────────────────────── */
+.v-num {
+  font-family: var(--font-geist-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.v-hero-num {
+  font-family: var(--font-geist-sans);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.v-label {
+  font-family: var(--font-geist-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--graphite);
+}
+.v-hairline {
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+.v-panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+/* Canvas / 3D stage ground: paper with a faint instrument grid */
+.v-stage {
+  background-color: #f6f6f5;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+  border-radius: var(--radius);
+}
+/* Ghosted "not measurable on this clip" state — panels are never hidden */
+.v-ghosted {
+  opacity: 0.42;
+  filter: grayscale(1);
+  pointer-events: none;
+}
+.v-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--hairline);
+  color: var(--ink);
+}
+.v-chip-ink {
+  background: var(--ink);
+  color: #ffffff;
+  box-shadow: 0 0 0 1px var(--ink);
+}
+/* Segmented control (speed detents, stage modes) */
+.v-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 7px;
+  background: #f4f4f5;
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.v-seg > button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.v-seg > button[aria-pressed="true"],
+.v-seg > button[data-active="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+/* Never-truncated guardrail notice (ICC 15° / medical). Wraps; never ellipsizes. */
+.v-guardrail {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.seg-pelvis { color: var(--seg-pelvis); }
+.seg-thorax { color: var(--seg-thorax); }
+.seg-arm { color: var(--seg-arm); }
+.seg-wrist { color: var(--seg-wrist); }
+.seg-lead { color: var(--seg-lead); }
+.seg-ghost { color: var(--seg-ghost); }
+.tele-ink { color: var(--tele-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 /* Light-paper uPlot legend & cursor styling */

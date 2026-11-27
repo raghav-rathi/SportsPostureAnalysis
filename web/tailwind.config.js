@@ -16,6 +16,15 @@ export default {
         obsidian: "#171717",
         carbon: "#000000",
         terminal: "#297a3a",
+        // Studio v5 segment palette (canvas / chart accents only — see index.css)
+        "seg-pelvis": "#059669",
+        "seg-thorax": "#2451d6",
+        "seg-arm": "#d97706",
+        "seg-wrist": "#dc2626",
+        "seg-lead": "#7c9bea",
+        "seg-ghost": "#64748b",
+        "tele-ink": "#c026d3",
+        grass: "#eef3ea",
       },
       fontFamily: {
         sans: ['"Geist"', '"Inter"', "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "sans-serif"],
