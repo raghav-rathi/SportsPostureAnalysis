@@ -81,3 +81,23 @@ Building on the locked `v4` metrology foundation (with zero regression across al
    - Independently audited across 2 rounds by **Gemini 4 Carbon (High)** (`p2-auditor` — all 5 P0s, 4 P1s, 3 P2s, and 2 Round-2 catches resolved; **`FINAL SIGN-OFF APPROVED`**; **27 / 27 `pytest` passing** on macOS and RTX 4090 Linux).
 
 ![SportsPostureAnalysis Studio v2.0](figures/studio_v2_preview.png)
+
+---
+
+## Studio v3.0 (`v6` / `EXP-010`): Analysis Pipeline Fixes, Vercel Monochrome Light-Mode UX & Sports-App Features
+
+Following live real-world usability review, Studio v3.0 resolved **12 root-cause backend analysis & workflow bugs** and completely revamped the frontend into a disciplined **Vercel Monochrome Light-Mode ("Typeset terminal on white paper")** Coaching Studio:
+
+1. **Analysis Pipeline Parity & Accuracy Fixes:**
+   - Restored calibrated `unc_scale_factor = 0.35` on real NLF & cached real-clip fixtures (`del_real_steyn` now unlocks `SCR = 46.2° [27.2, 65.1]` and `MIXED` action class instead of falsely withholding 5+ transverse metrics).
+   - Fixed Rician knee over-debiasing on noiseless synthetic demos & dual-fused deliveries (`del_demo_side_240` now reports `170.6° [160.6, 180.0]` instead of `180.0°`).
+   - Brought Studio video uploads to 100% `pipeline.py` parity (3-tier `GPU_WORKER_URL` -> local `NLF_MODEL_PATH` -> offline CPU `<35 ms`, bowler-ROI blur, bowler-masked 4-DOF pan detection even on `auto_cal_json`/MCC, upright background gravity, `held_frame_mask` preservation across FPS overrides, zero-reupload `from-scan` local slicing with preserved QuickTime slow-mo tags, real-video dual-fusion proxy alignment, bowler reuse across sessions, and bowler re-tracking).
+2. **Everyday-Coach Vercel Light-Mode UX & Sports-App Features:**
+   - **Progressive Disclosure:** Plain-English `Coach Summary` (default) vs full biomechanist `Lab Telemetry` toggle, clear Sample Session banner, and horizontal delivery switcher.
+   - **Guided 3-Step Upload & 30-Sec Filming Guide:** Drag-and-drop single/multi-ball upload wizard, interactive top-down SVG pitch placement diagrams (`Side-On 90°`, `Rear 0°`, `Dual-Phone 3D`), and metric-unlock matrix.
+   - **Interactive Telestrator & 4-Phase Contact Sheet:** Aspect-preserving single-canvas video+skeleton compositing (0 portrait distortion, 0 seek tearing), frame-bound `Line`/`Plumb`/`2D Camera-Plane Angle`/`Circle`/`PNG` drawing tools persisted to SQLite, and live `BFC → FFC → UAH → BR` visual contact sheet with `±1f` causal overrides.
+   - **Compare & Spell + Evidence-Grounded Drills + Printable Coach Dossier:** FFC-synced side-by-side split-screen dual-skeleton video player, interval-aware noise-gated metric delta table (`✓ MEANINGFUL SHIFT`), `CorrectiveDrill` prescriptions mapped strictly to non-straddling verified limiters, timestamped Coach Notes, and a printable white-paper Coach Report (`@media print`, HTML-escaped standalone download, 9:16 Truthful Breakdown Reel).
+3. **2-Round Independent Gemini 4 Carbon (High) Audit (`ux-architect`):** Verified **28 / 28 `pytest` passing** on macOS and RTX 4090 Linux, **0 TypeScript errors**, **0 browser console errors / ResizeObserver warnings**, zero regression on the 240-delivery synthetic benchmark (`96.4%` pooled across all 22 metrics), and **`FINAL SIGN-OFF APPROVED`**.
+
+![SportsPostureAnalysis Studio v3.0 — Coach Summary](figures/studio_v3_preview.png)
+![SportsPostureAnalysis Studio v3.0 — Compare & Spell](figures/studio_v3_compare.png)

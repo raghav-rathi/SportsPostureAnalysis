@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse
 import numpy as np
 
 from ..schemas import BowlingArm
-from ..stage0_audit import audit_video
+from ..stage0_audit import analyze_frame_cadence, audit_video
 from ..stage1_pitch_calibration import auto_detect_two_wickets, world_up_from_calibration
 from ..stage2_nlf_3d import (
     _file_sha256_prefix,
@@ -207,6 +207,18 @@ async def infer_clip(
             device=dev,
         )
 
+        bg_up_arr = (
+            np.asarray(tracked.background_upright_vectors, dtype=np.float32).reshape(-1, 3)
+            if tracked.background_upright_vectors
+            else np.zeros((0, 3), dtype=np.float32)
+        )
+        held_mask_arr = np.zeros(len(tracked.valid_mask), dtype=np.bool_)
+        if audit.timebase_status == "edited_or_frozen":
+            cad = analyze_frame_cadence(tmp_vid, start_frame=start_frame, end_frame=end_frame)
+            hm = cad.get("held_mask")
+            if hm is not None and len(hm) == len(held_mask_arr):
+                held_mask_arr = np.asarray(hm, dtype=np.bool_)
+
         save_kwargs: Dict[str, Any] = {
             "joints3d_cam_m": tracked.joints3d_cam_m.astype(np.float32),
             "joints2d_px": tracked.joints2d_px.astype(np.float32),
@@ -215,6 +227,8 @@ async def infer_clip(
             "valid_mask": tracked.valid_mask.astype(np.bool_),
             "interp_gap_frames": tracked.interp_gap_frames.astype(np.int32),
             "bowler_boxes_xyxy": tracked.bowler_boxes_xyxy.astype(np.float32),
+            "background_upright_vectors": bg_up_arr,
+            "held_frame_mask": held_mask_arr,
             "all_tracks_json": np.array(json.dumps(tracked.all_tracks_snapshot)),
             "audit_json": np.array(audit.model_dump_json()),
             "detected_bowling_arm": np.array(tracked.detected_bowling_arm.value),

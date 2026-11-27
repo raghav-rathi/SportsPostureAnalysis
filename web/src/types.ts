@@ -52,6 +52,16 @@ export interface PrioritizedCue {
   actionable_recommendation: string;
 }
 
+export interface CorrectiveDrill {
+  id: string;
+  target_limiter_metric: string;
+  title: string;
+  cue_focus: string;
+  setup_steps: string[];
+  literature_basis: string;
+  caution_note: string;
+}
+
 export interface CohortComparison {
   metric_key: string;
   label: string;
@@ -82,14 +92,15 @@ export interface BiomechanicalFactSheet {
   bowler_id: string;
   bowling_arm: "right" | "left";
   action_class: string;
-  pipeline_mode: string;
+  pose_backend: string;
+  pipeline_mode?: string;
   interval_type: string;
   audit: {
     video_path: string;
     width: number;
     height: number;
     fps: number;
-    container_fps: number;
+    container_fps: number | null;
     num_frames: number;
     raw_num_frames: number;
     duration_s: number;
@@ -126,6 +137,7 @@ export interface BiomechanicalFactSheet {
   strengths: PrioritizedCue[];
   limiters: PrioritizedCue[];
   inconclusive_observations: PrioritizedCue[];
+  corrective_drills: CorrectiveDrill[];
   capture_upgrades: PrioritizedCue[];
   hard_guardrails: string[];
 }
@@ -169,6 +181,14 @@ export interface TelemetryV2 {
   needs_gpu_refit_for_K: boolean;
 }
 
+export interface BowlerSummary {
+  id: string;
+  name: string;
+  bowling_arm: "right" | "left";
+  age_band: string;
+  created_at: string;
+}
+
 export interface SessionSummary {
   id: string;
   bowler_id: string;
@@ -187,6 +207,43 @@ export interface SessionSummary {
     start_frame: number;
     end_frame: number | null;
   }>;
+}
+
+export interface CoachNote {
+  id: string;
+  delivery_id: string;
+  frame_idx: number | null;
+  timestamp_s: number | null;
+  tag: string;
+  body: string;
+  created_at: string;
+}
+
+export type TelestratorTool = "cursor" | "line" | "plumb" | "angle" | "circle";
+
+export interface TelestratorShape {
+  id: string;
+  frame: number;
+  type: Exclude<TelestratorTool, "cursor">;
+  points: Array<[number, number]>;
+  label?: string;
+}
+
+export interface HealthResponse {
+  status: string;
+  version: string;
+  mode: string;
+  pose_engine: "remote_gpu_worker" | "local_nlf_model" | "cpu_recompute_only";
+  local_nlf_configured: boolean;
+  gpu_worker: {
+    configured: boolean;
+    reachable: boolean;
+    status?: string;
+    jit_warmed?: boolean;
+    gpu?: { device_name?: string };
+    error?: string;
+  };
+  mcc_landmark_keys: string[];
 }
 
 export interface DeliveryDetailResponse {
@@ -211,5 +268,7 @@ export interface DeliveryDetailResponse {
   fact_sheet: BiomechanicalFactSheet;
   telemetry: TelemetryV2;
   report_markdown: string;
+  notes: CoachNote[];
+  annotations: TelestratorShape[];
   mcc_landmarks_3d: Record<string, [number, number, number]>;
 }

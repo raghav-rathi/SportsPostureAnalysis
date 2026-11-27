@@ -1,43 +1,69 @@
 import React, { useEffect, useState } from "react";
-import { Cpu, Film, ShieldAlert, AlertTriangle, CheckCircle2, Upload, Scissors, X } from "lucide-react";
+import { Trash2, Upload, X } from "lucide-react";
 import { api } from "./api";
 import { useStudioStore } from "./store";
-import type { DeliveryDetailResponse, SessionSummary, TelemetryV2 } from "./types";
+import type {
+  BowlerSummary,
+  CoachNote,
+  DeliveryDetailResponse,
+  HealthResponse,
+  SessionSummary,
+  TelestratorShape,
+  TelemetryV2,
+} from "./types";
+import { TopNav } from "./components/TopNav";
+import { UploadWizardModal } from "./components/UploadWizardModal";
 import { VideoCanvasPlayer } from "./components/VideoCanvasPlayer";
 import { PitchViewport3D } from "./components/PitchViewport3D";
 import { WaveformPanel } from "./components/WaveformPanel";
-import { StudioInspector } from "./components/StudioInspector";
+import { CoachSummaryPanel } from "./components/CoachSummaryPanel";
+import { LabTelemetryPanel } from "./components/LabTelemetryPanel";
+import { CompareSpellView } from "./components/CompareSpellView";
+import { FilmingGuideView } from "./components/FilmingGuideView";
+import { CoachReportView } from "./components/CoachReportView";
 
 export function App() {
-  const [health, setHealth] = useState<any>(null);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [bowlers, setBowlers] = useState<BowlerSummary[]>([]);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<SessionSummary | null>(null);
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DeliveryDetailResponse | null>(null);
   const [ghostTelemetry, setGhostTelemetry] = useState<TelemetryV2 | null>(null);
+  const [phaseThumbs, setPhaseThumbs] = useState<Record<string, string>>({});
   const [recomputeMs, setRecomputeMs] = useState<number | null>(null);
-  const [reelBusy, setReelBusy] = useState(false);
-  const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
+  const [showUploadWizard, setShowUploadWizard] = useState(false);
+  const [dismissDemoBanner, setDismissDemoBanner] = useState(false);
 
-  // Upload & Net-Session Auto-Clipper drawer state
-  const [showIngest, setShowIngest] = useState(false);
-  const [ingestFile, setIngestFile] = useState<File | null>(null);
-  const [ingestLabel, setIngestLabel] = useState("New Delivery");
-  const [ingestStart, setIngestStart] = useState<string>("0");
-  const [ingestEnd, setIngestEnd] = useState<string>("");
-  const [ingestArm, setIngestArm] = useState<string>("");
-  const [ingestBusy, setIngestBusy] = useState(false);
-  const [scanCands, setScanCands] = useState<any[]>([]);
-  const [ingestMsg, setIngestMsg] = useState<string | null>(null);
-
+  const topView = useStudioStore((s) => s.topView);
+  const analysisMode = useStudioStore((s) => s.analysisMode);
   const ghostDeliveryId = useStudioStore((s) => s.ghostDeliveryId);
   const draftLandmarks = useStudioStore((s) => s.draftLandmarks);
+
+  const setTopView = useStudioStore((s) => s.setTopView);
+  const setAnalysisMode = useStudioStore((s) => s.setAnalysisMode);
   const setDraftLandmark = useStudioStore((s) => s.setDraftLandmark);
   const clearDraftLandmarks = useStudioStore((s) => s.clearDraftLandmarks);
   const setPreviewCalibration = useStudioStore((s) => s.setPreviewCalibration);
   const setCalibrationMode = useStudioStore((s) => s.setCalibrationMode);
+  const setRetrackMode = useStudioStore((s) => s.setRetrackMode);
   const setCurrentFrame = useStudioStore((s) => s.setCurrentFrame);
+  const setActiveTool = useStudioStore((s) => s.setActiveTool);
+  const setGhostDeliveryId = useStudioStore((s) => s.setGhostDeliveryId);
+
+  const loadDelivery = async (did: string) => {
+    clearDraftLandmarks();
+    setCalibrationMode(false);
+    setRetrackMode(false);
+    setActiveTool("cursor");
+    setActiveDeliveryId(did);
+    setPhaseThumbs({});
+    const d = await api.getDelivery(did);
+    setDetail(d);
+    setCurrentFrame(d.fact_sheet.events.is_complete_delivery ? d.fact_sheet.events.br.frame_idx : 0);
+  };
 
   const loadSession = async (sid: string, selectDeliveryId?: string) => {
     const r = await api.getSession(sid);
@@ -45,72 +71,84 @@ export function App() {
     const dels = r.session.deliveries ?? [];
     const target = selectDeliveryId ?? dels[0]?.id ?? null;
     if (target) {
-      clearDraftLandmarks();
-      setCalibrationMode(false);
-      setActiveDeliveryId(target);
-      const d = await api.getDelivery(target);
-      setDetail(d);
-      setReelUrl(null);
-      setCurrentFrame(d.fact_sheet.events.is_complete_delivery ? d.fact_sheet.events.br.frame_idx : 0);
+      await loadDelivery(target);
+    } else {
+      setActiveDeliveryId(null);
+      setDetail(null);
     }
+  };
+
+  const refreshMetadata = async () => {
+    const [h, b, s] = await Promise.all([api.health(), api.listBowlers(), api.listSessions()]);
+    setHealth(h);
+    setBowlers(b.bowlers);
+    setSessions(s.sessions);
+    return s.sessions;
   };
 
   useEffect(() => {
     (async () => {
       try {
-        const [h, s] = await Promise.all([api.health(), api.listSessions()]);
-        setHealth(h);
-        setSessions(s.sessions);
-        if (s.sessions.length > 0) {
-          await loadSession(s.sessions[0].id);
+        const sess = await refreshMetadata();
+        if (sess.length > 0) {
+          await loadSession(sess[0].id);
         }
       } catch (e: any) {
-        setErrorMsg(String(e.message || e));
+        setErrorMsg(String(e?.message || e));
       }
     })();
   }, []);
 
-  // Load ghost delivery telemetry when selected for FFC-aligned ms-interpolated 3D comparison
   useEffect(() => {
     if (!ghostDeliveryId || !detail) {
       setGhostTelemetry(null);
       return;
     }
-    api.getDelivery(ghostDeliveryId).then((g) => {
-      setGhostTelemetry(g.telemetry);
-    }).catch(() => setGhostTelemetry(null));
+    api
+      .getDelivery(ghostDeliveryId)
+      .then((g) => setGhostTelemetry(g.telemetry))
+      .catch(() => setGhostTelemetry(null));
   }, [ghostDeliveryId, detail?.delivery.id]);
 
-  const handleSelectDelivery = async (did: string) => {
-    clearDraftLandmarks();
-    setCalibrationMode(false);
-    setActiveDeliveryId(did);
-    setReelUrl(null);
-    const d = await api.getDelivery(did);
-    setDetail(d);
-    setCurrentFrame(d.fact_sheet.events.is_complete_delivery ? d.fact_sheet.events.br.frame_idx : 0);
+  const handleCreateSession = async (payload: {
+    bowler_id?: string;
+    bowler_name?: string;
+    bowling_arm?: string;
+    age_band?: string;
+    title: string;
+    notes?: string;
+  }) => {
+    const res = await api.createSession(payload);
+    await refreshMetadata();
+    await loadSession(res.session.id);
+    setTopView("analysis");
   };
 
   const handleRecompute = async (payload: Record<string, any>) => {
     if (!activeDeliveryId) return;
-    const r = await api.recomputeDelivery(activeDeliveryId, payload);
-    setRecomputeMs(r.recompute_ms);
-    setDetail((prev) =>
-      prev
-        ? {
-            ...prev,
-            fact_sheet: r.fact_sheet,
-            telemetry: r.telemetry,
-            report_markdown: r.report_markdown,
-            delivery: {
-              ...prev.delivery,
-              overrides: { ...prev.delivery.overrides, ...payload },
-              isb_summary: r.isb_summary,
-              pan_summary: r.pan_summary,
-            },
-          }
-        : prev
-    );
+    setErrorMsg(null);
+    try {
+      const r = await api.recomputeDelivery(activeDeliveryId, payload);
+      setRecomputeMs(r.recompute_ms);
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              fact_sheet: r.fact_sheet,
+              telemetry: r.telemetry,
+              report_markdown: r.report_markdown,
+              delivery: {
+                ...prev.delivery,
+                overrides: { ...prev.delivery.overrides, ...payload },
+                isb_summary: r.isb_summary,
+                pan_summary: r.pan_summary,
+              },
+            }
+          : prev
+      );
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Recompute failed.");
+    }
   };
 
   const handleLandmarkClick = async (key: string, pt: [number, number]) => {
@@ -133,298 +171,333 @@ export function App() {
     setPreviewCalibration(null, null);
   };
 
-  const handleExportReel = async () => {
+  const handleRetrackBowler = async (anchorNorm: [number, number]) => {
     if (!activeDeliveryId) return;
-    setReelBusy(true);
+    setStatusBanner("▲ Re-tracking 3D pose locked to selected bowler...");
+    setErrorMsg(null);
     try {
-      const r = await api.exportReel(activeDeliveryId);
-      setReelUrl(r.reel_url);
-    } finally {
-      setReelBusy(false);
+      const r = await api.retrackBowler(activeDeliveryId, anchorNorm);
+      setRecomputeMs(r.recompute_ms);
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              fact_sheet: r.fact_sheet,
+              telemetry: r.telemetry,
+              report_markdown: r.report_markdown,
+              delivery: { ...prev.delivery, isb_summary: r.isb_summary, pan_summary: r.pan_summary },
+            }
+          : prev
+      );
+      setStatusBanner("✓ Bowler tracking updated.");
+      setTimeout(() => setStatusBanner(null), 2500);
+    } catch (err: any) {
+      setStatusBanner(null);
+      setErrorMsg(err?.message || "Bowler re-tracking failed.");
     }
   };
 
-  const handleScanNetSession = async () => {
-    if (!activeSession || !ingestFile) return;
-    setIngestBusy(true);
-    setIngestMsg(null);
+  const handleSaveAnnotations = async (shapes: TelestratorShape[]) => {
+    if (!activeDeliveryId) return;
+    setDetail((prev) => (prev ? { ...prev, annotations: shapes } : prev));
     try {
-      const res = await api.scanVideo(activeSession.id, ingestFile);
-      setScanCands(res.candidates);
-      setIngestMsg(`Detected ${res.candidates.length} candidate delivery burst(s). Click any card to populate start/end frames.`);
-    } catch (e: any) {
-      setIngestMsg(`Scan failed: ${e.message || e}`);
-    } finally {
-      setIngestBusy(false);
+      await api.saveAnnotations(activeDeliveryId, shapes);
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Failed to save telestrator annotations.");
     }
   };
 
-  const handleUploadDelivery = async () => {
-    if (!activeSession || !ingestFile) return;
-    setIngestBusy(true);
-    setIngestMsg(null);
-    try {
-      const fd = new FormData();
-      fd.append("video", ingestFile);
-      fd.append("label", ingestLabel || "Uploaded Delivery");
-      fd.append("start_frame", ingestStart || "0");
-      if (ingestEnd.trim()) fd.append("end_frame", ingestEnd.trim());
-      if (ingestArm) fd.append("bowling_arm", ingestArm);
-      const res = await api.uploadDelivery(activeSession.id, fd);
-      setShowIngest(false);
-      await loadSession(activeSession.id, res.delivery_id);
-    } catch (e: any) {
-      setIngestMsg(`Upload failed: ${e.message || e}`);
-    } finally {
-      setIngestBusy(false);
-    }
+  const handleNotesChanged = (notes: CoachNote[]) => {
+    setDetail((prev) => (prev ? { ...prev, notes } : prev));
   };
+
+  const handleDeleteDelivery = async (did: string) => {
+    if (!activeSession) return;
+    if (ghostDeliveryId === did) setGhostDeliveryId(null);
+    await api.deleteDelivery(did);
+    await refreshMetadata();
+    await loadSession(activeSession.id);
+  };
+
+  const isSampleSession = activeSession?.id === "ses_demo";
+  const deliveries = activeSession?.deliveries ?? [];
 
   return (
-    <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col">
-      {/* Studio Top Bar */}
-      <header className="border-b border-[#263248] bg-[#101624] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-400 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-sm">
-            SP
-          </div>
-          <div>
-            <div className="font-bold text-sm tracking-tight text-white">
-              SportsPostureAnalysis <span className="text-sky-400 font-mono text-xs">Studio v2.0</span>
+    <div className="min-h-screen bg-[#fafafa] text-[#171717] flex flex-col">
+      <TopNav
+        health={health}
+        bowlers={bowlers}
+        sessions={sessions}
+        activeSession={activeSession}
+        recomputeMs={recomputeMs}
+        onSelectSession={(sid) => loadSession(sid)}
+        onCreateSession={handleCreateSession}
+        onOpenUpload={() => setShowUploadWizard(true)}
+      />
+
+      {/* Sample Session Onboarding Strip (Dismissible) */}
+      {isSampleSession && !dismissDemoBanner && (
+        <div className="no-print bg-[#ffffff] border-b border-[#ebebeb]">
+          <div className="max-w-[1440px] mx-auto px-4 md:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+            <div className="flex flex-wrap items-center gap-2 text-[#4d4d4d]">
+              <span className="font-mono text-[10px] uppercase tracking-[0.06em] px-1.5 py-0.5 rounded-[4px] bg-[#171717] text-[#ffffff]">
+                SAMPLE SESSION
+              </span>
+              <span>
+                Exploring pre-loaded 240 fps calibrated deliveries &amp; real Dale Steyn / Glenn McGrath clips. Click{" "}
+                <button
+                  onClick={() => setShowUploadWizard(true)}
+                  className="text-[#297a3a] font-medium hover:underline"
+                >
+                  Upload Video
+                </button>{" "}
+                anytime to analyze your own bowling, or read the{" "}
+                <button
+                  onClick={() => setTopView("guide")}
+                  className="text-[#171717] font-medium underline underline-offset-2"
+                >
+                  30-sec Filming Guide
+                </button>
+                .
+              </span>
             </div>
-            <div className="text-[11px] text-slate-400">
-              Pitch-Calibrated, Uncertainty-Gated 3D Cricket Fast-Bowling Biomechanics
-            </div>
+            <button
+              onClick={() => setDismissDemoBanner(true)}
+              className="text-[#8f8f8f] hover:text-[#171717] p-0.5"
+              aria-label="Dismiss sample banner"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Session & Delivery Selectors */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          {sessions.length > 0 && (
-            <select
-              value={activeSession?.id ?? ""}
-              onChange={(e) => loadSession(e.target.value)}
-              className="bg-[#161e2e] border border-[#263248] rounded-lg px-2.5 py-1.5 text-slate-200 max-w-[230px]"
-            >
-              {sessions.map((s) => (
-                <option key={s.id} value={s.id}>{s.title}</option>
-              ))}
-            </select>
-          )}
-          {activeSession?.deliveries && (
-            <select
-              value={activeDeliveryId ?? ""}
-              onChange={(e) => handleSelectDelivery(e.target.value)}
-              className="bg-[#161e2e] border border-[#263248] rounded-lg px-2.5 py-1.5 text-sky-200 font-medium max-w-[290px]"
-            >
-              {activeSession.deliveries.map((d) => (
-                <option key={d.id} value={d.id}>{d.label}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={() => setShowIngest((v) => !v)}
-            disabled={!activeSession}
-            className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-semibold flex items-center gap-1.5"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Upload / Net Scan
-          </button>
-          <button
-            onClick={handleExportReel}
-            disabled={reelBusy || !activeDeliveryId}
-            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-semibold flex items-center gap-1.5"
-          >
-            <Film className="w-3.5 h-3.5" />
-            {reelBusy ? "Rendering 9:16..." : "Export 9:16 Reel"}
-          </button>
-          {reelUrl && (
-            <a
-              href={reelUrl}
-              download
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs"
-            >
-              Download MP4
-            </a>
-          )}
+      {/* Horizontal Delivery Switcher Strip (in Analysis & Coach Report) */}
+      {(topView === "analysis" || topView === "report") && activeSession && (
+        <div className="no-print border-b border-[#ebebeb] bg-[#fafafa]">
+          <div className="max-w-[1440px] mx-auto px-4 md:px-6 py-2 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 flex-1 min-w-0">
+              <span className="v-eyebrow mr-1 shrink-0">DELIVERIES</span>
+              {deliveries.map((d) => {
+                const active = d.id === activeDeliveryId;
+                const badge =
+                  d.pipeline_mode === "real_clip_fixture"
+                    ? "REAL"
+                    : d.pipeline_mode === "dual_3d_ray_fusion"
+                    ? "3D FUSED"
+                    : d.pipeline_mode === "single_view_studio"
+                    ? "DEMO"
+                    : "UPLOAD";
+                return (
+                  <div
+                    key={d.id}
+                    className={`group flex items-center rounded-[6px] border text-[12px] shrink-0 transition ${
+                      active
+                        ? "bg-[#171717] text-[#ffffff] border-[#171717]"
+                        : "bg-[#ffffff] text-[#4d4d4d] border-[#ebebeb] hover:border-[#171717] hover:text-[#171717]"
+                    }`}
+                  >
+                    <button
+                      onClick={() => loadDelivery(d.id)}
+                      className="px-2.5 h-7 flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      <span
+                        className={`font-mono text-[9px] uppercase px-1 py-0.5 rounded-[3px] ${
+                          active ? "bg-[#ffffff]/15 text-[#ffffff]" : "bg-[#f4f4f5] text-[#666666]"
+                        }`}
+                      >
+                        {badge}
+                      </span>
+                      <span className="max-w-[200px] truncate">{d.label}</span>
+                    </button>
+                    {!d.id.startsWith("del_demo_") && !d.id.startsWith("del_real_") && (
+                      <button
+                        onClick={() => handleDeleteDelivery(d.id)}
+                        className={`pr-2 pl-0.5 h-7 flex items-center opacity-60 hover:opacity-100 ${
+                          active ? "text-[#ffffff]" : "text-[#666666]"
+                        }`}
+                        title="Delete delivery"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => setShowUploadWizard(true)}
+                className="v-btn-ghost h-7 px-2.5 text-[11px] font-mono flex items-center gap-1 shrink-0"
+              >
+                <Upload className="w-3 h-3" />
+                Add Clip
+              </button>
+            </div>
+
+            {/* Coach Summary vs Lab Telemetry Segmented Mode Switch (Analysis View Only) */}
+            {topView === "analysis" && (
+              <div className="flex items-center rounded-[6px] bg-[#f4f4f5] p-0.5 border border-[#ebebeb] shrink-0">
+                <button
+                  onClick={() => setAnalysisMode("coach")}
+                  className={`px-3 h-7 rounded-[5px] text-[12px] font-medium transition ${
+                    analysisMode === "coach" ? "bg-[#ffffff] text-[#171717]" : "text-[#666666] hover:text-[#171717]"
+                  }`}
+                >
+                  Coach Summary
+                </button>
+                <button
+                  onClick={() => setAnalysisMode("lab")}
+                  className={`px-3 h-7 rounded-[5px] text-[12px] font-medium transition ${
+                    analysisMode === "lab" ? "bg-[#ffffff] text-[#171717]" : "text-[#666666] hover:text-[#171717]"
+                  }`}
+                >
+                  Lab Telemetry
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+      )}
 
-        {/* Live System Status & Permanent ICC Guardrail Pill */}
-        <div className="flex items-center gap-2 text-[11px] font-mono">
-          <span className="px-2 py-1 rounded bg-[#161e2e] border border-[#263248] text-slate-300 flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-sky-400" />
-            {health?.gpu_worker?.reachable ? "4090 Warm" : "Local CPU (<35ms)"}
-          </span>
-          <span className="px-2 py-1 rounded bg-rose-950/70 border border-rose-500/50 text-rose-200 font-bold flex items-center gap-1">
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-            ICC 15° Elbow: REFUSED
-          </span>
-        </div>
-      </header>
-
-      {/* Collapsible Upload & Net-Session Auto-Clipper Drawer */}
-      {showIngest && activeSession && (
-        <div className="bg-[#111827] border-b border-[#263248] px-4 py-3 text-xs space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-sky-300 flex items-center gap-1.5">
-              <Scissors className="w-3.5 h-3.5" /> Video Upload & Multi-Ball Net-Session Auto-Clipper (M2A / M2B)
-            </span>
-            <button onClick={() => setShowIngest(false)} className="text-slate-400 hover:text-white">
+      {/* Main Content Workspace */}
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 md:px-6 py-5 space-y-4">
+        {errorMsg && (
+          <div className="no-print p-3 rounded-[6px] bg-[#ffffff] border border-[#171717] flex items-center justify-between gap-2 font-mono text-[12px] text-[#171717]">
+            <span>✕ {errorMsg}</span>
+            <button onClick={() => setErrorMsg(null)} className="text-[#666666] hover:text-[#171717]">
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="file"
-              accept="video/*"
-              onChange={(e) => {
-                setIngestFile(e.target.files?.[0] ?? null);
-                setScanCands([]);
-                setIngestMsg(null);
-              }}
-              className="text-[11px] text-slate-300 file:mr-2 file:px-2.5 file:py-1 file:rounded file:border-0 file:bg-[#1e293b] file:text-sky-300"
-            />
-            <input
-              value={ingestLabel}
-              onChange={(e) => setIngestLabel(e.target.value)}
-              placeholder="Delivery label"
-              className="bg-[#0b0f17] border border-[#263248] rounded px-2 py-1 text-slate-200 w-44"
-            />
-            <input
-              value={ingestStart}
-              onChange={(e) => setIngestStart(e.target.value)}
-              placeholder="Start frame"
-              className="bg-[#0b0f17] border border-[#263248] rounded px-2 py-1 text-slate-200 w-24 font-mono"
-            />
-            <input
-              value={ingestEnd}
-              onChange={(e) => setIngestEnd(e.target.value)}
-              placeholder="End frame"
-              className="bg-[#0b0f17] border border-[#263248] rounded px-2 py-1 text-slate-200 w-24 font-mono"
-            />
-            <select
-              value={ingestArm}
-              onChange={(e) => setIngestArm(e.target.value)}
-              className="bg-[#0b0f17] border border-[#263248] rounded px-2 py-1 text-slate-200"
-            >
-              <option value="">Auto Arm</option>
-              <option value="right">Right Arm</option>
-              <option value="left">Left Arm</option>
-            </select>
-            <button
-              onClick={handleScanNetSession}
-              disabled={ingestBusy || !ingestFile}
-              className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-semibold disabled:opacity-40"
-            >
-              {ingestBusy ? "Scanning..." : "Auto-Scan Net Clips"}
-            </button>
-            <button
-              onClick={handleUploadDelivery}
-              disabled={ingestBusy || !ingestFile}
-              className="px-3 py-1 rounded bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold disabled:opacity-40"
-            >
-              {ingestBusy ? "Analyzing..." : "Upload & Run 3D GPU"}
-            </button>
-          </div>
-          {ingestMsg && <div className="text-[11px] text-slate-300 font-mono">{ingestMsg}</div>}
-          {scanCands.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {scanCands.map((c) => (
-                <button
-                  key={c.candidate_id}
-                  onClick={() => {
-                    setIngestStart(String(c.start_frame));
-                    setIngestEnd(String(c.end_frame));
-                    setIngestLabel(`Net Delivery #${c.candidate_id}`);
-                  }}
-                  className="p-1.5 rounded bg-[#161e2e] border border-[#263248] hover:border-sky-400 text-left flex items-center gap-2"
-                >
-                  {c.thumbnail_b64 && (
-                    <img src={`data:image/jpeg;base64,${c.thumbnail_b64}`} alt="" className="w-14 h-9 object-cover rounded" />
-                  )}
-                  <div className="font-mono text-[10px]">
-                    <div className="text-sky-300 font-bold">Ball #{c.candidate_id}</div>
-                    <div className="text-slate-400">f {c.start_frame}–{c.end_frame}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+        )}
 
-      {/* Capture & Timebase Audit Ribbon */}
-      {detail && (
-        <div className="px-4 py-1.5 bg-[#0e1420] border-b border-[#1e293b] flex flex-wrap items-center gap-3 text-[11px] font-mono">
-          <span className={detail.fact_sheet.audit.timebase_unreliable ? "text-amber-300 font-bold flex items-center gap-1" : "text-emerald-300 flex items-center gap-1"}>
-            {detail.fact_sheet.audit.timebase_unreliable ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            {detail.fact_sheet.audit.fps.toFixed(1)}{" "}
-            {detail.fact_sheet.audit.timebase_unreliable ? "nominal fps [UNVERIFIED TIMEBASE]" : "unique fps"} (
-            {detail.fact_sheet.audit.timebase_status})
-          </span>
-          <span className="text-slate-400">
-            View: <strong className="text-slate-200">{detail.fact_sheet.calibration.view_class}</strong> ({detail.fact_sheet.calibration.azimuth_deg.toFixed(1)}°)
-          </span>
-          <span className="text-slate-400">
-            Cal: <strong className="text-sky-300">{detail.fact_sheet.calibration.method}</strong>
-          </span>
-          <span className="text-slate-400">
-            ROI Blur: <strong className="text-slate-200">{detail.fact_sheet.audit.blur_grade}</strong> ({detail.fact_sheet.audit.median_laplacian_var.toFixed(0)})
-          </span>
-          <span className="text-slate-500 ml-auto hidden xl:inline">
-            Non-diagnostic mechanical stress screening only • Not a clinical diagnosis
-          </span>
-        </div>
-      )}
-
-      {/* Main Studio Grid */}
-      <main className="flex-1 p-4 max-w-[1760px] w-full mx-auto">
-        {errorMsg && (
-          <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs mb-3">
-            API Connection Error: {errorMsg}
+        {statusBanner && (
+          <div className="no-print p-2.5 rounded-[6px] bg-[#171717] text-[#ffffff] font-mono text-[12px]">
+            {statusBanner}
           </div>
         )}
 
-        {detail && activeSession ? (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-            {/* Left + Center (8 cols): Video Scrubber + 3D Pitch Deck + Synchronized uPlot Waveforms */}
-            <div className="xl:col-span-8 space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <VideoCanvasPlayer
-                  videoUrl={detail.delivery.video_proxy_url}
-                  telemetry={detail.telemetry}
-                  factSheet={detail.fact_sheet}
-                  onNudgeEvent={(phase, frame) => handleRecompute({ event_overrides: { [phase]: frame } })}
-                  onLandmarkClick={handleLandmarkClick}
-                  onFpsChange={(fps) => handleRecompute({ capture_fps_override: fps })}
-                />
-                <PitchViewport3D
-                  telemetry={detail.telemetry}
-                  ghostTelemetry={ghostTelemetry}
-                />
+        {/* VIEW 1: ANALYSIS (Coach Summary / Lab Telemetry) */}
+        {topView === "analysis" && (
+          detail && activeSession ? (
+            analysisMode === "coach" ? (
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+                <div className="xl:col-span-7">
+                  <VideoCanvasPlayer
+                    videoUrl={detail.delivery.video_proxy_url}
+                    telemetry={detail.telemetry}
+                    factSheet={detail.fact_sheet}
+                    annotations={detail.annotations || []}
+                    onSaveAnnotations={handleSaveAnnotations}
+                    onNudgeEvent={(phase, frame) => handleRecompute({ event_overrides: { [phase]: frame } })}
+                    onLandmarkClick={handleLandmarkClick}
+                    onRetrackBowler={handleRetrackBowler}
+                    onFpsChange={(fps) => handleRecompute({ capture_fps_override: fps })}
+                    onPhaseThumbsCaptured={setPhaseThumbs}
+                  />
+                </div>
+                <div className="xl:col-span-5">
+                  <CoachSummaryPanel
+                    detail={detail}
+                    onNotesChanged={handleNotesChanged}
+                    onOpenFilmingGuide={() => setTopView("guide")}
+                  />
+                </div>
               </div>
-              <WaveformPanel telemetry={detail.telemetry} factSheet={detail.fact_sheet} />
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+                <div className="xl:col-span-8 space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                    <VideoCanvasPlayer
+                      videoUrl={detail.delivery.video_proxy_url}
+                      telemetry={detail.telemetry}
+                      factSheet={detail.fact_sheet}
+                      annotations={detail.annotations || []}
+                      onSaveAnnotations={handleSaveAnnotations}
+                      onNudgeEvent={(phase, frame) => handleRecompute({ event_overrides: { [phase]: frame } })}
+                      onLandmarkClick={handleLandmarkClick}
+                      onRetrackBowler={handleRetrackBowler}
+                      onFpsChange={(fps) => handleRecompute({ capture_fps_override: fps })}
+                      onPhaseThumbsCaptured={setPhaseThumbs}
+                      compact
+                    />
+                    <PitchViewport3D
+                      telemetry={detail.telemetry}
+                      ghostTelemetry={ghostTelemetry}
+                      bowlingArm={detail.fact_sheet.bowling_arm}
+                    />
+                  </div>
+                  <WaveformPanel telemetry={detail.telemetry} factSheet={detail.fact_sheet} />
+                </div>
+                <div className="xl:col-span-4">
+                  <LabTelemetryPanel
+                    detail={detail}
+                    session={activeSession}
+                    recomputeMs={recomputeMs}
+                    onApplyCalibration={handleApplyCalibration}
+                    onTogglePanTracking={(enabled) =>
+                      handleRecompute({ enable_pan_tracking: enabled, pan_anchor_frame: useStudioStore.getState().currentFrame })
+                    }
+                    onOpenCompare={() => setTopView("compare")}
+                  />
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="v-card p-12 text-center space-y-3 max-w-lg mx-auto my-8">
+              <div className="v-eyebrow">▲ EMPTY_SESSION</div>
+              <h2 className="text-[22px] font-[450] tracking-[-0.04em] text-[#171717]">
+                No Deliveries in This Session Yet
+              </h2>
+              <p className="text-[13px] text-[#4d4d4d]">
+                Upload a single delivery or a multi-ball net video to extract pitch-calibrated 3D biomechanics.
+              </p>
+              <div className="flex justify-center gap-2 pt-2">
+                <button onClick={() => setShowUploadWizard(true)} className="v-btn-primary h-9 px-4 text-[13px]">
+                  ▲ Upload Video
+                </button>
+                <button onClick={() => setTopView("guide")} className="v-btn-ghost h-9 px-4 text-[13px]">
+                  Read Filming Guide
+                </button>
+              </div>
             </div>
+          )
+        )}
 
-            {/* Right Inspector Panel (4 cols): Metrics, 4-Click Calibration, Multi-Ball, Dual 3D, Coach Copilot */}
-            <div className="xl:col-span-4">
-              <StudioInspector
-                detail={detail}
-                session={activeSession}
-                recomputeMs={recomputeMs}
-                onApplyCalibration={handleApplyCalibration}
-                onTogglePanTracking={(enabled) =>
-                  handleRecompute({ enable_pan_tracking: enabled, pan_anchor_frame: useStudioStore.getState().currentFrame })
-                }
-                onDualFusedCreated={(newId) => loadSession(activeSession.id, newId)}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-24 text-slate-400 text-sm">Loading Coaching Studio session...</div>
+        {/* VIEW 2: COMPARE & SPELL */}
+        {topView === "compare" && activeSession && (
+          <CompareSpellView
+            session={activeSession}
+            onDualFusedCreated={async (newId) => {
+              await refreshMetadata();
+              await loadSession(activeSession.id, newId);
+              setTopView("analysis");
+            }}
+          />
+        )}
+
+        {/* VIEW 3: FILMING GUIDE */}
+        {topView === "guide" && <FilmingGuideView onOpenUpload={() => setShowUploadWizard(true)} />}
+
+        {/* VIEW 4: COACH REPORT */}
+        {topView === "report" && detail && activeSession && (
+          <CoachReportView detail={detail} session={activeSession} phaseThumbs={phaseThumbs} />
         )}
       </main>
+
+      {/* Guided 3-Step Upload & Net-Session Auto-Clipper Modal */}
+      {showUploadWizard && activeSession && (
+        <UploadWizardModal
+          session={activeSession}
+          health={health}
+          onClose={() => setShowUploadWizard(false)}
+          onImported={async (newId) => {
+            await refreshMetadata();
+            await loadSession(activeSession.id, newId);
+            setTopView("analysis");
+          }}
+        />
+      )}
     </div>
   );
 }
+
 export default App;

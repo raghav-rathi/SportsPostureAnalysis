@@ -1,27 +1,73 @@
-import type { DeliveryDetailResponse, SessionSummary } from "./types";
+import type {
+  BowlerSummary,
+  CoachNote,
+  DeliveryDetailResponse,
+  HealthResponse,
+  SessionSummary,
+  TelestratorShape,
+} from "./types";
 
 const BASE = "";
 
 async function jsonReq<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, init);
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`${res.status}: ${txt}`);
+    let detail = "";
+    try {
+      const parsed = await res.json();
+      detail = parsed.detail || JSON.stringify(parsed);
+    } catch {
+      detail = await res.text();
+    }
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
 
 export const api = {
-  health: () => jsonReq<{ status: string; version: string; gpu_worker: any; mcc_landmark_keys: string[] }>("/api/health"),
+  health: () => jsonReq<HealthResponse>("/api/health"),
+  listBowlers: () => jsonReq<{ bowlers: BowlerSummary[] }>("/api/bowlers"),
   listSessions: () => jsonReq<{ sessions: SessionSummary[] }>("/api/sessions"),
   getSession: (id: string) => jsonReq<{ session: SessionSummary }>(`/api/sessions/${id}`),
-  createSession: (body: { bowler_name: string; bowling_arm: string; age_band: string; title: string; notes?: string }) =>
+  createSession: (body: {
+    bowler_id?: string;
+    bowler_name?: string;
+    bowling_arm?: string;
+    age_band?: string;
+    title: string;
+    notes?: string;
+  }) =>
     jsonReq<{ session: SessionSummary }>("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
   getDelivery: (id: string) => jsonReq<DeliveryDetailResponse>(`/api/deliveries/${id}`),
+  deleteDelivery: (id: string) =>
+    jsonReq<{ deleted: boolean; delivery_id: string }>(`/api/deliveries/${id}`, { method: "DELETE" }),
+  retrackBowler: (id: string, anchor_xy_norm: [number, number]) =>
+    jsonReq<any>(`/api/deliveries/${id}/retrack-bowler`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anchor_xy_norm }),
+    }),
+  getAnnotations: (id: string) =>
+    jsonReq<{ delivery_id: string; annotations: TelestratorShape[] }>(`/api/deliveries/${id}/annotations`),
+  saveAnnotations: (id: string, annotations: TelestratorShape[]) =>
+    jsonReq<{ delivery_id: string; annotations: TelestratorShape[] }>(`/api/deliveries/${id}/annotations`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ annotations }),
+    }),
+  listNotes: (id: string) => jsonReq<{ delivery_id: string; notes: CoachNote[] }>(`/api/deliveries/${id}/notes`),
+  addNote: (id: string, body: { frame_idx?: number | null; timestamp_s?: number | null; tag: string; body: string }) =>
+    jsonReq<{ note: CoachNote }>(`/api/deliveries/${id}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  deleteNote: (id: string, noteId: string) =>
+    jsonReq<{ deleted: boolean; note_id: string }>(`/api/deliveries/${id}/notes/${noteId}`, { method: "DELETE" }),
   previewCalibration: (id: string, mcc_landmarks_px: Record<string, [number, number]>) =>
     jsonReq<{ calibration: any; mcc_wireframe_2d: Record<string, [number, number]>; reprojection_error_px: number | null }>(
       `/api/deliveries/${id}/preview-calibration`,
@@ -77,6 +123,7 @@ export const api = {
     const fd = new FormData();
     fd.append("video", file);
     return jsonReq<{
+      scan_id: string;
       upload_path: string;
       video_meta: any;
       candidates: Array<{
@@ -91,6 +138,23 @@ export const api = {
       }>;
     }>(`/api/sessions/${sessionId}/scan-video`, { method: "POST", body: fd });
   },
+  importFromScan: (
+    sessionId: string,
+    payload: {
+      scan_id: string;
+      clips: Array<{ start_frame: number; end_frame?: number | null; label: string }>;
+      bowling_arm?: string | null;
+      capture_fps_override?: number | null;
+    }
+  ) =>
+    jsonReq<{ scan_id: string; deliveries: Array<{ delivery_id: string; label: string }> }>(
+      `/api/sessions/${sessionId}/deliveries/from-scan`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    ),
   uploadDelivery: (sessionId: string, fd: FormData) =>
     jsonReq<{ delivery_id: string; recompute_ms: number; fact_sheet: DeliveryDetailResponse["fact_sheet"] }>(
       `/api/sessions/${sessionId}/deliveries/upload`,

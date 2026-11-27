@@ -2,22 +2,24 @@
 
 A scientifically grounded, pitch-calibrated, uncertainty-gated 3D sports biomechanics engine and interactive Coaching Studio.
 
-> **Living Project Ledger:** See **[AGENTS.md](AGENTS.md)** for the global engineering rules, scientific guardrails, and chronological **Experiment & Modification Ledger** (`EXP-001`–`EXP-009`) updated after every experiment, audit, and modification.
+> **Living Project Ledger:** See **[AGENTS.md](AGENTS.md)** for the global engineering rules, scientific guardrails, and chronological **Experiment & Modification Ledger** (`EXP-001`–`EXP-010`) updated after every experiment, audit, and modification.
 
 ---
 
-## Interactive Coaching Studio (`v5`, Phase II `M2A`–`M2D`)
+## Interactive Coaching Studio v3.0 (`v6`, Vercel Monochrome UX + Full Metrology Parity)
 
-![SportsPostureAnalysis Studio v2.0](docs/figures/studio_v2_preview.png)
+![SportsPostureAnalysis Studio v3.0 — Coach Summary](docs/figures/studio_v3_preview.png)
 
-Built atop our verified Phase 0–1.5 7-stage metrology engine (`v4`), Phase II adds a local-first interactive **Coaching Studio** (`FastAPI + SQLite + Vite/React/Three.js/uPlot`), a **Warm Remote GPU Worker** (`nlf_l_multi.torchscript`), and four physics-grounded CV upgrades for fast & fast-medium pace bowlers (left & right arm):
+Built atop our verified Phase 0–2 7-stage metrology engine (`v4`–`v5`), **Studio v3.0** (`FastAPI + SQLite + Vite/React/Three.js/uPlot`) combines everyday usability in a crisp Vercel light-paper monochrome interface with full laboratory transparency for fast & fast-medium pace bowlers (left & right arm):
 
-- **Zero-Tear Scrubber & `<35 ms` CPU HITL Recompute (`server/`, `VideoCanvasPlayer.tsx`):** Single-canvas All-Intra (`-g 1`) frame scrubber with 4× corner pixel loupe for 4-click MCC Law 7/8 PnP calibration, 3-tier QuickTime/ffprobe slow-mo FPS override pill, causal-clamped (`BFC < FFC <= UAH < BR`) event nudging, and `needs_gpu_refit_for_K` focal-shift warning — all running locally on CPU without re-running GPU pose inference.
-- **Synchronized 3D MCC Pitch-World Viewport & `uPlot` Waveforms (`PitchViewport3D.tsx`, `WaveformPanel.tsx`):** Regulation 3D pitch creases & Law 8 stumps (`0.7112 m`), uncertainty spheres, real-time `ms`-interpolated FFC-aligned Ghost Skeleton overlay (handling mixed `25 fps` vs `240 fps` clips), and 60–120 Hz transient cursor synchronization across sagittal/coronal/transverse waveforms.
-- **Academy Mode — Unsynchronized Dual-Phone 3D Ray-Precision Fusion (`stage2_dual_sync_fusion.py`):** View-invariant `+Y_world` 1000 Hz spline FFT NCC sub-frame sync (`<2.5 ms` error across mixed 120+240 fps), `dual_mcc_pnp` / `skeleton_se3_relative` alignment, per-joint anisotropic ray-precision fusion $(\Lambda_1 + \Lambda_2)^{-1}$ with exact PSD matrix-square-root cross-covariance, and a strict `baseline_sin >= 0.45` collinearity gate.
-- **Zero-Extra-Weight `bml_movi_87` ISB Rigid-Body Anatomy (`stage2_isb_anatomy.py`):** Extracts all 87 ISB bony markers natively from `nlf_l_multi.torchscript` (`lasis/rasis/lpsis/rpsis`, `C7/T10/CLAV/STRN`, `lhee/ltoe`) for coordinate-invariant 3D relative lumbopelvic flexion (`R_pelvis^T @ R_thorax`), anterior pelvic tilt, and unclamped front-foot alignment — strictly governed by correlated-depth effective sample size $N_{\text{eff}} = N / (1 + (N-1)\hat{\rho})$ (`rho = 0.85`) and Guardrail #3 view/completeness suppression.
-- **3-DOF Rotational Pan Tracker & Net-Session Auto-Clipper (`stage1_pan_tracker.py`, `stage0_net_clipper.py`):** 1-frame MCC PnP + bowler-masked KLT/RANSAC pure SO(3) camera rotation tracking (`median_residual_px <= 2.5 px`, fixed optical center `C_0 = -R_t^T t_t`, propagating `D * sigma_pan_rad` translational drift) plus ~6 fps multi-ball net-session burst auto-clipping.
-- **Calibrated Optical Ball Release Speed, Verifier-Gated Coach Copilot & 9:16 Truthful Reel (`stage2_ball_release.py`, `stage6_coach_copilot.py`, `stage6_visualizer.py`):** Asymmetric down-pitch flight-corridor wrist-ROI ballistic RANSAC speed estimator (forearm-masked, depth+azimuth uncertainty propagated, hard-gated to `>=120 fps` calibrated static side-on clips), deterministic post-generation numeric verifier (`verify_coach_response` blocking ICC legality claims, retired `/100` scores, suppressed leaks, and ungrounded numbers), and 1-click browser-safe H.264 `1080×1920` freeze-frame breakdown reels.
+- **Progressive Disclosure (`Coach Summary` & `Lab Telemetry`):** Everyday bowlers and coaches land on a plain-English **Coach Summary** with cohort `±1 SD` bars, evidence-grounded **Corrective Drills** (prescribed strictly from non-straddling verified limiters), a Watchlist for interval-straddling observations, timestamped **Coach Notes**, a collapsible plain-English *"Why Metrics Were Withheld"* explainer, and a verifier-guarded **Coach AI Copilot**. One toggle reveals full **Lab Telemetry** (light-paper Three.js 3D MCC pitch deck, synchronized `uPlot` waveforms, 87-marker `bml_movi_87` ISB anatomy, 4-click MCC crease calibration, and 3-DOF rotational pan tracking).
+- **Zero-Tear Single-Canvas Scrubber, Telestrator & 4-Phase Contact Sheet (`VideoCanvasPlayer.tsx`):** Aspect-preserving single-canvas video + dual-cased monochrome 2D skeleton compositing (zero portrait distortion, zero seek tearing), frame-bound **Telestrator** drawing tools (`Line`, `Plumb`, `2D Camera-Plane Angle`, `Circle`, `PNG Snapshot` persisted to SQLite), interactive **4-Phase Visual Contact Sheet** (`BFC → FFC → UAH → BR`) with causal `±1f` nudging, 4× pixel loupe, and `<35 ms` instant local CPU HITL recompute.
+- **FFC-Synced Split-Screen Compare, Dual-Phone 3D Fusion & Spell Workload (`CompareSpellView.tsx`):** Side-by-side real-time FFC-synced dual-skeleton comparison across mixed 25–240 fps clips, **Interval-Aware Noise-Gated Metric Delta Table** (`✓ MEANINGFUL SHIFT` only when $|\Delta| \ge 1.96\sqrt{\sigma_A^2 + \sigma_B^2}$), unsynchronized Dual-Phone 3D ray-precision fusion (`<2.5 ms` `+Y_world` sync, `baseline_sin >= 0.45`), multi-ball spaghetti envelopes, Pillar 3 repeatability, and rolling 7d/28d ECB (2024) / Cricket Australia (2026) workload tracking.
+
+![SportsPostureAnalysis Studio v3.0 — Compare & Spell](docs/figures/studio_v3_compare.png)
+
+- **Guided 3-Step Upload, Zero-Reupload Net Auto-Clipper, 30-Sec Filming Guide & Printable Dossier:** Drag-and-drop 3-step upload wizard supporting both Remote Warm RTX 4090 GPU Worker (`GPU_WORKER_URL`) and local NLF TorchScript (`NLF_MODEL_PATH`) with full `pipeline.py` parity; session-bound ~6 fps multi-ball net-session auto-clipper (`from-scan` local slicing); interactive top-down SVG **Filming Guide** & metric-unlock matrix; and a typeset 1-page white-paper **Coach Report** (`Print / Save PDF`, standalone HTML dossier, and 1-click `1080×1920` Truthful Breakdown Reel MP4).
+- **Core Phase II CV Engines Retained & Hardened:** Zero-extra-weight `bml_movi_87` ISB rigid-body Pelvis/Thorax/Foot anatomy (`N_eff` correlated-depth guardrail, `rho = 0.85`), 3-DOF SO(3) rotational pan tracking (`0.188 px` median residual on Steyn), calibrated side-on asymmetric wrist-ROI ballistic release speed (`140 km/h` verified), and permanent `REFUSED` status on ICC 15° elbow legality.
 
 ---
 
@@ -33,9 +35,9 @@ Built atop our verified Phase 0–1.5 7-stage metrology engine (`v4`), Phase II 
 
 ---
 
-## Verified Baseline Results (`v5`, Phase II + Zero-Regression `v4` Metrology)
+## Verified Baseline Results (`v6`, Studio v3.0 + Zero-Regression `v4`–`v5` Metrology)
 
-- **Automated Regression Suite (`pytest -v`):** **27 / 27 passed** (`24.7 s` macOS, `31.4 s` Linux RTX 4090), covering 18 core/real-clip fixture tests + 9 Phase II Studio, CV, dual-fusion, ISB anatomy, 1080p video ball-speed, and adversarial verifier tests; `cd web && npm run build` passes with **0 TypeScript errors**.
+- **Automated Regression Suite (`pytest -v`):** **28 / 28 passed** (`33.0 s` macOS, `42.7 s` Linux RTX 4090), covering 18 core/real-clip fixture tests + 10 Studio v3.0, CV, dual-fusion, ISB anatomy, 1080p video ball-speed, drill/notes/annotations, bowler-reuse, scan-security, and adversarial verifier tests; `cd web && npm run build` passes with **0 TypeScript errors** (`3.69 s`, **0 browser console errors**).
 - **Phase 1.5 Metrology Zero-Regression (`docs/results/v4/synthetic_benchmark_results.json`):**
   - **All 22 / 22 metrics scored** (3,003 observable AR(1) correlated-noise evaluations): **96.4%** pooled coverage, per-metric **91.1%–100.0%**, `rmse/sigma` in **`[0.71, 1.21]`**, **`0 / 240`** false incomplete trials.
   - **Unmodified `EXP-007` S1–S9 (`docs/results/v4/synthetic_diagnostics.json`):** `S1` 91.7%–100.0% (pooled 97.1%), `S6` 100.0% release-height coverage across 15 lean/approach scenarios, `S8a` `+6.0°`, `S8b` 4/4 pan/tilt/zoom detected, `S9` 100.0% (`34 / 34`) cue precision & recall.
@@ -61,7 +63,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,server]"
 
-# Run full 27-test unit, real-clip fixture & Phase II Studio suite
+# Run full 28-test unit, real-clip fixture & Studio v3.0 suite
 pytest -v
 ```
 
@@ -97,7 +99,7 @@ bowling-biomech analyze path/to/delivery.mp4 \
 ```
 
 ## Documentation & Evidence
-- **[AGENTS.md](AGENTS.md)** — Global agent instructions, scientific guardrails, and living Experiment & Modification Ledger (`EXP-001`–`EXP-009`)
+- **[AGENTS.md](AGENTS.md)** — Global agent instructions, scientific guardrails, and living Experiment & Modification Ledger (`EXP-001`–`EXP-010`)
 - **[docs/research_report.md](docs/research_report.md)** — First-principles scientific investigation, forensic Reel analysis, and corrected primary-source bibliography
 - **[docs/walkthrough.md](docs/walkthrough.md)** — Phase 0–2 build, audit hardening, Coaching Studio, and RTX 4090 validation walkthrough
 - **[docs/results/v5/phase2_gpu_verification.json](docs/results/v5/phase2_gpu_verification.json)** — RTX 4090 Warm GPU Worker, `bml_movi_87` ISB anatomy, and 3-DOF pan tracking verification on Dale Steyn

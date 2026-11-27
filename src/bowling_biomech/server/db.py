@@ -97,8 +97,30 @@ class StudioDatabase:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (bowler_id) REFERENCES bowlers(id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS coach_notes (
+                    id TEXT PRIMARY KEY,
+                    delivery_id TEXT NOT NULL,
+                    frame_idx INTEGER,
+                    timestamp_s REAL,
+                    ball_tag TEXT NOT NULL DEFAULT '',
+                    note_text TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS delivery_annotations (
+                    delivery_id TEXT PRIMARY KEY,
+                    annotations_json TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON DELETE CASCADE
+                );
                 """
             )
+            # Safe idempotent migration for pre-v3 databases missing `timestamp_s` on `coach_notes`
+            cols = {r[1] for r in con.execute("PRAGMA table_info(coach_notes)").fetchall()}
+            if "timestamp_s" not in cols:
+                con.execute("ALTER TABLE coach_notes ADD COLUMN timestamp_s REAL")
 
     def create_bowler(self, name: str, bowling_arm: str = "right", age_band: str = "adult", bowler_id: Optional[str] = None) -> Dict[str, Any]:
         bid = bowler_id or f"bwl_{uuid.uuid4().hex[:10]}"
@@ -298,3 +320,100 @@ class StudioDatabase:
                 (bowler_id,),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    def delete_delivery(self, delivery_id: str) -> bool:
+        with self._conn() as con:
+            cur = con.execute("DELETE FROM deliveries WHERE id = ?", (delivery_id,))
+            return cur.rowcount > 0
+
+    def list_notes(self, delivery_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as con:
+            rows = con.execute(
+                "SELECT * FROM coach_notes WHERE delivery_id = ? ORDER BY created_at DESC",
+                (delivery_id,),
+            ).fetchall()
+            out: List[Dict[str, Any]] = []
+            for r in rows:
+                d = dict(r)
+                out.append(
+                    {
+                        "id": d["id"],
+                        "delivery_id": d["delivery_id"],
+                        "frame_idx": d.get("frame_idx"),
+                        "timestamp_s": d.get("timestamp_s"),
+                        "tag": d.get("ball_tag", ""),
+                        "body": d.get("note_text", ""),
+                        "created_at": d["created_at"],
+                    }
+                )
+            return out
+
+    def add_note(
+        self,
+        delivery_id: str,
+        note_text: str,
+        frame_idx: Optional[int] = None,
+        timestamp_s: Optional[float] = None,
+        tag: str = "",
+        ball_tag: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        nid = f"note_{uuid.uuid4().hex[:10]}"
+        now = _utc_now()
+        use_tag = ball_tag if ball_tag is not None else tag
+        with self._conn() as con:
+            con.execute(
+                """
+                INSERT INTO coach_notes (id, delivery_id, frame_idx, timestamp_s, ball_tag, note_text, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    nid,
+                    delivery_id,
+                    int(frame_idx) if frame_idx is not None else None,
+                    float(timestamp_s) if timestamp_s is not None else None,
+                    use_tag,
+                    note_text,
+                    now,
+                ),
+            )
+        return {
+            "id": nid,
+            "delivery_id": delivery_id,
+            "frame_idx": int(frame_idx) if frame_idx is not None else None,
+            "timestamp_s": float(timestamp_s) if timestamp_s is not None else None,
+            "tag": use_tag,
+            "body": note_text,
+            "created_at": now,
+        }
+
+    def delete_note(self, delivery_id: str, note_id: str) -> bool:
+        with self._conn() as con:
+            cur = con.execute("DELETE FROM coach_notes WHERE id = ? AND delivery_id = ?", (note_id, delivery_id))
+            return cur.rowcount > 0
+
+    def get_annotations(self, delivery_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as con:
+            r = con.execute(
+                "SELECT annotations_json FROM delivery_annotations WHERE delivery_id = ?",
+                (delivery_id,),
+            ).fetchone()
+            if not r or not r["annotations_json"]:
+                return []
+            parsed = json.loads(r["annotations_json"])
+            return parsed if isinstance(parsed, list) else []
+
+    def save_annotations(self, delivery_id: str, annotations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        now = _utc_now()
+        payload = list(annotations or [])
+        with self._conn() as con:
+            con.execute(
+                """
+                INSERT INTO delivery_annotations (delivery_id, annotations_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(delivery_id) DO UPDATE SET
+                    annotations_json = excluded.annotations_json,
+                    updated_at = excluded.updated_at
+                """,
+                (delivery_id, json.dumps(payload), now),
+            )
+        return payload

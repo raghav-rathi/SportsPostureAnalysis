@@ -4,34 +4,181 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-paper-white: #fafafa;
+  --color-pure-white: #ffffff;
+  --color-surface-subtle: #f4f4f5;
+  --color-hairline: #ebebeb;
+  --color-ash: #c9c9c9;
+  --color-smoke: #a8a8a8;
+  --color-graphite: #8f8f8f;
+  --color-slate: #7d7d7d;
+  --color-stone: #666666;
+  --color-charcoal: #4d4d4d;
+  --color-obsidian: #171717;
+  --color-carbon: #000000;
+  --color-terminal-green: #297a3a;
+  --font-geist-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 * {
   box-sizing: border-box;
 }
 
-body {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: #0b0f17;
-  color: #e6edf3;
+strong,
+b {
+  font-weight: 500;
 }
 
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 1.5px solid #171717;
+  outline-offset: 1px;
+}
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+html,
+body {
+  font-family: var(--font-geist-sans);
+  font-feature-settings: "calt" 0, "rlig" 1, "ss11" 1;
+  background-color: var(--color-paper-white);
+  color: var(--color-obsidian);
+  margin: 0;
+  padding: 0;
+}
+
+/* Vercel stacked hairline elevation — zero drop-shadows */
+.v-card {
+  background-color: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 0 0 2px #fafafa;
+}
+
+.v-card-subtle {
+  background-color: #fafafa;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #ebebeb;
+}
+
+.v-card-inverted {
+  background-color: #171717;
+  color: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #171717;
+}
+
+.v-btn-primary {
+  background-color: #171717;
+  color: #ffffff;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background-color 120ms ease, opacity 120ms ease;
+}
+.v-btn-primary:hover:not(:disabled) {
+  background-color: #333333;
+}
+.v-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.v-btn-ghost {
+  background-color: #ffffff;
+  color: #171717;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #ebebeb;
+  font-weight: 500;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.v-btn-ghost:hover:not(:disabled) {
+  background-color: #f4f4f5;
+  box-shadow: 0 0 0 1px #c9c9c9;
+}
+.v-btn-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.v-eyebrow {
+  font-family: var(--font-geist-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.071em;
+  text-transform: uppercase;
+  color: #666666;
+}
+
+.v-input {
+  background-color: #ffffff;
+  color: #171717;
+  border-radius: 6px;
+  border: 1px solid #ebebeb;
+  outline: none;
+  transition: border-color 120ms ease;
+}
+.v-input:focus {
+  border-color: #171717;
+}
+
+.v-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Light-paper uPlot legend & cursor styling */
+.uplot {
+  font-family: var(--font-geist-mono);
+}
 .uplot .u-legend {
   font-size: 11px;
-  color: #9fb0c8;
-  padding-top: 2px;
+  color: #4d4d4d;
+  padding-top: 4px;
+}
+.uplot .u-legend th {
+  font-weight: 500;
 }
 
-/* Crisp custom scrollbars for dark studio panels */
+/* Crisp light monochrome scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0b0f17;
+  background: #fafafa;
 }
 ::-webkit-scrollbar-thumb {
-  background: #263248;
+  background: #d4d4d8;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b4d6e;
+  background: #a8a8a8;
+}
+
+/* White-paper Coach Report printing */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #171717 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .v-card {
+    box-shadow: none !important;
+    border: 1px solid #d4d4d8 !important;
+    break-inside: avoid;
+  }
 }

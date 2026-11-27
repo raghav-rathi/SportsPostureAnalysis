@@ -283,6 +283,10 @@ def verify_coach_response(
             verbatim_prose.append(_strip_markdown(u.title))
         if u.actionable_recommendation:
             verbatim_prose.append(_strip_markdown(u.actionable_recommendation))
+    for dr in fact_sheet.corrective_drills:
+        for field_txt in (dr.title, dr.cue_focus, dr.literature_basis, dr.caution_note, *dr.setup_steps):
+            if field_txt:
+                verbatim_prose.append(_strip_markdown(field_txt))
     for vp in sorted(set(verbatim_prose), key=len, reverse=True):
         if vp:
             cleaned = cleaned.replace(vp, " ")
@@ -340,8 +344,8 @@ def _build_deterministic_answer(question: str, fact_sheet: BiomechanicalFactShee
             lines.append(f"- **Workload Context ({wg.age_band}):** {wg.status_note}")
         return "\n".join(lines), cited
 
-    # Handle "why suppressed / what is missing / camera" questions
-    if any(w in q for w in ("suppress", "missing", "withheld", "camera", "improve capture", "upgrade", "fps", "knee", "speed", "run-up", "runup", "stride")):
+    # Handle "why suppressed / what is missing / camera / capture / blur" questions BEFORE drills (P1-4)
+    if any(w in q for w in ("suppress", "missing", "withheld", "camera", "capture", "blur", "upgrade", "fps", "knee", "speed", "run-up", "runup", "stride")) and not any(w in q for w in ("drill", "drills", "exercise", "practice")):
         lines = [
             f"Capture audit for **{fact_sheet.bowler_id}**: `{fact_sheet.audit.width}x{fact_sheet.audit.height}` @ "
             f"`{fact_sheet.audit.fps:.1f}` fps (`{fact_sheet.audit.timebase_status}`), view `{fact_sheet.calibration.view_class.value}` "
@@ -366,6 +370,36 @@ def _build_deterministic_answer(question: str, fact_sheet: BiomechanicalFactShee
             lines.append("\n**Recommended Capture Upgrades:**")
             for u in fact_sheet.capture_upgrades:
                 lines.append(f"- **{u.title}:** {u.actionable_recommendation}")
+        return "\n".join(lines), cited
+
+    # Handle drills / training / correction questions grounded strictly in verified corrective_drills
+    if any(w in q for w in ("drill", "drills", "exercise", "practice", "train", "correct", "fix", "improve")):
+        if fact_sheet.corrective_drills:
+            lines = [f"**Evidence-Grounded Corrective Drills for {fact_sheet.bowler_id}** (mapped strictly to verified non-straddling limiters):"]
+            for dr in fact_sheet.corrective_drills:
+                if dr.target_limiter_metric in valid:
+                    cited.append(dr.target_limiter_metric)
+                steps_str = " ".join(dr.setup_steps)
+                lines.append(f"- **{dr.title}:** {dr.cue_focus}. {steps_str} Caution: {dr.caution_note} ({dr.literature_basis})")
+            if fact_sheet.inconclusive_observations:
+                lines.append(
+                    "**Watchlist (Not Yet Prescribed — Interval Straddles Cutoff):** "
+                    + "; ".join(c.title for c in fact_sheet.inconclusive_observations)
+                    + "."
+                )
+            lines.append("\n*Reminder: ICC 15-degree elbow legality is permanently REFUSED on monocular/casual video.*")
+            return "\n".join(lines), cited
+        lines = [
+            f"No verified non-straddling biomechanical limiters triggered drill prescriptions for **{fact_sheet.bowler_id}**."
+        ]
+        if fact_sheet.inconclusive_observations:
+            lines.append(
+                "**Watchlist (Interval Straddles Cutoff — Capture Better Angle/FPS Before Coaching):** "
+                + "; ".join(c.title for c in fact_sheet.inconclusive_observations)
+                + "."
+            )
+        if fact_sheet.capture_upgrades:
+            lines.append("**Recommended Capture Upgrades:** " + "; ".join(u.title for u in fact_sheet.capture_upgrades) + ".")
         return "\n".join(lines), cited
 
     # Default comprehensive grounded summary of verified measurements, limiters, strengths & inconclusive cues

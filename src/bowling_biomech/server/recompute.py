@@ -25,6 +25,7 @@ from ..constants import JOINT_IDX, MCC_PITCH_LANDMARKS_M, SMPL24_JOINTS
 from ..schemas import (
     BiomechanicalFactSheet,
     BowlingArm,
+    CameraViewClass,
     DeliveryEvents,
     EventTimestamp,
     ObservabilityGrade,
@@ -218,6 +219,8 @@ def recompute_delivery_cpu(
     j_in = z["joint_in_frame"].astype(bool)
     valid_mask = z["valid_mask"].astype(bool)
     boxes = z["bowler_boxes_xyxy"].astype(np.float64) if "bowler_boxes_xyxy" in z else None
+    interp_gaps = z["interp_gap_frames"].astype(np.int32) if "interp_gap_frames" in z else None
+    held_mask = z["held_frame_mask"].astype(bool) if "held_frame_mask" in z else None
     bml87_cam = z["bml_movi_87_cam_m"].astype(np.float64) if "bml_movi_87_cam_m" in z else None
     bml87_unc = z["bml_movi_87_unc_m"].astype(np.float64) if "bml_movi_87_unc_m" in z else None
     cov_world_fused = z["cov_world_fused"].astype(np.float64) if "cov_world_fused" in z else None
@@ -230,17 +233,28 @@ def recompute_delivery_cpu(
     if dual_baseline_sin is None and "dual_baseline_sin" in base_meta:
         dual_baseline_sin = float(base_meta["dual_baseline_sin"])
 
-    # 1. FPS override (3-tier slow-mo resolver pill!)
+    pipeline_mode = str(base_meta.get("pipeline_mode", "single_view_studio"))
+    is_synthetic_proxy = (
+        pipeline_mode in ("single_view_studio", "real_clip_fixture")
+        or str(audit.video_path).startswith(("demo:", "fixture:"))
+    )
+    is_noiseless_synthetic = bool(base_meta.get("is_noiseless_synthetic", False))
+    default_unc_scale = 0.35 if pipeline_mode in ("single_view_gpu_worker", "single_view_local_nlf", "real_clip_fixture") else 1.0
+    unc_scale = float(base_meta.get("unc_scale_factor", default_unc_scale))
+
+    # 1. FPS override (3-tier slow-mo resolver pill — clears timebase_unreliable ONLY when clip is not frozen! Bug #8 / P1-1)
     if ov.get("capture_fps_override") is not None:
         new_fps = float(ov["capture_fps_override"])
+        can_clear_tb = (audit.held_frame_ratio < 0.08) and (audit.longest_held_run_frames <= 2)
         audit = audit.model_copy(
             update={
                 "fps": round(new_fps, 3),
                 "duration_s": round(audit.num_frames / max(new_fps, 1.0), 3),
-                "fps_grade": "high_speed_240" if new_fps >= 200 else ("slow_mo_120" if new_fps >= 100 else ("standard_60" if new_fps >= 50 else "low_25")),
+                "fps_grade": "high_speed_240" if new_fps >= 200 else ("slow_mo_120" if new_fps >= 100 else ("medium_60" if new_fps >= 50 else ("standard_30" if new_fps >= 28 else "low_25"))),
                 "est_arm_deg_per_frame": round(2300.0 / max(new_fps, 1.0), 2),
                 "est_ball_m_per_frame": round(38.89 / max(new_fps, 1.0), 3),
-                "timebase_status": "user_fps_override" if audit.timebase_unreliable else audit.timebase_status,
+                "timebase_status": "user_fps_override" if (audit.timebase_unreliable and can_clear_tb) else audit.timebase_status,
+                "timebase_unreliable": False if can_clear_tb else audit.timebase_unreliable,
             }
         )
 
@@ -276,11 +290,24 @@ def recompute_delivery_cpu(
         if abs(new_fx - nlf_fx_used) / max(nlf_fx_used, 1.0) > 0.15:
             needs_gpu_refit_for_K = True
 
-    # 3. Optional 3-DOF Rotational Pan Tracking (M2B) when enabled + MCC calibrated + video available
+    # 3. Optional 3-DOF Rotational Pan Tracking (M2B) when enabled + MCC calibrated + REAL textured video available (Bug #4)
     pan_summary: Optional[Dict[str, Any]] = None
     pan_res_verified = None
     camera_poses_per_frame: Optional[List[Dict[str, Any]]] = None
-    if ov.get("enable_pan_tracking") and cal.is_intrinsics_calibrated and video_path and Path(video_path).exists():
+    if ov.get("enable_pan_tracking") and is_synthetic_proxy:
+        pan_summary = {
+            "is_verified": False,
+            "median_residual_px": 0.0,
+            "p90_residual_px": 0.0,
+            "max_pan_deg": 0.0,
+            "sigma_pan_deg": 0.0,
+            "verification_reason": (
+                "3-DOF background pan tracking requires real video footage with background texture "
+                "(not applicable to synthetic stick-figure demo or cached fixture proxies)."
+            ),
+        }
+        j3d_world = transform_cam_to_pitch_world(j3d_cam, cal)
+    elif ov.get("enable_pan_tracking") and cal.is_intrinsics_calibrated and video_path and Path(video_path).exists():
         src_indices = audit.source_frame_indices or list(range(j3d_cam.shape[0]))
         pan_res = track_camera_rotation_3dof_video(
             video_path=video_path,
@@ -321,13 +348,20 @@ def recompute_delivery_cpu(
     else:
         j3d_world = transform_cam_to_pitch_world(j3d_cam, cal)
 
-    # 4. Event spotting + optional human causal-clamped event overrides
+    # 4. Event spotting + optional human causal-clamped event overrides (passes held_frame_mask on edited/frozen clips! Bug #6 / P1-1)
+    is_frozen_clip = (
+        audit.timebase_status == "edited_or_frozen"
+        or audit.held_frame_ratio >= 0.08
+        or audit.longest_held_run_frames >= 3
+    )
+    held_use = held_mask if (held_mask is not None and len(held_mask) == j3d_world.shape[0] and is_frozen_clip) else None
     events = detect_delivery_events(
         j3d_world,
         fps=audit.fps,
         bowling_arm=arm,
         joint_in_frame=j_in,
         source_frame_indices=audit.source_frame_indices or None,
+        held_frame_mask=held_use,
     )
     if ov.get("event_overrides"):
         events = apply_causal_event_overrides(
@@ -338,7 +372,7 @@ def recompute_delivery_cpu(
             source_frame_indices=audit.source_frame_indices or None,
         )
 
-    # 5. Stage 3 kinematics + optional M2B ISB bml_movi_87 rigid-body anatomy
+    # 5. Stage 3 kinematics (Bug #1: unc_scale_factor=0.35; Bug #2 & P1-2: skip monocular Rician debiasing on noiseless or dual-fused skeletons)
     kin = extract_fast_bowling_kinematics(
         j3d_world,
         events,
@@ -346,8 +380,35 @@ def recompute_delivery_cpu(
         bowling_arm=arm,
         joint_uncertainties_m=j_unc,
         joint_in_frame=j_in,
-        camera_R_w2c=np.asarray(cal.rotation_matrix_R, dtype=np.float64),
+        interp_gap_frames=interp_gaps,
+        camera_R_w2c=None if cov_world_fused is not None else np.asarray(cal.rotation_matrix_R, dtype=np.float64),
+        unc_scale_factor=unc_scale,
+        debias_near_straight=(not is_noiseless_synthetic) and (cov_world_fused is None),
     )
+
+    # Stage 3 Kinematic panning cross-check (pipeline.py parity! Bug #6)
+    if (not cal.is_panning_camera) and (pan_res_verified is None) and (not is_synthetic_proxy):
+        pelv_2d_x = j2d[valid_mask, JOINT_IDX["pelv"], 0]
+        if len(pelv_2d_x) >= 5:
+            x_span_frac = float(np.ptp(pelv_2d_x)) / max(audit.width, 1)
+            is_side_ish = cal.view_class in (
+                CameraViewClass.SIDE_ON_RIGHT,
+                CameraViewClass.SIDE_ON_LEFT,
+                CameraViewClass.OPEN_SIDE_45,
+            )
+            if is_side_ish and x_span_frac < 0.22 and abs(kin.scalars.get("runup_speed_mps", 0.0)) < 1.3:
+                cal = cal.model_copy(
+                    update={
+                        "is_panning_camera": True,
+                        "is_metric_calibrated": False,
+                        "calibration_notes": list(cal.calibration_notes)
+                        + [
+                            f"Kinematic pan check: bowler stayed centered (2D X span={x_span_frac:.2f}w, "
+                            f"apparent speed={kin.scalars.get('runup_speed_mps', 0.0):.2f} m/s); "
+                            "ground-referenced translation suppressed."
+                        ],
+                    }
+                )
 
     isb_summary: Optional[Dict[str, Any]] = None
     if bml87_cam is not None and bml87_cam.shape[0] == j3d_cam.shape[0]:
@@ -389,7 +450,9 @@ def recompute_delivery_cpu(
             kin, audit, cal, events, cov_world_fused, float(dual_baseline_sin or 0.0)
         )
     else:
-        metrics = quantify_and_gate_metrics(kin, audit, cal, events=events, dual_baseline_sin=dual_baseline_sin)
+        metrics = quantify_and_gate_metrics(
+            kin, audit, cal, events=events, unc_scale_factor=unc_scale, dual_baseline_sin=dual_baseline_sin
+        )
 
     # Propagate 3-DOF rotational pan translational drift D * sigma_pan_rad into world translation metrics (P1-2)
     if pan_res_verified is not None and pan_res_verified.sigma_pan_deg > 0.0:
@@ -438,10 +501,10 @@ def recompute_delivery_cpu(
                     }
                 )
 
-    # Wire M2D calibrated side-on wrist-ROI optical ball speed estimator when source/proxy video exists (P1-1)
-    if video_path and Path(video_path).exists():
+    # Wire M2D calibrated side-on wrist-ROI optical ball speed estimator on real video footage (skip stick-figure demos!)
+    if video_path and Path(video_path).exists() and (not is_synthetic_proxy) and (not str(audit.video_path).startswith("dual:")):
         wri_i = JOINT_IDX["rwri" if arm == BowlingArm.RIGHT else "lwri"]
-        wri_unc_br = float(j_unc[min(events.br.frame_idx, len(j_unc) - 1), wri_i])
+        wri_unc_br = float(j_unc[min(events.br.frame_idx, len(j_unc) - 1), wri_i]) * unc_scale
         ball_res = estimate_ball_release_speed_video(
             video_path=video_path,
             joints2d_px=j2d,
@@ -453,6 +516,16 @@ def recompute_delivery_cpu(
             wrist_unc_m=max(wri_unc_br, 0.12),
         )
         metrics["ball_release_speed_kph"] = ball_res.metric
+    elif (
+        str(audit.video_path).startswith("dual:")
+        and events.is_complete_delivery
+        and base_meta.get("cached_ball_speed_metric")
+        and ov.get("capture_fps_override") is None
+        and not (isinstance(ov.get("event_overrides"), dict) and ov["event_overrides"].get("br_frame") is not None)
+    ):
+        from ..schemas import MetricEstimate
+
+        metrics["ball_release_speed_kph"] = MetricEstimate.model_validate(base_meta["cached_ball_speed_metric"])
 
     fs = build_fact_sheet(
         bowler_id=bowler_id,
@@ -663,7 +736,15 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
         (ddir / "audit.json").write_text(audit.model_dump_json(indent=2), encoding="utf-8")
         (ddir / "base_calibration.json").write_text(cal.model_dump_json(indent=2), encoding="utf-8")
         (ddir / "meta.json").write_text(
-            json.dumps({"bowling_arm": "right", "pipeline_mode": "single_view_studio", "nlf_fx_used": float(K[0, 0])}),
+            json.dumps(
+                {
+                    "bowling_arm": "right",
+                    "pipeline_mode": "single_view_studio",
+                    "nlf_fx_used": float(K[0, 0]),
+                    "unc_scale_factor": 1.0,
+                    "is_noiseless_synthetic": True,
+                }
+            ),
             encoding="utf-8",
         )
         proxy_mp4 = render_synthetic_proxy_video(
@@ -738,7 +819,15 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
             (ddir / "audit.json").write_text(audit.model_dump_json(indent=2), encoding="utf-8")
             (ddir / "base_calibration.json").write_text(cal.model_dump_json(indent=2), encoding="utf-8")
             (ddir / "meta.json").write_text(
-                json.dumps({"bowling_arm": meta["bowling_arm"], "pipeline_mode": "real_clip_fixture", "nlf_fx_used": float(K[0, 0])}),
+                json.dumps(
+                    {
+                        "bowling_arm": meta["bowling_arm"],
+                        "pipeline_mode": "real_clip_fixture",
+                        "nlf_fx_used": float(K[0, 0]),
+                        "unc_scale_factor": 0.35,
+                        "is_noiseless_synthetic": False,
+                    }
+                ),
                 encoding="utf-8",
             )
             proxy_mp4 = render_synthetic_proxy_video(j2d, int(meta["width"]), int(meta["height"]), ddir / "scrub_proxy.mp4", proxy_fps=25.0, title=lbl)

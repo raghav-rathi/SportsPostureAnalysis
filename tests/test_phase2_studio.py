@@ -601,3 +601,141 @@ def test_p0_p1_audit_regressions_psd_covariance_1080p_reel_and_video_ball_speed(
     patch_buggy = fr_r[664:676, 804:816]
     assert float(patch_center.max()) > 200.0, "Scaled 1080p joint missing from Reel center (540, 670)!"
     assert float(patch_buggy.max()) < 60.0, "1.5x unscaled joint ghost still present at x=810!"
+
+
+def test_studio_v3_analysis_fixes_drills_notes_annotations_and_bowlers(tmp_path: Path):
+    """EXP-010 Studio v3.0 Regression Suite:
+    - Bug #1: Real-clip `unc_scale_factor=0.35` unlocks Steyn SCR & `action_class == mixed`
+    - Bug #2: Noiseless synthetic demo skips Rician over-debiasing (front_knee_br_deg stays ~171 deg, not 180 deg)
+    - Bug #4: 3-DOF pan tracking rejects synthetic/fixture proxies cleanly
+    - Bug #8: `capture_fps_override` clears `timebase_unreliable` only when clip is not frozen
+    - Bug #9: `scan-video` issues session-bound `scan_id` and blocks cross-session/traversal attacks
+    - Bug #10: `GET /api/bowlers` & `POST /api/sessions` with `bowler_id` reuses bowler without duplicating workload
+    - Features #1/#4/#5: Telestrator annotations, Coach notes, Delivery delete, Corrective drills + Copilot verifier
+    """
+    from bowling_biomech.schemas import BiomechanicalFactSheet
+    from bowling_biomech.server.video_proxy import slice_video_segment
+
+    app = create_app(data_root=tmp_path, seed_demo=True)
+    client = TestClient(app)
+
+    # Health v3.0 & pose_engine status
+    h = client.get("/api/health").json()
+    assert h["version"] == "3.0.0"
+    assert h["pose_engine"] in ("remote_gpu_worker", "local_nlf_model", "cpu_recompute_only")
+
+    # Bug #2: Noiseless synthetic Side-On demo must NOT over-debias 171.0 deg knee to 180.0 deg
+    side = client.get("/api/deliveries/del_demo_side_240").json()
+    fk_val = side["fact_sheet"]["metrics"]["front_knee_br_deg"]["value"]
+    assert fk_val is not None and 167.0 <= fk_val <= 174.5, f"Rician over-debiasing bug regressed: {fk_val}"
+
+    # Bug #1: Dale Steyn fixture must unlock SCR & classify as mixed; at 25 fps its analytical CI straddles 30 deg
+    # so scientific non-straddling rule honestly routes it to inconclusive_observations (Watchlist), NOT false drills!
+    steyn = client.get("/api/deliveries/del_real_steyn").json()
+    st_fs = BiomechanicalFactSheet.model_validate(steyn["fact_sheet"])
+    assert st_fs.metrics["shoulder_counter_rotation_deg"].suppressed is False
+    assert st_fs.metrics["shoulder_counter_rotation_deg"].value is not None
+    assert st_fs.metrics["shoulder_counter_rotation_deg"].value >= 30.0
+    assert st_fs.action_class.value == "mixed"
+    assert len(st_fs.inconclusive_observations) >= 1
+
+    # Feature #4: A crisp 240 fps delivery with a non-straddling limiter (front knee collapse ~138 deg)
+    # MUST generate evidence-grounded corrective_drills AND pass Coach Copilot verifier 100%!
+    from bowling_biomech.stage3_kinematics import extract_fast_bowling_kinematics
+    from bowling_biomech.stage4_uncertainty import quantify_and_gate_metrics
+    from bowling_biomech.stage5_evaluator import build_fact_sheet
+
+    p_lim = SyntheticDeliveryParams(fps=240.0, front_knee_ffc_deg=160.0, front_knee_br_deg=135.0)
+    jw_lim, _ = generate_synthetic_delivery(p_lim)
+    ev_lim = detect_delivery_events(jw_lim, fps=240.0)
+    lm_keys = ["bowling_crease_off", "bowling_crease_leg", "popping_crease_off", "popping_crease_leg", "stump_middle_base", "stump_middle_top"]
+    Ks, Rs, ts_v, _ = make_virtual_camera(azimuth_deg=90.0, elevation_deg=5.0)
+    cal_lim = calibrate_from_mcc_landmarks(project_mcc_landmarks(Ks, Rs, ts_v, lm_keys), 1280, 720, K=Ks)
+    kin_lim = extract_fast_bowling_kinematics(jw_lim, ev_lim, fps=240.0, camera_R_w2c=Rs, debias_near_straight=False)
+    met_lim = quantify_and_gate_metrics(kin_lim, _dummy_audit(240.0, len(jw_lim)), cal_lim, events=ev_lim)
+    fs_lim = build_fact_sheet("DrillTest", BowlingArm.RIGHT, kin_lim.action_class, "test", _dummy_audit(240.0, len(jw_lim)), cal_lim, ev_lim, met_lim)
+    assert len(fs_lim.corrective_drills) >= 1
+    assert any(d.target_limiter_metric in ("front_knee_br_deg", "front_knee_change_deg") for d in fs_lim.corrective_drills)
+    drill_ans = ask_grounded_coach("What drills should I practice to fix my limiters?", fs_lim)
+    assert drill_ans.verification_passed is True, f"Drill copilot failed verifier: {drill_ans.blocked_violations}"
+    drill_ans_st = ask_grounded_coach("What drills should I practice?", st_fs)
+    assert drill_ans_st.verification_passed is True, f"Steyn watchlist drill answer failed verifier: {drill_ans_st.blocked_violations}"
+
+    # Bug #4: 3-DOF pan tracking on synthetic proxy returns clean is_verified=False explanation
+    pan_r = client.post("/api/deliveries/del_demo_side_240/recompute", json={"enable_pan_tracking": True}).json()
+    assert pan_r["pan_summary"]["is_verified"] is False
+    assert "real video" in pan_r["pan_summary"]["verification_reason"].lower()
+
+    # Bug #8 / P1-1: FPS override preserves BOTH timebase_unreliable=True AND timebase_status='edited_or_frozen' on frozen McGrath Reel!
+    mc_r = client.post("/api/deliveries/del_real_mcgrath/recompute", json={"capture_fps_override": 120.0}).json()
+    assert mc_r["fact_sheet"]["audit"]["timebase_unreliable"] is True
+    assert mc_r["fact_sheet"]["audit"]["timebase_status"] == "edited_or_frozen"
+    # On clean verified_native clip, clicking 240 preserves verified_native!
+    clean_r = client.post("/api/deliveries/del_demo_side_240/recompute", json={"capture_fps_override": 240.0}).json()
+    assert clean_r["fact_sheet"]["audit"]["timebase_status"] == "verified_native"
+
+    # P1-4: Capture/blur questions containing "improve" or "fix" MUST route to capture audit, NOT drills!
+    cap_ans = ask_grounded_coach("How can I improve capture quality and fix camera blur?", st_fs)
+    assert cap_ans.verification_passed is True
+    assert "Capture audit" in cap_ans.answer_markdown
+
+    # Bug #10: Bowler reuse across multiple sessions preserves workload history
+    bowlers_before = client.get("/api/bowlers").json()["bowlers"]
+    assert len(bowlers_before) == 1
+    s2 = client.post("/api/sessions", json={"bowler_id": "bwl_demo", "title": "Follow-up Net Session"}).json()["session"]
+    assert s2["bowler_id"] == "bwl_demo"
+    bowlers_after = client.get("/api/bowlers").json()["bowlers"]
+    assert len(bowlers_after) == 1
+
+    # Feature #1: Telestrator annotations CRUD
+    shapes = [
+        {"id": "s1", "frame": 12, "type": "angle", "points": [[100, 100], [150, 200], [220, 180]], "label": "2D Angle"},
+        {"id": "s2", "frame": 12, "type": "plumb", "points": [[300, 50], [300, 400]]},
+    ]
+    put_ann = client.put("/api/deliveries/del_demo_side_240/annotations", json={"annotations": shapes})
+    assert put_ann.status_code == 200 and len(put_ann.json()["annotations"]) == 2
+    get_ann = client.get("/api/deliveries/del_demo_side_240/annotations").json()
+    assert len(get_ann["annotations"]) == 2 and get_ann["annotations"][0]["type"] == "angle"
+
+    # Feature #5: Timestamped Coach Notes CRUD
+    add_n = client.post(
+        "/api/deliveries/del_demo_side_240/notes",
+        json={"frame_idx": 148, "timestamp_s": 0.617, "tag": "cue", "body": "Strong front-leg brace at FFC."},
+    )
+    assert add_n.status_code == 200
+    nid = add_n.json()["note"]["id"]
+    notes = client.get("/api/deliveries/del_demo_side_240/notes").json()["notes"]
+    assert len(notes) == 1 and notes[0]["tag"] == "cue"
+    del_n = client.delete(f"/api/deliveries/del_demo_side_240/notes/{nid}")
+    assert del_n.status_code == 200 and client.get("/api/deliveries/del_demo_side_240/notes").json()["notes"] == []
+
+    # Bug #9: Net-video scan_id + cross-session protection + local slicing
+    mini_vid = tmp_path / "mini_net.mp4"
+    vw = cv2.VideoWriter(str(mini_vid), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (320, 240))
+    for i in range(45):
+        fr = np.full((240, 320, 3), 40 + (i % 10) * 15, dtype=np.uint8)
+        vw.write(fr)
+    vw.release()
+    with mini_vid.open("rb") as f:
+        scan_r = client.post("/api/sessions/ses_demo/scan-video", files={"video": ("mini_net.mp4", f, "video/mp4")})
+    assert scan_r.status_code == 200
+    scan_id = scan_r.json()["scan_id"]
+    assert scan_id.startswith("scan_")
+    # Cross-session access to scan_id must be blocked (403) and malformed scan_id blocked (400)
+    bad_fmt = client.post(
+        "/api/sessions/ses_demo/deliveries/from-scan",
+        json={"scan_id": "../etc/passwd", "clips": [{"start_frame": 0, "end_frame": 10, "label": "x"}]},
+    )
+    assert bad_fmt.status_code == 400
+    cross_ses = client.post(
+        f"/api/sessions/{s2['id']}/deliveries/from-scan",
+        json={"scan_id": scan_id, "clips": [{"start_frame": 0, "end_frame": 10, "label": "x"}]},
+    )
+    assert cross_ses.status_code == 403
+    sliced = slice_video_segment(mini_vid, tmp_path / "sliced.mp4", 5, 19)
+    assert sliced.exists() and sliced.stat().st_size > 1000
+
+    # Delete delivery + cascading check
+    del_r = client.delete("/api/deliveries/del_demo_side_b2")
+    assert del_r.status_code == 200 and del_r.json()["deleted"] is True
+    assert client.get("/api/deliveries/del_demo_side_b2").status_code == 404

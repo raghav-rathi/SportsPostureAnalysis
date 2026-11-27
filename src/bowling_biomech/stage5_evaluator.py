@@ -24,6 +24,7 @@ from .schemas import (
     BowlerActionClass,
     BowlingArm,
     CohortComparison,
+    CorrectiveDrill,
     DeliveryEvents,
     IntervalType,
     MetricEstimate,
@@ -624,6 +625,128 @@ def evaluate_repeatability(
     )
 
 
+def build_corrective_drills(limiters: List[PrioritizedCue]) -> List[CorrectiveDrill]:
+    """Map strictly verified non-straddling limiters to evidence-grounded coaching drills.
+
+    Never prescribes drills from inconclusive (interval-straddling) or suppressed metrics,
+    never produces clinical injury diagnoses, and preserves anatomical nuance.
+    """
+    drill_catalog: Dict[str, CorrectiveDrill] = {
+        "front_knee_br_deg": CorrectiveDrill(
+            id="drill_front_leg_brace",
+            target_limiter_metric="front_knee_br_deg",
+            title="Short-Approach Tall-Hip Front-Block Drill",
+            cue_focus="Plant firmly on a braced front leg and resist knee collapse from FFC through release.",
+            setup_steps=[
+                "Start from a controlled 6-step approach at ~75% effort on a flat turf or rubber crease.",
+                "Place a flat marker cone 1.1 m ahead of BFC to groove a repeatable stride length without over-striding.",
+                "Cue 'tall front hip over a firm front heel' at FFC and hold balance for 1 second after release.",
+                "Complement in the gym with eccentric split-squats and single-leg isometric braking holds.",
+            ],
+            literature_basis="Worthington, King, & Ranson (2013); Portus et al. (2004)",
+            caution_note="Gradually build approach speed over 2-3 weeks; stop immediately if anterior knee pain occurs.",
+        ),
+        "front_knee_change_deg": CorrectiveDrill(
+            id="drill_knee_extension_brace",
+            target_limiter_metric="front_knee_change_deg",
+            title="Eccentric-to-Braced Front-Leg Absorption Progression",
+            cue_focus="Eliminate late front-knee buckling between front-foot strike and ball release.",
+            setup_steps=[
+                "Perform 2 sets of 6 step-in shadow deliveries emphasizing firm quad lock at FFC.",
+                "Progress to target bowling from half run-up, checking knee angle stability on 240 fps side-on video.",
+            ],
+            literature_basis="Worthington, King, & Ranson (2013)",
+            caution_note="Avoid sudden volume spikes while re-grooving ground-reaction braking mechanics.",
+        ),
+        "trunk_flexion_delta_deg": CorrectiveDrill(
+            id="drill_trunk_flexion_drive",
+            target_limiter_metric="trunk_flexion_delta_deg",
+            title="Braced Lead-Leg Chest-Drive Medicine-Ball Throw",
+            cue_focus="Drive the chest rapidly forward over a stabilized front leg between FFC and release.",
+            setup_steps=[
+                "Hold a light 2-3 kg medicine ball overhead in the bowling gather position.",
+                "Step forward onto a braced lead leg and snap the trunk forward into a downward target throw.",
+                "Transfer the same 'chest drives over front knee' timing into 6-ball half-run-up spells.",
+            ],
+            literature_basis="Worthington, King, & Ranson (2013)",
+            caution_note="Keep medicine-ball weight light (2-3 kg) to prioritize speed and clean posture over load.",
+        ),
+        "delayed_arm_ffc_deg": CorrectiveDrill(
+            id="drill_arm_delay_separation",
+            target_limiter_metric="delayed_arm_ffc_deg",
+            title="Gather-to-FFC 'Hip Leads Hand' Walk-Through",
+            cue_focus="Keep the bowling hand behind the shoulder line at FFC before accelerating into release.",
+            setup_steps=[
+                "Start from a slow walk-through pausing momentarily at FFC with the bowling arm still below horizontal behind the hip.",
+                "Feel the non-bowling arm pull down toward the front hip before the bowling arm whips through overhead.",
+                "Film 3 reps side-on at 240 fps to confirm delayed-arm timing before scaling to full pace.",
+            ],
+            literature_basis="Worthington, King, & Ranson (2013)",
+            caution_note="Maintain relaxed shoulders; forcing hyper-delay with shoulder tension reduces arm speed.",
+        ),
+        "shoulder_counter_rotation_deg": CorrectiveDrill(
+            id="drill_scr_alignment",
+            target_limiter_metric="shoulder_counter_rotation_deg",
+            title="BFC Alignment Corridor & Coherent Hip-Shoulder Step-In",
+            cue_focus="Keep back-foot alignment, pelvis, and shoulders in one consistent plane from BFC to FFC.",
+            setup_steps=[
+                "Lay two flat strips down the bowling crease forming a 0.6 m alignment corridor.",
+                "Run in smoothly and land the back foot aligned with your natural gather (side-on or front-on) without rotating the chest away after BFC.",
+                "Verify hip-shoulder coherence from a static rear-on (0 deg) tripod clip.",
+            ],
+            literature_basis="Portus et al. (2004); Alway et al. (2021) (note: SCR is a coaching alignment cue, not a standalone injury diagnosis)",
+            caution_note="Make alignment changes gradually with a qualified coach; never force an unnatural action overnight.",
+        ),
+        "thorax_lat_flex_br_deg": CorrectiveDrill(
+            id="drill_lateral_trunk_control",
+            target_limiter_metric="thorax_lat_flex_br_deg",
+            title="Side-Plank Hip-Abduction & Controlled Release-Plane Drill",
+            cue_focus="Build lateral trunk & glute-medius capacity rather than forcing an artificial upright spine.",
+            setup_steps=[
+                "Perform 3 x 25 s side-planks with slow top-leg abduction and anti-lateral-flexion Pallof presses off-field.",
+                "In nets, check that non-bowling arm pull stays close to the ribcage rather than flaring wide off-target.",
+                "Cross-check weekly bowling volume against ECB / Cricket Australia workload ceilings.",
+            ],
+            literature_basis="Bayne et al. (2016) (adolescent cohort); Alway et al. (2021)",
+            caution_note="Non-diagnostic screening only: fast bowlers naturally exhibit ~30-45 deg contralateral tilt — never force a 0 deg vertical spine. Manage weekly ball workload.",
+        ),
+        "pelvic_drop_ffc_deg": CorrectiveDrill(
+            id="drill_pelvic_stability",
+            target_limiter_metric="pelvic_drop_ffc_deg",
+            title="Single-Leg Stance Hip-Lock & Step-Down Control",
+            cue_focus="Stabilize the stance-side glute medius so the pelvis stays level through front-foot impact.",
+            setup_steps=[
+                "Perform slow controlled single-leg step-downs from a 15 cm box keeping both iliac crests level.",
+                "Progress to hop-and-stick landings holding a level pelvis for 2 seconds.",
+            ],
+            literature_basis="Bayne et al. (2016); Glazier (2010)",
+            caution_note="Mechanical stress screening only — consult a sports physiotherapist if hip or lower-back pain is present.",
+        ),
+        "follow_through_drift_deg": CorrectiveDrill(
+            id="drill_follow_through_corridor",
+            target_limiter_metric="follow_through_drift_deg",
+            title="Two-Cone Target-Corridor Follow-Through Gate",
+            cue_focus="Drive momentum straight down the pitch on the first two steps after ball release.",
+            setup_steps=[
+                "Place two flat cones 1.0 m apart, 2.5 m down the pitch on the bowler's delivery line (outside the danger area).",
+                "Cue driving the back knee and chest cleanly through the gate on steps 1 and 2 post-release.",
+            ],
+            literature_basis="Glazier (2010)",
+            caution_note="Keep cones flat and safely clear of landing zones to avoid trip hazards.",
+        ),
+    }
+
+    drills: List[CorrectiveDrill] = []
+    seen_ids: set = set()
+    for cue in limiters:
+        for mk in cue.evidence_metrics:
+            d = drill_catalog.get(mk)
+            if d is not None and d.id not in seen_ids:
+                seen_ids.add(d.id)
+                drills.append(d)
+    return drills
+
+
 def build_fact_sheet(
     bowler_id: str,
     bowling_arm: BowlingArm,
@@ -655,6 +778,7 @@ def build_fact_sheet(
     )
     quad = _retired_quadrant()
     strengths, limiters, inconclusive, upgrades = _extract_prioritized_cues(metrics, audit, cal, events)
+    drills = build_corrective_drills(limiters)
 
     return BiomechanicalFactSheet(
         bowler_id=bowler_id,
@@ -677,5 +801,6 @@ def build_fact_sheet(
         limiters=limiters,
         inconclusive_observations=inconclusive,
         capture_upgrades=upgrades,
+        corrective_drills=drills,
         metadata=metadata or {},
     )

@@ -200,6 +200,7 @@ def extract_fast_bowling_kinematics(
     interp_gap_frames: Optional[np.ndarray] = None,
     camera_R_w2c: Optional[np.ndarray] = None,
     unc_scale_factor: float = 1.0,
+    debias_near_straight: bool = True,
 ) -> KinematicsResult:
     """Extract 3D fast-bowling kinematics with debiasing, local ground reference, & Jacobian context."""
     j = smooth_trajectory(joints_world, fps, cutoff_hz=min(16.0, 0.36 * fps))
@@ -331,7 +332,7 @@ def extract_fast_bowling_kinematics(
         if (joint_uncertainties_m is not None and joint_uncertainties_m.shape[0] == n)
         else np.full((n, 24), 0.035, dtype=np.float64)
     )
-    if camera_R_w2c is not None and joint_uncertainties_m is not None:
+    if debias_near_straight and camera_R_w2c is not None and joint_uncertainties_m is not None:
         R_use = np.asarray(camera_R_w2c, dtype=np.float64)
         fk_ffc = _debias_near_straight_angle_deg(
             fk_ffc,

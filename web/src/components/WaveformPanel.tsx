@@ -5,8 +5,9 @@ import type { BiomechanicalFactSheet, TelemetryV2 } from "../types";
 
 interface SingleChartProps {
   title: string;
+  eyebrow: string;
   timeMs: number[];
-  series: Array<{ label: string; values: number[]; color: string; suppressed?: boolean }>;
+  series: Array<{ label: string; values: number[]; color: string; dashed?: boolean; suppressed?: boolean }>;
   bfcMs: number;
   ffcMs: number;
   brMs: number;
@@ -16,6 +17,7 @@ interface SingleChartProps {
 
 const SingleUPlot: React.FC<SingleChartProps> = ({
   title,
+  eyebrow,
   timeMs,
   series,
   bfcMs,
@@ -33,7 +35,7 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
     if (!el || timeMs.length < 2) return;
 
     const width = Math.max(el.clientWidth - 4, 240);
-    const height = 160;
+    const height = 165;
     const data: uPlot.AlignedData = [timeMs, ...series.map((s) => s.values)];
 
     const drawOverlayPlugin: uPlot.Plugin = {
@@ -44,12 +46,11 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
             const top = u.bbox.top;
             const bottom = top + u.bbox.height;
             ctx.save();
-            // BFC, FFC, BR vertical phase lines
             if (isComplete) {
               const marks: Array<[number, string, string]> = [
-                [bfcMs, "BFC", "#f59e0b"],
-                [ffcMs, "FFC", "#38bdf8"],
-                [brMs, "BR", "#22c55e"],
+                [bfcMs, "BFC", "#8f8f8f"],
+                [ffcMs, "FFC", "#4d4d4d"],
+                [brMs, "BR", "#297a3a"],
               ];
               for (const [xm, lbl, col] of marks) {
                 const px = u.valToPos(xm, "x", true);
@@ -63,16 +64,15 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
                   ctx.stroke();
                   ctx.setLineDash([]);
                   ctx.fillStyle = col;
-                  ctx.font = "bold 9px monospace";
+                  ctx.font = '500 9px "Geist Mono", monospace';
                   ctx.fillText(lbl, px + 3, top + 10);
                 }
               }
             }
-            // Live transient frame cursor line (updated at 60-120 Hz without React re-renders!)
             const fi = Math.min(Math.max(cursorFrameRef.current, 0), timeMs.length - 1);
             const curX = u.valToPos(timeMs[fi], "x", true);
             if (curX >= u.bbox.left && curX <= u.bbox.left + u.bbox.width) {
-              ctx.strokeStyle = "#ffffff";
+              ctx.strokeStyle = "#171717";
               ctx.lineWidth = 1.6;
               ctx.beginPath();
               ctx.moveTo(curX, top);
@@ -88,7 +88,7 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
     const opts: uPlot.Options = {
       width,
       height,
-      padding: [8, 10, 6, 0],
+      padding: [10, 12, 8, 2],
       plugins: [drawOverlayPlugin],
       cursor: { show: true, drag: { x: false, y: false } },
       scales: {
@@ -96,16 +96,29 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
         y: yRange ? { auto: false, range: yRange } : { auto: true },
       },
       axes: [
-        { stroke: "#94a3b8", grid: { stroke: "#1f2a3d", width: 1 }, font: "10px monospace", size: 28, gap: 4 },
-        { stroke: "#94a3b8", grid: { stroke: "#1f2a3d", width: 1 }, font: "10px monospace", size: 40 },
+        {
+          stroke: "#666666",
+          grid: { stroke: "#ebebeb", width: 1 },
+          ticks: { stroke: "#ebebeb", width: 1 },
+          font: '10px "Geist Mono", monospace',
+          size: 30,
+          gap: 6,
+        },
+        {
+          stroke: "#666666",
+          grid: { stroke: "#ebebeb", width: 1 },
+          ticks: { stroke: "#ebebeb", width: 1 },
+          font: '10px "Geist Mono", monospace',
+          size: 40,
+        },
       ],
       series: [
-        { label: "ms" },
+        { label: "ms rel FFC" },
         ...series.map((s) => ({
           label: s.suppressed ? `${s.label} [SUP]` : s.label,
-          stroke: s.suppressed ? `${s.color}44` : s.color,
-          width: s.suppressed ? 1.2 : 2.1,
-          dash: s.suppressed ? [5, 4] : undefined,
+          stroke: s.suppressed ? "#c9c9c9" : s.color,
+          width: s.suppressed ? 1.2 : 2.0,
+          dash: s.suppressed ? [3, 4] : s.dashed ? [6, 3] : undefined,
         })),
       ],
     };
@@ -113,7 +126,6 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
     const u = new uPlot(opts, data, el);
     plotRef.current = u;
 
-    // Click chart to jump master frame clock
     const onClick = (ev: MouseEvent) => {
       const rect = u.over.getBoundingClientRect();
       const xVal = u.posToVal(ev.clientX - rect.left, "x");
@@ -121,18 +133,25 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
       let bestD = Infinity;
       for (let i = 0; i < timeMs.length; i++) {
         const d = Math.abs(timeMs[i] - xVal);
-        if (d < bestD) { bestD = d; best = i; }
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
       }
       useStudioStore.getState().setIsPlaying(false);
       useStudioStore.getState().setCurrentFrame(best);
     };
     u.over.addEventListener("click", onClick);
 
+    let resizeRaf = 0;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const nextW = Math.max(Math.floor(entry.contentRect.width) - 4, 220);
         if (Math.abs(u.width - nextW) >= 4) {
-          u.setSize({ width: nextW, height });
+          cancelAnimationFrame(resizeRaf);
+          resizeRaf = requestAnimationFrame(() => {
+            if (plotRef.current) plotRef.current.setSize({ width: nextW, height });
+          });
         }
       }
     });
@@ -147,6 +166,7 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
     );
 
     return () => {
+      cancelAnimationFrame(resizeRaf);
       ro.disconnect();
       unsub();
       u.over.removeEventListener("click", onClick);
@@ -156,12 +176,15 @@ const SingleUPlot: React.FC<SingleChartProps> = ({
   }, [timeMs, series, bfcMs, ffcMs, brMs, isComplete, yRange]);
 
   return (
-    <div className="bg-[#131926] border border-[#263248] rounded-xl p-2.5">
-      <div className="text-[11px] font-semibold text-slate-200 mb-1 flex items-center justify-between">
-        <span>{title}</span>
+    <div className="v-card p-3">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div>
+          <div className="v-eyebrow">{eyebrow}</div>
+          <div className="text-[13px] font-[500] text-[#171717]">{title}</div>
+        </div>
         {series.every((s) => s.suppressed) && (
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-            SUPPRESSED (VIEW / CLIP)
+          <span className="font-mono text-[10px] uppercase tracking-[0.06em] px-2 py-0.5 rounded-[4px] border border-dashed border-[#c9c9c9] text-[#666666]">
+            Withheld
           </span>
         )}
       </div>
@@ -187,20 +210,20 @@ export const WaveformPanel: React.FC<{ telemetry: TelemetryV2; factSheet: Biomec
   const scrSup = factSheet.metrics["shoulder_counter_rotation_deg"]?.suppressed ?? true;
 
   const kneeSeries = useMemo(
-    () => [{ label: "Front Knee", values: ks.front_knee_deg ?? [], color: "#38bdf8", suppressed: fkSup }],
+    () => [{ label: "Front Knee (°)", values: ks.front_knee_deg ?? [], color: "#171717", suppressed: fkSup }],
     [ks.front_knee_deg, fkSup]
   );
   const trunkSeries = useMemo(
     () => [
-      { label: "Sagittal Flex", values: ks.trunk_flex_deg ?? [], color: "#a855f7", suppressed: tfSup },
-      { label: "Contralat. Tilt", values: ks.thorax_lat_flex_deg ?? [], color: "#fb7185", suppressed: lfSup },
+      { label: "Sagittal (°)", values: ks.trunk_flex_deg ?? [], color: "#171717", suppressed: tfSup },
+      { label: "Side Tilt (°)", values: ks.thorax_lat_flex_deg ?? [], color: "#297a3a", dashed: true, suppressed: lfSup },
     ],
     [ks.trunk_flex_deg, ks.thorax_lat_flex_deg, tfSup, lfSup]
   );
   const transSeries = useMemo(
     () => [
-      { label: "Pelvis Yaw", values: ks.pelvis_yaw_deg ?? [], color: "#22d3ee", suppressed: scrSup },
-      { label: "Shoulder Yaw", values: ks.shoulder_yaw_deg ?? [], color: "#f59e0b", suppressed: scrSup },
+      { label: "Pelvis Yaw (°)", values: ks.pelvis_yaw_deg ?? [], color: "#171717", suppressed: scrSup },
+      { label: "Shoulder Yaw (°)", values: ks.shoulder_yaw_deg ?? [], color: "#737373", dashed: true, suppressed: scrSup },
     ],
     [ks.pelvis_yaw_deg, ks.shoulder_yaw_deg, scrSup]
   );
@@ -209,6 +232,7 @@ export const WaveformPanel: React.FC<{ telemetry: TelemetryV2; factSheet: Biomec
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
       <SingleUPlot
+        eyebrow="SAGITTAL_KNEE"
         title="Front Knee Internal Angle (180° = Straight)"
         timeMs={t}
         bfcMs={bfcMs}
@@ -218,7 +242,8 @@ export const WaveformPanel: React.FC<{ telemetry: TelemetryV2; factSheet: Biomec
         series={kneeSeries}
       />
       <SingleUPlot
-        title="Global Trunk Kinematics (Z-X Cardan)"
+        eyebrow="Z_X_CARDAN_TRUNK"
+        title="Global Trunk Flexion & Side Tilt"
         timeMs={t}
         bfcMs={bfcMs}
         ffcMs={0}
@@ -227,7 +252,8 @@ export const WaveformPanel: React.FC<{ telemetry: TelemetryV2; factSheet: Biomec
         series={trunkSeries}
       />
       <SingleUPlot
-        title="Transverse Alignment (180° Side, 270° Front)"
+        eyebrow="PORTUS_TRANSVERSE"
+        title="Pelvis & Shoulder Alignment (180° Side / 270° Front)"
         timeMs={t}
         bfcMs={bfcMs}
         ffcMs={0}

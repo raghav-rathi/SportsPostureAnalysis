@@ -243,6 +243,18 @@ class PrioritizedCue(BaseModel):
     actionable_recommendation: str
 
 
+class CorrectiveDrill(BaseModel):
+    """Evidence-grounded drill prescription mapped strictly from verified non-straddling limiters."""
+
+    id: str
+    target_limiter_metric: str
+    title: str
+    cue_focus: str
+    setup_steps: List[str] = Field(default_factory=list)
+    literature_basis: str
+    caution_note: str
+
+
 class WorkloadContext(BaseModel):
     age_years: Optional[int] = None
     sex: str = "male"
@@ -276,6 +288,7 @@ class BiomechanicalFactSheet(BaseModel):
     limiters: List[PrioritizedCue] = Field(default_factory=list)
     inconclusive_observations: List[PrioritizedCue] = Field(default_factory=list)
     capture_upgrades: List[PrioritizedCue] = Field(default_factory=list)
+    corrective_drills: List[CorrectiveDrill] = Field(default_factory=list)
     hard_guardrails: List[str] = Field(
         default_factory=lambda: [
             "ICC 15-degree elbow legality CANNOT be adjudicated from monocular or casual 2D/3D video; accredited >=250 Hz 3D optical lab testing is required.",

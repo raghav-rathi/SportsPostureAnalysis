@@ -171,6 +171,61 @@ def build_all_intra_scrub_proxy(
     return out
 
 
+def slice_video_segment(
+    video_path: str | Path,
+    out_mp4: str | Path,
+    start_frame: int,
+    end_frame: Optional[int],
+) -> Path:
+    """Extract `[start_frame, end_frame]` into a compact MP4 locally (avoids double-uploading 300 MB net videos)."""
+    out = Path(out_mp4)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Could not open source video for slicing: {video_path}")
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+    if fps <= 1.0:
+        fps = 30.0
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    sf = max(0, int(start_frame))
+    ef = min(total - 1, int(end_frame)) if (end_frame is not None and total > 0) else max(total - 1, sf)
+    if sf > 0:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, sf)
+
+    frames: List[np.ndarray] = []
+    for _ in range(sf, ef + 1):
+        ok, fr = cap.read()
+        if not ok or fr is None:
+            break
+        frames.append(fr)
+    cap.release()
+    if not frames:
+        raise RuntimeError(f"No frames decoded in slice [{sf}, {ef}] from {video_path}")
+
+    h0, w0 = frames[0].shape[:2]
+    tmp_raw = out.with_suffix(".slice_tmp.mp4")
+    vw = cv2.VideoWriter(str(tmp_raw), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w0, h0))
+    for fr in frames:
+        vw.write(fr)
+    vw.release()
+
+    if shutil.which("ffmpeg"):
+        res = subprocess.run(
+            [
+                "ffmpeg", "-y", "-loglevel", "error", "-i", str(tmp_raw),
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+                "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", str(out),
+            ],
+            capture_output=True,
+            check=False,
+        )
+        if res.returncode == 0 and out.exists() and out.stat().st_size > 0:
+            tmp_raw.unlink(missing_ok=True)
+            return out
+    tmp_raw.replace(out)
+    return out
+
+
 def render_synthetic_proxy_video(
     joints2d_px: np.ndarray,
     width: int,
@@ -190,9 +245,11 @@ def render_synthetic_proxy_video(
 
     n = len(joints2d_px)
     for i in range(n):
-        img = np.full((h_out, w_out, 3), (18, 24, 33), dtype=np.uint8)
-        # Subtle turf gradient band on lower half
-        cv2.rectangle(img, (0, int(0.55 * h_out)), (w_out, h_out), (22, 36, 30), -1)
+        # Vercel monochrome light-paper canvas (#f5f5f5) with crisp #171717 MCC crease geometry
+        img = np.full((h_out, w_out, 3), (245, 245, 245), dtype=np.uint8)
+        # Subtle turf/pitch apron band on lower half (#ececef)
+        cv2.rectangle(img, (0, int(0.55 * h_out)), (w_out, h_out), (236, 236, 238), -1)
+        cv2.line(img, (0, int(0.55 * h_out)), (w_out, int(0.55 * h_out)), (222, 222, 226), 1, cv2.LINE_AA)
         # Draw projected MCC pitch lines if available
         if mcc_wireframe_2d:
             for a, b in [
@@ -205,9 +262,10 @@ def render_synthetic_proxy_video(
                 if a in mcc_wireframe_2d and b in mcc_wireframe_2d:
                     p1 = (int(mcc_wireframe_2d[a][0]), int(mcc_wireframe_2d[a][1]))
                     p2 = (int(mcc_wireframe_2d[b][0]), int(mcc_wireframe_2d[b][1]))
-                    col = (80, 210, 255) if "stump" in a else (160, 195, 175)
+                    # Terminal Green BGR (58, 122, 41) for stumps; Obsidian (23, 23, 23) for MCC creases
+                    col = (58, 122, 41) if "stump" in a else (23, 23, 23)
                     cv2.line(img, p1, p2, col, 2, cv2.LINE_AA)
-        cv2.putText(img, f"{title} | Frame {i}/{n - 1}", (24, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (160, 185, 215), 2, cv2.LINE_AA)
+        cv2.putText(img, f"{title} | Frame {i}/{n - 1}", (24, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.68, (77, 77, 77), 2, cv2.LINE_AA)
         vw.write(img)
     vw.release()
 

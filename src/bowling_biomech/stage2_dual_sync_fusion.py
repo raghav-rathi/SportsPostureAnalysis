@@ -537,12 +537,14 @@ def fuse_dual_view_3d_trajectories(
     in_frame_b: Optional[np.ndarray] = None,
     audio_env_a_1khz: Optional[np.ndarray] = None,
     audio_env_b_1khz: Optional[np.ndarray] = None,
+    unc_scale_a: float = 1.0,
+    unc_scale_b: float = 1.0,
 ) -> DualFusionResult:
     """Synchronize, align, and anisotropically fuse two unsynchronized camera views into one 3D skeleton."""
     notes: List[str] = []
     na, nb = joints_world_a.shape[0], joints_world_b.shape[0]
-    ua = unc_a if unc_a is not None else np.full((na, 24), 0.035, dtype=np.float64)
-    ub = unc_b if unc_b is not None else np.full((nb, 24), 0.035, dtype=np.float64)
+    ua = (unc_a * float(unc_scale_a)) if unc_a is not None else np.full((na, 24), 0.035, dtype=np.float64)
+    ub = (unc_b * float(unc_scale_b)) if unc_b is not None else np.full((nb, 24), 0.035, dtype=np.float64)
     ifa = in_frame_a if in_frame_a is not None else np.ones((na, 24), dtype=bool)
     ifb = in_frame_b if in_frame_b is not None else np.ones((nb, 24), dtype=bool)
 
