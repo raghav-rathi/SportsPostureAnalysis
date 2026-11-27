@@ -31,13 +31,21 @@ import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 import numpy as np
 from pydantic import BaseModel, Field
 
 from ..constants import JOINT_IDX, MCC_PITCH_LANDMARKS_M
-from ..schemas import BiomechanicalFactSheet, BowlingArm, PitchCalibration, VideoAudit, WorkloadContext
+from ..schemas import (
+    BiomechanicalFactSheet,
+    BowlingArm,
+    CoachingStory,
+    DeliveryCardSummary,
+    PitchCalibration,
+    VideoAudit,
+    WorkloadContext,
+)
 from ..stage0_audit import analyze_frame_cadence, audit_video, detect_camera_motion, measure_bowler_roi_blur
 from ..stage0_net_clipper import scan_net_session_video
 from ..stage1_pitch_calibration import (
@@ -49,7 +57,7 @@ from ..stage1_pitch_calibration import (
 )
 from ..stage2_ball_release import estimate_ball_release_speed_video
 from ..stage2_dual_sync_fusion import fuse_dual_view_3d_trajectories
-from ..stage5_evaluator import build_workload_guidance
+from ..stage5_evaluator import build_compare_story, build_workload_guidance, hydrate_coaching_story
 from ..stage6_coach_copilot import ask_grounded_coach
 from ..stage6_visualizer import render_truthful_breakdown_reel_9x16
 from .db import StudioDatabase
@@ -62,6 +70,7 @@ from .recompute import (
 )
 from .video_proxy import (
     build_all_intra_scrub_proxy,
+    extract_proxy_frame_jpeg,
     probe_video_metadata,
     render_synthetic_proxy_video,
     slice_video_segment,
@@ -174,6 +183,50 @@ class CreateNoteRequest(BaseModel):
     body: str = Field(..., min_length=1, max_length=2000)
 
 
+class CreateBowlerRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    bowling_arm: str = Field(default="right", pattern="^(right|left)$")
+    age_band: str = Field(default="adult", max_length=32)
+
+
+class PatchDeliveryRequest(BaseModel):
+    label: Optional[str] = Field(default=None, min_length=1, max_length=200)
+
+
+def _read_dotenv_optional() -> Dict[str, str]:
+    """Read non-secret pose-engine keys (`GPU_WORKER_URL`, `NLF_MODEL_PATH`) from repo `.env` if present."""
+    env_file = Path(__file__).resolve().parents[3] / ".env"
+    if not env_file.exists():
+        return {}
+    out: Dict[str, str] = {}
+    try:
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if not s or s.startswith("#") or "=" not in s:
+                continue
+            k, v = s.split("=", 1)
+            k = k.strip()
+            if k in ("GPU_WORKER_URL", "NLF_MODEL_PATH"):
+                out[k] = v.strip().strip("'\"")
+    except Exception:
+        pass
+    return out
+
+
+def _humanize_ingest_error(exc: Exception) -> str:
+    msg = str(getattr(exc, "detail", exc))
+    low = msg.lower()
+    if "pose backend" in low or "gpu_worker_url" in low or "could not reach gpu worker" in low:
+        return "Analysing new videos requires the 3D pose engine, which isn't connected right now. You can explore the sample deliveries meanwhile."
+    if "no frames" in low or "empty video" in low or "open video" in low:
+        return "We couldn't read video frames from that file. Try exporting a standard MP4 or MOV clip from your camera roll."
+    if "unsupported video" in low:
+        return "That file format isn't supported yet. Please upload an MP4, MOV, or WebM video."
+    if "exceeds" in low and "mb" in low:
+        return "That video file is larger than the upload size limit. Trim the clip around your bowling spell and try again."
+    return "We couldn't complete analysis on this clip. Make sure the bowler's full body stays inside the frame from run-up through release."
+
+
 def _is_synthetic_or_fixture_delivery(rec: Dict[str, Any], fs: Optional[BiomechanicalFactSheet] = None) -> bool:
     mode = str(rec.get("pipeline_mode", ""))
     if mode in ("single_view_studio", "real_clip_fixture"):
@@ -208,7 +261,8 @@ def create_app(
     if seed_demo:
         seed_demo_session(db, sessions_root, fixtures_dir=repo_fixtures)
 
-    worker_url = (gpu_worker_url or os.environ.get("GPU_WORKER_URL", "")).rstrip("/")
+    dotenv_vals = _read_dotenv_optional()
+    worker_url = (gpu_worker_url or os.environ.get("GPU_WORKER_URL") or dotenv_vals.get("GPU_WORKER_URL", "")).rstrip("/")
 
     app = FastAPI(title="SportsPostureAnalysis Coaching Studio API", version="3.0.0")
     app.add_middleware(
@@ -222,13 +276,111 @@ def create_app(
     app.state.sessions_root = sessions_root
     app.state.uploads_root = uploads_root
     app.state.gpu_worker_url = worker_url
+    app.state.jobs: Dict[str, Dict[str, Any]] = {}
 
     def _local_nlf_model_path() -> Optional[Path]:
-        p_str = os.environ.get("NLF_MODEL_PATH", "").strip()
+        p_str = (os.environ.get("NLF_MODEL_PATH") or dotenv_vals.get("NLF_MODEL_PATH", "")).strip()
         if not p_str:
             return None
         p = Path(p_str)
         return p if p.exists() else None
+
+    def _create_job() -> str:
+        jid = f"job_{uuid.uuid4().hex[:10]}"
+        app.state.jobs[jid] = {
+            "status": "running",
+            "stage": "finding_bowler",
+            "progress": 0.12,
+            "message_plain": "Finding the bowler and checking video timing...",
+            "delivery_id": None,
+            "error_plain": None,
+        }
+        return jid
+
+    def _update_job(
+        jid: Optional[str],
+        *,
+        status: Optional[str] = None,
+        stage: Optional[str] = None,
+        progress: Optional[float] = None,
+        message_plain: Optional[str] = None,
+        delivery_id: Optional[str] = None,
+        error_plain: Optional[str] = None,
+    ) -> None:
+        if not jid or jid not in app.state.jobs:
+            return
+        entry = app.state.jobs[jid]
+        if status is not None:
+            entry["status"] = status
+        if stage is not None:
+            entry["stage"] = stage
+        if progress is not None:
+            entry["progress"] = round(float(progress), 2)
+        if message_plain is not None:
+            entry["message_plain"] = message_plain
+        if delivery_id is not None:
+            entry["delivery_id"] = delivery_id
+        if error_plain is not None:
+            entry["error_plain"] = error_plain
+
+    def _resolve_delivery_story_and_card(
+        rec_in: Dict[str, Any],
+    ) -> Tuple[BiomechanicalFactSheet, CoachingStory, DeliveryCardSummary]:
+        rec = rec_in if "bowler_name" in rec_in else (db.get_delivery_with_bowler(rec_in["id"]) or rec_in)
+        ddir = Path(rec["data_dir"])
+        meta_p = ddir / "meta.json"
+        meta = json.loads(meta_p.read_text(encoding="utf-8")) if meta_p.exists() else {}
+        fs = BiomechanicalFactSheet.model_validate_json(rec["fact_sheet_json"])
+
+        mode = str(rec.get("pipeline_mode", ""))
+        did = str(rec["id"])
+        has_real_vid = bool(meta.get("has_real_video", False))
+        if mode == "dual_3d_ray_fusion":
+            card_kind = "fused_3d"
+            is_sample = bool(meta.get("is_noiseless_synthetic", False))
+            sample_kind: Optional[str] = "synthetic" if is_sample else None
+        elif did.startswith("del_real_") and has_real_vid:
+            card_kind = "sample_real"
+            is_sample = True
+            sample_kind = "real"
+        elif mode in ("single_view_studio", "real_clip_fixture") or did.startswith(("del_demo_", "del_real_")):
+            card_kind = "sample_demo"
+            is_sample = True
+            sample_kind = "synthetic"
+        else:
+            card_kind = "upload"
+            is_sample = False
+            sample_kind = None
+
+        story = hydrate_coaching_story(
+            fs,
+            delivery_id=did,
+            is_sample=is_sample,
+            sample_kind=sample_kind,
+        )
+        thumb_frame = (
+            int(fs.events.br.frame_idx)
+            if fs.events.is_complete_delivery
+            else max(0, int(fs.audit.num_frames) // 2)
+        )
+        proxy_p = Path(rec.get("proxy_path") or rec.get("video_path") or "")
+        thumb_url = f"/api/deliveries/{did}/frame/{thumb_frame}.jpg?w=480" if proxy_p.exists() else None
+        card = DeliveryCardSummary(
+            id=did,
+            session_id=str(rec["session_id"]),
+            bowler_id=str(rec.get("bowler_id", "bwl_demo")),
+            bowler_name=str(rec.get("bowler_name", fs.bowler_id)),
+            label=str(rec["label"]),
+            created_at=str(rec.get("created_at", "")),
+            thumbnail_url=thumb_url,
+            kind=card_kind,  # type: ignore[arg-type]
+            headline=story.headline,
+            top_takeaway_title=story.top_takeaway.title,
+            capture_grade=story.capture.grade,
+            view_label=story.capture.view_label,
+            checkpoint_statuses={cp.id: cp.status for cp in story.checkpoints},
+        )
+        return fs, story, card
 
     def _run_pose_and_save_npz(
         raw_vid: Path,
@@ -482,72 +634,88 @@ def create_app(
         capture_fps_override: Optional[float] = None,
         bowling_arm: Optional[str] = None,
         mcc_landmarks_px: Optional[Dict[str, List[float]]] = None,
+        job_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        probed = probe_video_metadata(raw_vid)
-        eff_fps = capture_fps_override or (probed.quicktime_capture_fps if probed.is_probable_slomo_container else None)
-        audit = audit_video(
-            raw_vid,
-            start_frame=start_frame,
-            end_frame=end_frame,
-            capture_fps_override=eff_fps,
-            dedup_regular_pulldown=True,
-        )
-        src_indices = audit.source_frame_indices or list(range(start_frame, start_frame + audit.num_frames))
-        proxy_mp4 = build_all_intra_scrub_proxy(raw_vid, ddir / "scrub_proxy.mp4", source_frame_indices=src_indices, proxy_fps=30.0)
+        jid = job_id or _create_job()
+        try:
+            _update_job(jid, stage="finding_bowler", progress=0.18, message_plain="Checking video quality and preparing smooth playback...")
+            probed = probe_video_metadata(raw_vid)
+            eff_fps = capture_fps_override or (probed.quicktime_capture_fps if probed.is_probable_slomo_container else None)
+            audit = audit_video(
+                raw_vid,
+                start_frame=start_frame,
+                end_frame=end_frame,
+                capture_fps_override=eff_fps,
+                dedup_regular_pulldown=True,
+            )
+            src_indices = audit.source_frame_indices or list(range(start_frame, start_frame + audit.num_frames))
+            proxy_mp4 = build_all_intra_scrub_proxy(raw_vid, ddir / "scrub_proxy.mp4", source_frame_indices=src_indices, proxy_fps=30.0)
 
-        cal_pre = None
-        if mcc_landmarks_px and len(mcc_landmarks_px) >= 4:
-            lm_map = {k: (float(v[0]), float(v[1])) for k, v in mcc_landmarks_px.items()}
-            cal_pre = calibrate_from_mcc_landmarks(lm_map, audit.width, audit.height)
+            cal_pre = None
+            if mcc_landmarks_px and len(mcc_landmarks_px) >= 4:
+                lm_map = {k: (float(v[0]), float(v[1])) for k, v in mcc_landmarks_px.items()}
+                cal_pre = calibrate_from_mcc_landmarks(lm_map, audit.width, audit.height)
 
-        pipeline_mode = _run_pose_and_save_npz(
-            raw_vid=raw_vid,
-            ddir=ddir,
-            audit=audit,
-            src_indices=src_indices,
-            start_frame=start_frame,
-            end_frame=end_frame,
-            eff_fps=eff_fps,
-            bowling_arm=bowling_arm,
-            cal_pre=cal_pre,
-        )
-        _finalize_ingested_npz(
-            raw_vid=raw_vid,
-            ddir=ddir,
-            audit=audit,
-            src_indices=src_indices,
-            bowling_arm=bowling_arm,
-            cal_pre=cal_pre,
-            pipeline_mode=pipeline_mode,
-        )
-        overrides: Dict[str, Any] = {}
-        if mcc_landmarks_px and len(mcc_landmarks_px) >= 4:
-            overrides["mcc_landmarks_px"] = mcc_landmarks_px
-        res = recompute_delivery_cpu(ddir, bowler_id=label, overrides=overrides, video_path=raw_vid, proxy_fps=30.0)
-        db.upsert_delivery(
-            delivery_id=did,
-            session_id=session_id,
-            label=label,
-            data_dir=ddir,
-            video_path=str(raw_vid),
-            proxy_path=str(proxy_mp4),
-            pipeline_mode=pipeline_mode,
-            start_frame=start_frame,
-            end_frame=end_frame,
-            status="ready",
-            fact_sheet_json=res["fact_sheet"].model_dump_json(),
-            isb_summary=res["isb_summary"],
-            pan_summary=res["pan_summary"],
-            overrides=overrides,
-        )
-        return {
-            "delivery_id": did,
-            "label": label,
-            "pipeline_mode": pipeline_mode,
-            "probed_meta": probed.__dict__,
-            "recompute_ms": res["recompute_ms"],
-            "fact_sheet": res["fact_sheet"].model_dump(),
-        }
+            _update_job(jid, stage="finding_bowler", progress=0.45, message_plain="Tracking the bowler in 3D across every frame...")
+            pipeline_mode = _run_pose_and_save_npz(
+                raw_vid=raw_vid,
+                ddir=ddir,
+                audit=audit,
+                src_indices=src_indices,
+                start_frame=start_frame,
+                end_frame=end_frame,
+                eff_fps=eff_fps,
+                bowling_arm=bowling_arm,
+                cal_pre=cal_pre,
+            )
+            _update_job(jid, stage="spotting_moments", progress=0.72, message_plain="Spotting back-foot land, front-foot plant, and ball release...")
+            _finalize_ingested_npz(
+                raw_vid=raw_vid,
+                ddir=ddir,
+                audit=audit,
+                src_indices=src_indices,
+                bowling_arm=bowling_arm,
+                cal_pre=cal_pre,
+                pipeline_mode=pipeline_mode,
+            )
+            overrides: Dict[str, Any] = {}
+            if mcc_landmarks_px and len(mcc_landmarks_px) >= 4:
+                overrides["mcc_landmarks_px"] = mcc_landmarks_px
+            _update_job(jid, stage="measuring", progress=0.88, message_plain="Measuring body positions and uncertainty ranges...")
+            res = recompute_delivery_cpu(ddir, bowler_id=label, overrides=overrides, video_path=raw_vid, proxy_fps=30.0)
+            saved_rec = db.upsert_delivery(
+                delivery_id=did,
+                session_id=session_id,
+                label=label,
+                data_dir=ddir,
+                video_path=str(raw_vid),
+                proxy_path=str(proxy_mp4),
+                pipeline_mode=pipeline_mode,
+                start_frame=start_frame,
+                end_frame=end_frame,
+                status="ready",
+                fact_sheet_json=res["fact_sheet"].model_dump_json(),
+                isb_summary=res["isb_summary"],
+                pan_summary=res["pan_summary"],
+                overrides=overrides,
+            )
+            _, story_obj, card_obj = _resolve_delivery_story_and_card(saved_rec)
+            _update_job(jid, status="done", stage="writing_story", progress=1.0, message_plain="Analysis complete.", delivery_id=did)
+            return {
+                "job_id": jid,
+                "session_id": session_id,
+                "delivery_id": did,
+                "label": label,
+                "pipeline_mode": pipeline_mode,
+                "probed_meta": probed.__dict__,
+                "recompute_ms": res["recompute_ms"],
+                "fact_sheet": res["fact_sheet"].model_dump(),
+                "story": story_obj.model_dump(),
+                "card": card_obj.model_dump(),
+            }
+        except Exception as exc:
+            _update_job(jid, status="failed", error_plain=_humanize_ingest_error(exc), message_plain="Could not complete analysis.")
+            raise
 
     @app.get("/api/health")
     def api_health() -> Dict[str, Any]:
@@ -578,9 +746,233 @@ def create_app(
             "mcc_landmark_keys": list(MCC_PITCH_LANDMARKS_M.keys()),
         }
 
+    @app.get("/api/overview")
+    def api_overview() -> Dict[str, Any]:
+        h = api_health()
+        pe = str(h.get("pose_engine", "cpu_recompute_only"))
+        can_analyse = pe in ("remote_gpu_worker", "local_nlf_model")
+        if pe == "remote_gpu_worker":
+            engine_lbl = "Fast GPU analysis ready"
+            reason_plain = None
+        elif pe == "local_nlf_model":
+            engine_lbl = "Local 3D pose model ready"
+            reason_plain = None
+        else:
+            engine_lbl = "Sample mode (3D pose engine offline)"
+            reason_plain = "Analysing new videos needs the 3D pose engine, which isn't connected right now. You can explore all sample deliveries immediately."
+
+        all_rows = db.list_all_deliveries(limit=60, ascending=False)
+        cards: List[DeliveryCardSummary] = []
+        cards_by_id: Dict[str, DeliveryCardSummary] = {}
+        for row in all_rows:
+            if not row.get("fact_sheet_json"):
+                continue
+            try:
+                _, _, card = _resolve_delivery_story_and_card(row)
+                cards.append(card)
+                cards_by_id[card.id] = card
+            except Exception:
+                continue
+
+        has_user_upload = any(c.kind == "upload" for c in cards)
+        sample_defs = [
+            ("del_real_steyn", "Dale Steyn — Real Net Video", "Filmed from behind · 25 fps real clip"),
+            ("del_demo_side_240", "240 fps Side-On Sample", "Calibrated slow-motion · 19 of 22 checks visible"),
+            ("del_demo_side_b2", "Spell Ball 2 — Comparison Sample", "Side-on 240 fps · compare against Ball 1"),
+            ("del_demo_rear_240", "240 fps Behind-Bowler Sample", "Rear slow-motion · unlocks spine & alignment"),
+            ("del_real_mcgrath", "Incomplete Clip Guardrail Example", "Shows how truncated clips are safely withheld"),
+        ]
+        samples: List[Dict[str, Any]] = []
+        for sid_d, s_title, s_sub in sample_defs:
+            c = cards_by_id.get(sid_d)
+            if c is None:
+                continue
+            samples.append(
+                {
+                    "delivery_id": c.id,
+                    "title": s_title if (sid_d != "del_real_steyn" or c.kind == "sample_real") else "Dale Steyn — Net Sample",
+                    "subtitle": s_sub,
+                    "kind": "real" if c.kind == "sample_real" else "synthetic",
+                    "thumbnail_url": c.thumbnail_url,
+                    "capture_grade": c.capture_grade,
+                }
+            )
+
+        if not has_user_upload:
+            preferred_order = ["del_real_steyn", "del_demo_side_240", "del_demo_side_b2", "del_demo_rear_240", "del_real_mcgrath"]
+            rank = {did: idx for idx, did in enumerate(preferred_order)}
+            recent = sorted(cards, key=lambda item: rank.get(item.id, 99))[:24]
+        else:
+            uploads = [c for c in cards if c.kind == "upload"]
+            others = [c for c in cards if c.kind != "upload"]
+            recent = (uploads + others)[:24]
+
+        return {
+            "is_first_run": not has_user_upload,
+            "health": {
+                "pose_engine": pe,
+                "engine_label": engine_lbl,
+                "can_analyse_new_video": can_analyse,
+                "reason_plain": reason_plain,
+            },
+            "bowlers": db.list_bowlers_with_stats(),
+            "samples": samples,
+            "recent_deliveries": [c.model_dump() for c in recent],
+        }
+
+    @app.get("/api/jobs/{job_id}")
+    def api_get_job(job_id: str) -> Dict[str, Any]:
+        job = app.state.jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found.")
+        return job
+
     @app.get("/api/bowlers")
     def api_list_bowlers() -> Dict[str, Any]:
-        return {"bowlers": db.list_bowlers()}
+        return {"bowlers": db.list_bowlers_with_stats()}
+
+    @app.post("/api/bowlers")
+    def api_create_bowler(req: CreateBowlerRequest) -> Dict[str, Any]:
+        clean_name = req.name.strip()
+        if not clean_name:
+            raise HTTPException(status_code=400, detail="Bowler name cannot be empty.")
+        bowler = db.create_bowler(clean_name, bowling_arm=req.bowling_arm, age_band=req.age_band.strip().lower() or "adult")
+        bowler_with_stats = {**bowler, "delivery_count": 0, "last_delivery_at": None}
+        return {"bowler": bowler_with_stats}
+
+    @app.get("/api/bowlers/{bowler_id}/progress")
+    def api_bowler_progress(bowler_id: str) -> Dict[str, Any]:
+        b = db.get_bowler(bowler_id)
+        if not b:
+            raise HTTPException(status_code=404, detail="Bowler not found.")
+        rows = db.list_all_deliveries(bowler_id=bowler_id, limit=60, ascending=True)
+        deliv_items: List[Dict[str, Any]] = []
+        cp_titles = {
+            "front_leg_brace": "Front-Leg Brace",
+            "trunk_whip": "Trunk Whip",
+            "side_bend": "Side-Bend Load",
+            "shoulder_alignment": "Shoulder Alignment",
+            "runup_stride": "Run-Up & Stride",
+        }
+        series_map: Dict[str, List[Dict[str, Any]]] = {k: [] for k in cp_titles}
+        complete_count = 0
+
+        for r in rows:
+            if not r.get("fact_sheet_json"):
+                continue
+            try:
+                fs_i, st_i, card_i = _resolve_delivery_story_and_card(r)
+            except Exception:
+                continue
+            if fs_i.events.is_complete_delivery:
+                complete_count += 1
+            deliv_items.append(
+                {
+                    "id": card_i.id,
+                    "label": card_i.label,
+                    "created_at": card_i.created_at,
+                    "thumbnail_url": card_i.thumbnail_url,
+                }
+            )
+            for cp in st_i.checkpoints:
+                series_map[cp.id].append(
+                    {
+                        "delivery_id": card_i.id,
+                        "status": cp.status,
+                        "value": cp.value,
+                        "ci_low": cp.ci_low,
+                        "ci_high": cp.ci_high,
+                        "value_text": cp.value_text,
+                        "range_text": cp.range_text,
+                    }
+                )
+
+        wkl_data = api_get_workload(bowler_id)
+        if complete_count == 0:
+            summary_plain = "Upload or select a completed delivery for this bowler to track checkpoint trends over time."
+        elif complete_count == 1:
+            summary_plain = "One completed delivery recorded so far — film a second ball from the same camera angle to compare progress."
+        else:
+            summary_plain = f"Tracking {complete_count} completed deliveries across 5 body checkpoints. Tap any dot to open that ball's story."
+
+        return {
+            "bowler": {**b, "delivery_count": len(deliv_items), "last_delivery_at": deliv_items[-1]["created_at"] if deliv_items else None},
+            "deliveries": deliv_items,
+            "series": [
+                {"checkpoint_id": cid, "title": title, "points": series_map[cid]}
+                for cid, title in cp_titles.items()
+            ],
+            "workload": wkl_data.get("guidance"),
+            "summary_plain": summary_plain,
+        }
+
+    @app.post("/api/bowlers/{bowler_id}/scan-video")
+    async def api_bowler_scan_video(bowler_id: str, video: UploadFile = File(...)) -> Dict[str, Any]:
+        if not db.get_bowler(bowler_id):
+            raise HTTPException(status_code=404, detail="Bowler not found.")
+        ses = db.get_or_create_dated_session(bowler_id)
+        res = await api_scan_video(ses["id"], video=video)
+        return {"session_id": ses["id"], **res}
+
+    @app.post("/api/bowlers/{bowler_id}/deliveries/from-scan")
+    def api_bowler_import_from_scan(bowler_id: str, req: ImportFromScanRequest) -> Dict[str, Any]:
+        b = db.get_bowler(bowler_id)
+        if not b:
+            raise HTTPException(status_code=404, detail="Bowler not found.")
+        if not _SCAN_ID_RE.match(req.scan_id):
+            raise HTTPException(status_code=400, detail="Invalid scan_id format.")
+        manifest_path = uploads_root / f"{req.scan_id}.json"
+        if not manifest_path.exists():
+            raise HTTPException(status_code=404, detail="Scan video not found or expired.")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        ses_id = str(manifest.get("session_id", ""))
+        ses = db.get_session(ses_id)
+        if not ses or ses.get("bowler_id") != bowler_id:
+            raise HTTPException(status_code=403, detail="Scan video does not belong to this bowler.")
+        req_with_arm = req.model_copy(update={"bowling_arm": req.bowling_arm or b.get("bowling_arm", "right")})
+        out = api_import_from_scan(ses_id, req_with_arm)
+        first_jid = out["deliveries"][0].get("job_id") if out.get("deliveries") else None
+        return {"session_id": ses_id, "job_id": first_jid, **out}
+
+    @app.post("/api/bowlers/{bowler_id}/deliveries/upload")
+    async def api_bowler_upload_delivery(
+        bowler_id: str,
+        video: UploadFile = File(...),
+        label: str = Form("Uploaded Delivery"),
+        start_frame: int = Form(0),
+        end_frame: Optional[int] = Form(None),
+        capture_fps_override: Optional[float] = Form(None),
+        bowling_arm: Optional[str] = Form(None),
+        mcc_landmarks_json: Optional[str] = Form(None),
+    ) -> Dict[str, Any]:
+        b = db.get_bowler(bowler_id)
+        if not b:
+            raise HTTPException(status_code=404, detail="Bowler not found.")
+        ses = db.get_or_create_dated_session(bowler_id)
+        use_arm = bowling_arm if bowling_arm in ("right", "left") else b.get("bowling_arm", "right")
+        return await api_upload_delivery(
+            session_id=ses["id"],
+            video=video,
+            label=label,
+            start_frame=start_frame,
+            end_frame=end_frame,
+            capture_fps_override=capture_fps_override,
+            bowling_arm=use_arm,
+            mcc_landmarks_json=mcc_landmarks_json,
+        )
+
+    @app.get("/api/compare")
+    def api_compare_two_deliveries(a: str, b: str) -> Dict[str, Any]:
+        rec_a = db.get_delivery_with_bowler(a)
+        rec_b = db.get_delivery_with_bowler(b)
+        if not rec_a or not rec_a.get("fact_sheet_json"):
+            raise HTTPException(status_code=404, detail=f"Delivery '{a}' not found.")
+        if not rec_b or not rec_b.get("fact_sheet_json"):
+            raise HTTPException(status_code=404, detail=f"Delivery '{b}' not found.")
+        fs_a, st_a, card_a = _resolve_delivery_story_and_card(rec_a)
+        fs_b, st_b, card_b = _resolve_delivery_story_and_card(rec_b)
+        comp = build_compare_story(card_a, fs_a, st_a, card_b, fs_b, st_b)
+        return comp.model_dump()
 
     @app.get("/api/sessions")
     def api_list_sessions() -> Dict[str, Any]:
@@ -709,11 +1101,18 @@ def create_app(
 
     @app.get("/api/deliveries/{delivery_id}")
     def api_get_delivery(delivery_id: str) -> Dict[str, Any]:
-        rec = db.get_delivery(delivery_id)
+        rec = db.get_delivery_with_bowler(delivery_id)
         if not rec:
             raise HTTPException(status_code=404, detail="Delivery not found.")
         ddir = Path(rec["data_dir"])
-        fs = json.loads(rec["fact_sheet_json"]) if rec.get("fact_sheet_json") else None
+        fs_dict: Optional[Dict[str, Any]] = None
+        story_dict: Optional[Dict[str, Any]] = None
+        card_dict: Optional[Dict[str, Any]] = None
+        if rec.get("fact_sheet_json"):
+            fs_obj, story_obj, card_obj = _resolve_delivery_story_and_card(rec)
+            fs_dict = fs_obj.model_copy(update={"coaching_story": story_obj}).model_dump()
+            story_dict = story_obj.model_dump()
+            card_dict = card_obj.model_dump()
         tel_path = ddir / "telemetry.json"
         tel = json.loads(tel_path.read_text(encoding="utf-8")) if tel_path.exists() else None
         rep_path = ddir / "coaching_report.md"
@@ -730,13 +1129,60 @@ def create_app(
                 "pan_summary": rec["pan_summary"],
                 "video_proxy_url": f"/api/deliveries/{delivery_id}/video",
             },
-            "fact_sheet": fs,
+            "card": card_dict,
+            "story": story_dict,
+            "fact_sheet": fs_dict,
             "telemetry": tel,
             "report_markdown": rep_md,
             "notes": db.list_notes(delivery_id),
             "annotations": db.get_annotations(delivery_id),
             "mcc_landmarks_3d": {k: list(v) for k, v in MCC_PITCH_LANDMARKS_M.items()},
         }
+
+    @app.patch("/api/deliveries/{delivery_id}")
+    def api_patch_delivery(delivery_id: str, req: PatchDeliveryRequest) -> Dict[str, Any]:
+        rec = db.get_delivery_with_bowler(delivery_id)
+        if not rec:
+            raise HTTPException(status_code=404, detail="Delivery not found.")
+        new_label = (req.label or rec["label"]).strip()
+        if not new_label:
+            raise HTTPException(status_code=400, detail="Delivery label cannot be empty.")
+        new_fs_json = rec.get("fact_sheet_json")
+        if new_fs_json:
+            fs_old = BiomechanicalFactSheet.model_validate_json(new_fs_json)
+            fs_upd = fs_old.model_copy(update={"bowler_id": new_label})
+            new_fs_json = fs_upd.model_dump_json()
+            fs_disk = Path(rec["data_dir"]) / "fact_sheet.json"
+            if fs_disk.exists():
+                fs_disk.write_text(fs_upd.model_dump_json(indent=2), encoding="utf-8")
+        updated = db.rename_delivery(delivery_id, new_label, fact_sheet_json=new_fs_json)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Delivery not found.")
+        _, story_obj, card_obj = _resolve_delivery_story_and_card(updated)
+        return {
+            "delivery": card_obj.model_dump(),
+            "card": card_obj.model_dump(),
+            "story": story_obj.model_dump(),
+        }
+
+    @app.get("/api/deliveries/{delivery_id}/frame/{frame_idx}.jpg")
+    def api_get_delivery_frame_jpg(delivery_id: str, frame_idx: int, w: int = 480) -> Response:
+        rec = db.get_delivery(delivery_id)
+        if not rec:
+            raise HTTPException(status_code=404, detail="Delivery not found.")
+        p = Path(rec["proxy_path"] or rec["video_path"])
+        if not p.exists():
+            raise HTTPException(status_code=404, detail="Scrub proxy video not found on disk.")
+        cache_dir = Path(rec["data_dir"]) / "frames"
+        try:
+            jpg_bytes = extract_proxy_frame_jpeg(p, frame_idx=frame_idx, cache_dir=cache_dir, max_width=w)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"Could not extract frame JPEG: {exc}")
+        return Response(
+            content=jpg_bytes,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
 
     @app.delete("/api/deliveries/{delivery_id}")
     def api_delete_delivery(delivery_id: str) -> Dict[str, Any]:
@@ -801,7 +1247,7 @@ def create_app(
             pipeline_mode=pipeline_mode,
         )
         res = recompute_delivery_cpu(ddir, bowler_id=rec["label"], overrides=ov, video_path=raw_vid, proxy_fps=30.0)
-        db.upsert_delivery(
+        saved_rec = db.upsert_delivery(
             delivery_id=delivery_id,
             session_id=rec["session_id"],
             label=rec["label"],
@@ -817,11 +1263,13 @@ def create_app(
             pan_summary=res["pan_summary"],
             overrides=ov,
         )
+        _, story_obj, _ = _resolve_delivery_story_and_card(saved_rec)
         return {
             "delivery_id": delivery_id,
             "anchor_xy_norm": [round(ax, 4), round(ay, 4)],
             "recompute_ms": res["recompute_ms"],
             "fact_sheet": res["fact_sheet"].model_dump(),
+            "story": story_obj.model_dump(),
             "telemetry": res["telemetry"],
             "report_markdown": res["report_markdown"],
             "isb_summary": res["isb_summary"],
@@ -914,7 +1362,7 @@ def create_app(
             overrides=merged,
             video_path=rec["video_path"] or None,
         )
-        db.upsert_delivery(
+        saved_rec = db.upsert_delivery(
             delivery_id=delivery_id,
             session_id=rec["session_id"],
             label=rec["label"],
@@ -930,6 +1378,7 @@ def create_app(
             pan_summary=res["pan_summary"],
             overrides=merged,
         )
+        _, story_obj, _ = _resolve_delivery_story_and_card(saved_rec)
         if req.mcc_landmarks_px and len(req.mcc_landmarks_px) >= 4:
             db.save_calibration_profile(
                 rec["session_id"],
@@ -942,6 +1391,7 @@ def create_app(
             "recompute_ms": res["recompute_ms"],
             "needs_gpu_refit_for_K": res["needs_gpu_refit_for_K"],
             "fact_sheet": res["fact_sheet"].model_dump(),
+            "story": story_obj.model_dump(),
             "telemetry": res["telemetry"],
             "report_markdown": res["report_markdown"],
             "isb_summary": res["isb_summary"],
@@ -1168,7 +1618,7 @@ def create_app(
                 mcc_wireframe_2d=project_mcc_wireframe_2d(fused_fs.calibration) if fused_fs.calibration.is_intrinsics_calibrated else None,
             )
 
-        db.upsert_delivery(
+        saved_fused = db.upsert_delivery(
             delivery_id=did_f,
             session_id=session_id,
             label=req.label,
@@ -1181,6 +1631,7 @@ def create_app(
             status="ready",
             fact_sheet_json=fused_fs.model_dump_json(),
         )
+        _, fused_story, _ = _resolve_delivery_story_and_card(saved_fused)
         return {
             "delivery_id": did_f,
             "sync": fused.sync.__dict__,
@@ -1188,6 +1639,7 @@ def create_app(
             "baseline_angle_deg": fused.baseline_angle_deg,
             "baseline_sin": fused.baseline_sin,
             "fact_sheet": fused_fs.model_dump(),
+            "story": fused_story.model_dump(),
         }
 
     @app.get("/api/bowlers/{bowler_id}/workload")

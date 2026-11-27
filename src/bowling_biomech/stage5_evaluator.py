@@ -15,25 +15,53 @@ Fixes EXP-007:
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Tuple
+import re
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
 from .schemas import (
+    ActionStyleSummary,
     BiomechanicalFactSheet,
+    BodyCheckpoint,
+    BodyZone,
     BowlerActionClass,
     BowlingArm,
+    CannotSeeItem,
+    CaptureGrade,
+    CaptureQuality,
+    CaptureViewKind,
+    CheckpointId,
+    CheckpointReference,
+    CheckpointStatus,
+    CheckpointStatusLabel,
+    CoachingStory,
     CohortComparison,
+    CompareCheckpointRow,
+    CompareSideCell,
+    CompareStory,
     CorrectiveDrill,
+    DeliveryCardSummary,
     DeliveryEvents,
+    DrillCard,
+    HeadlineStat,
     IntervalType,
+    KeyMoment,
     MetricEstimate,
+    MomentId,
     ObservabilityGrade,
     PillarScore,
     PitchCalibration,
     PrioritizedCue,
     QuadrantPlacement,
+    StoryMetricRow,
+    StoryNotice,
+    StoryNotices,
+    StoryTakeaway,
+    SupportingMetricItem,
+    UnlockReason,
     VideoAudit,
+    ViewClarity,
     WorkloadContext,
     WorkloadGuidance,
 )
@@ -780,7 +808,7 @@ def build_fact_sheet(
     strengths, limiters, inconclusive, upgrades = _extract_prioritized_cues(metrics, audit, cal, events)
     drills = build_corrective_drills(limiters)
 
-    return BiomechanicalFactSheet(
+    fs = BiomechanicalFactSheet(
         bowler_id=bowler_id,
         bowling_arm=bowling_arm,
         action_class=gated_action,
@@ -803,4 +831,1101 @@ def build_fact_sheet(
         capture_upgrades=upgrades,
         corrective_drills=drills,
         metadata=metadata or {},
+    )
+    return fs.model_copy(update={"coaching_story": build_coaching_story(fs)})
+
+
+_CANONICAL_22_KEYS: Tuple[str, ...] = (
+    "front_knee_br_deg",
+    "front_knee_ffc_deg",
+    "front_knee_change_deg",
+    "trunk_flexion_delta_deg",
+    "trunk_flexion_br_deg",
+    "trunk_flexion_ffc_deg",
+    "delayed_arm_ffc_deg",
+    "thorax_lat_flex_br_deg",
+    "thorax_lat_flex_ffc_deg",
+    "pelvic_drop_ffc_deg",
+    "shoulder_counter_rotation_deg",
+    "shoulder_alignment_bfc_deg",
+    "pelvis_alignment_bfc_deg",
+    "hip_shoulder_sep_bfc_deg",
+    "max_hip_shoulder_sep_deg",
+    "stride_length_pct_stature",
+    "runup_speed_mps",
+    "follow_through_drift_deg",
+    "rear_hip_bfc_deg",
+    "non_bowling_arm_elev_ffc_deg",
+    "peak_arm_angular_vel_dps",
+    "release_height_m",
+)
+
+_PLAIN_METRIC_LABELS: Dict[str, str] = {
+    "front_knee_br_deg": "Front-knee straightness at release",
+    "front_knee_ffc_deg": "Front-knee angle at front-foot plant",
+    "front_knee_change_deg": "Front-knee brace change (plant to release)",
+    "trunk_flexion_delta_deg": "Forward chest whip (plant to release)",
+    "trunk_flexion_br_deg": "Forward trunk lean at ball release",
+    "trunk_flexion_ffc_deg": "Forward trunk lean at front-foot plant",
+    "delayed_arm_ffc_deg": "Bowling-arm delay at front-foot plant",
+    "thorax_lat_flex_br_deg": "Sideways trunk tilt at ball release",
+    "thorax_lat_flex_ffc_deg": "Sideways trunk tilt at front-foot plant",
+    "pelvic_drop_ffc_deg": "Hip levelness at front-foot plant",
+    "shoulder_counter_rotation_deg": "Backward shoulder twist after back-foot land",
+    "shoulder_alignment_bfc_deg": "Shoulder direction at back-foot land",
+    "pelvis_alignment_bfc_deg": "Hip direction at back-foot land",
+    "hip_shoulder_sep_bfc_deg": "Hip-to-shoulder twist at back-foot land",
+    "max_hip_shoulder_sep_deg": "Peak hip-to-shoulder twist",
+    "stride_length_pct_stature": "Delivery stride length",
+    "runup_speed_mps": "Approach speed into the crease",
+    "follow_through_drift_deg": "Follow-through line down the pitch",
+    "rear_hip_bfc_deg": "Back-leg hip posture at back-foot land",
+    "non_bowling_arm_elev_ffc_deg": "Front-arm height at front-foot plant",
+    "peak_arm_angular_vel_dps": "Peak bowling-arm whip speed",
+    "release_height_m": "Ball release height",
+    "ball_release_speed_kph": "Estimated ball release speed",
+}
+
+_METRIC_GROUP_MAP: Dict[str, str] = {
+    "front_knee_br_deg": "front_leg_brace",
+    "front_knee_ffc_deg": "front_leg_brace",
+    "front_knee_change_deg": "front_leg_brace",
+    "trunk_flexion_delta_deg": "trunk_whip",
+    "trunk_flexion_br_deg": "trunk_whip",
+    "trunk_flexion_ffc_deg": "trunk_whip",
+    "delayed_arm_ffc_deg": "trunk_whip",
+    "thorax_lat_flex_br_deg": "side_bend",
+    "thorax_lat_flex_ffc_deg": "side_bend",
+    "pelvic_drop_ffc_deg": "side_bend",
+    "shoulder_counter_rotation_deg": "shoulder_alignment",
+    "shoulder_alignment_bfc_deg": "shoulder_alignment",
+    "pelvis_alignment_bfc_deg": "shoulder_alignment",
+    "hip_shoulder_sep_bfc_deg": "shoulder_alignment",
+    "max_hip_shoulder_sep_deg": "shoulder_alignment",
+    "stride_length_pct_stature": "runup_stride",
+    "runup_speed_mps": "runup_stride",
+    "follow_through_drift_deg": "runup_stride",
+    "rear_hip_bfc_deg": "other",
+    "non_bowling_arm_elev_ffc_deg": "other",
+    "peak_arm_angular_vel_dps": "other",
+    "release_height_m": "other",
+    "ball_release_speed_kph": "other",
+}
+
+
+def _humanize_coaching_copy(text: str) -> str:
+    """Replace biomechanics acronyms with calm, everyday cricket terms."""
+    out = text
+    replacements = [
+        (r"\bBFC\s*->\s*FFC\b", "back-foot land to front-foot plant"),
+        (r"\bFFC\s*->\s*BR\b", "front-foot plant to ball release"),
+        (r"\bBFC\b", "back-foot landing"),
+        (r"\bFFC\b", "front-foot plant"),
+        (r"\bUAH\b", "arm-level position"),
+        (r"\bBR\b", "ball release"),
+        (r"\bSCR\b", "shoulder twist"),
+    ]
+    for pat, rep in replacements:
+        out = re.sub(pat, rep, out)
+    return out
+
+
+def format_metric_display(m: Optional[MetricEstimate]) -> Tuple[Optional[str], Optional[str]]:
+    """Format `(value_text, range_text)` cleanly for everyday users while matching numeric-verifier rounding."""
+    if m is None or m.suppressed or m.value is None or m.ci_low is None or m.ci_high is None:
+        return None, None
+    u = m.unit
+    if u == "deg":
+        v, lo, hi = int(round(m.value)), int(round(m.ci_low)), int(round(m.ci_high))
+        return f"{v}°", f"{lo}°–{hi}°"
+    if u in ("kph", "km/h"):
+        v, lo, hi = int(round(m.value)), int(round(m.ci_low)), int(round(m.ci_high))
+        return f"{v} km/h", f"{lo}–{hi} km/h"
+    if u == "% stature":
+        v, lo, hi = int(round(m.value)), int(round(m.ci_low)), int(round(m.ci_high))
+        return f"{v}% of height", f"{lo}%–{hi}%"
+    if u == "m":
+        return f"{m.value:.2f} m", f"{m.ci_low:.2f}–{m.ci_high:.2f} m"
+    if u == "m/s":
+        return f"{m.value:.1f} m/s", f"{m.ci_low:.1f}–{m.ci_high:.1f} m/s"
+    if u == "deg/s":
+        v = int(round(m.value, -1))
+        lo = int(round(m.ci_low, -1))
+        hi = int(round(m.ci_high, -1))
+        return f"{v} °/s", f"{lo}–{hi} °/s"
+    return f"{m.value:.1f} {u}", f"{m.ci_low:.1f}–{m.ci_high:.1f} {u}"
+
+
+def _view_clarity_for(obs: ObservabilityGrade) -> Optional[ViewClarity]:
+    if obs == ObservabilityGrade.HIGH:
+        return "clear"
+    if obs == ObservabilityGrade.MODERATE:
+        return "fair"
+    if obs == ObservabilityGrade.LOW:
+        return "rough"
+    return None
+
+
+def _status_label_for(status: CheckpointStatus, unlock_reason: Optional[UnlockReason]) -> CheckpointStatusLabel:
+    if status == "strong":
+        return "Strong"
+    if status == "on_track":
+        return "On Track"
+    if status == "watch":
+        return "Borderline"
+    if status == "focus":
+        return "Needs Focus"
+    if unlock_reason in ("angle", "frame_rate"):
+        return "Needs Better Angle"
+    return "Not Visible"
+
+
+def _classify_unlock_reason(
+    m: Optional[MetricEstimate],
+    plane_hint: str,
+    audit: VideoAudit,
+    events: DeliveryEvents,
+) -> Tuple[UnlockReason, str, str]:
+    """Return `(unlock_reason, reason_plain, how_to_unlock)` with zero leaked numbers or acronyms."""
+    if not events.is_complete_delivery:
+        return (
+            "incomplete_delivery",
+            "Clip ended or froze before a clear overhead ball release.",
+            "Film one continuous clip from run-up through two follow-through steps after release.",
+        )
+    raw = (m.suppression_reason or "").lower() if m is not None else ""
+    if "timebase" in raw or "freeze" in raw or "repeated frames" in raw or (audit.timebase_unreliable and "fps" in raw):
+        return (
+            "timing_unreliable",
+            "Edited slow-motion or repeated frames prevented accurate timing.",
+            "Upload the original unedited camera-roll clip without app slow-mo or freeze effects.",
+        )
+    if any(w in raw for w in ("cropped", "out of frame", "missing", "visibility", "non-finite")):
+        return (
+            "out_of_frame",
+            "Key body points stepped outside the camera frame.",
+            "Step back slightly so head-to-toe and overhead reach stay inside the frame.",
+        )
+    if "fps" in raw or "high-velocity" in raw:
+        return (
+            "frame_rate",
+            "Normal-speed video moves too fast between frames for this check.",
+            "Switch your phone camera to slow-motion (120–240 fps) in bright light.",
+        )
+    if any(w in raw for w in ("world-grounded translation", "pan", "calibrated mcc", "uncalibrated fov")):
+        return (
+            "calibration",
+            "Needs a steady tripod camera with visible pitch creases or stumps.",
+            "Rest the phone on a steady tripod or fence framing the creases and stumps.",
+        )
+    if plane_hint == "sagittal":
+        return (
+            "angle",
+            "Side-on knee and trunk movement cannot be seen clearly from behind or in front.",
+            "Film from side-on (90 deg camera view) perpendicular to the popping crease.",
+        )
+    if plane_hint == "coronal":
+        return (
+            "angle",
+            "Sideways spine and hip tilt cannot be seen clearly from a side-on angle.",
+            "Film from behind the bowler (0 deg camera view) in line with the stumps.",
+        )
+    if plane_hint == "transverse":
+        return (
+            "angle",
+            "Shoulder and hip twist were too uncertain from this camera angle and distance.",
+            "Film from behind the bowler in crisp 120–240 fps slow-motion.",
+        )
+    return (
+        "angle",
+        "This camera angle could not measure this movement with a narrow enough range.",
+        "Film from a steady side-on or behind-the-bowler tripod setup.",
+    )
+
+
+def _map_capture_view(cal: PitchCalibration) -> Tuple[CaptureViewKind, str]:
+    vc = cal.view_class.value
+    if vc == "dual_view_fused":
+        return "dual_fused", "Dual-camera 3D"
+    if vc in ("side_on_right", "side_on_left"):
+        return "side_on", "Side-on"
+    if vc == "rear_behind_bowler":
+        return "rear_on", "Filmed from behind"
+    if vc == "front_behind_batter":
+        return "front_on", "Filmed from front"
+    if vc in ("open_side_45", "broadcast_elevated"):
+        return "oblique", "Angled view"
+    return "unknown", "Camera angle unclear"
+
+
+def _format_fps_label(fps: float, timebase_unreliable: bool) -> str:
+    f_int = int(round(fps))
+    if timebase_unreliable:
+        return f"{f_int} fps (edited timing)"
+    if fps >= 100.0:
+        return f"{f_int} fps slow-mo"
+    if fps >= 50.0:
+        return f"{f_int} fps"
+    return f"{f_int} fps (normal speed)"
+
+
+def _format_cohort_reference(comp: Optional[CohortComparison]) -> Optional[CheckpointReference]:
+    if comp is None:
+        return None
+    u = comp.unit
+    if u == "deg":
+        txt = f"Research group average: {int(round(comp.cohort_mean))}° (typical spread ±{int(round(comp.cohort_sd))}°)"
+    elif u == "m/s":
+        txt = f"Research group average: {comp.cohort_mean:.1f} m/s (typical spread ±{comp.cohort_sd:.1f} m/s)"
+    else:
+        txt = f"Research group average: {comp.cohort_mean:.1f} {u} (typical spread ±{comp.cohort_sd:.1f} {u})"
+    return CheckpointReference(
+        text=txt,
+        source=comp.source,
+        definition_match=comp.definition_match,
+    )
+
+
+def _build_action_style(action_class: BowlerActionClass) -> Optional[ActionStyleSummary]:
+    if action_class == BowlerActionClass.UNKNOWN:
+        return None
+    mapping = {
+        BowlerActionClass.SIDE_ON: (
+            "Side-on action",
+            "Back foot, hips, and shoulders enter the crease aligned sideways toward the target.",
+        ),
+        BowlerActionClass.FRONT_ON: (
+            "Front-on action",
+            "Hips and chest enter the crease facing open toward the batter in one matched plane.",
+        ),
+        BowlerActionClass.SEMI_OPEN: (
+            "Semi-open action",
+            "Hips and shoulders align on a balanced diagonal between side-on and front-on.",
+        ),
+        BowlerActionClass.SEMI_SIDE_ON: (
+            "Semi-open action",
+            "Hips and shoulders align on a balanced diagonal between side-on and front-on.",
+        ),
+        BowlerActionClass.SEMI_FRONT_ON: (
+            "Semi-open action",
+            "Hips and shoulders align on a balanced diagonal between side-on and front-on.",
+        ),
+        BowlerActionClass.MIXED: (
+            "Mixed action",
+            "Shoulders twist back away from the batter after back-foot landing while the hips stay more open — a coaching alignment pattern, not an injury diagnosis.",
+        ),
+    }
+    lbl, desc = mapping.get(action_class, ("Unclassified", ""))
+    if not desc:
+        return None
+    return ActionStyleSummary(code=action_class.value, label=lbl, plain_summary=desc)
+
+
+def build_coaching_story(
+    fs: BiomechanicalFactSheet,
+    delivery_id: str = "",
+    is_sample: bool = False,
+    sample_kind: Optional[str] = None,
+) -> CoachingStory:
+    """Deterministically compile a jargon-free `CoachingStory` strictly from interval-verified FactSheet data."""
+    metrics = fs.metrics
+    ev = fs.events
+    audit = fs.audit
+    cal = fs.calibration
+    is_right = fs.bowling_arm == BowlingArm.RIGHT
+
+    # Resolve arm-aware SMPL-24 joint names for visual highlights and angle arcs
+    f_hip = "lhip" if is_right else "rhip"
+    f_kne = "lkne" if is_right else "rkne"
+    f_ank = "lank" if is_right else "rank"
+    f_toe = "ltoe" if is_right else "rtoe"
+    r_ank = "rank" if is_right else "lank"
+    r_toe = "rtoe" if is_right else "ltoe"
+    b_sho = "rsho" if is_right else "lsho"
+    b_elb = "relb" if is_right else "lelb"
+
+    limiter_keys: Set[str] = {mk for c in fs.limiters for mk in c.evidence_metrics}
+    watch_keys: Set[str] = {mk for c in fs.inconclusive_observations for mk in c.evidence_metrics}
+    strength_keys: Set[str] = {mk for c in fs.strengths for mk in c.evidence_metrics}
+    cohort_by_key: Dict[str, CohortComparison] = {c.metric_key: c for c in fs.cohort_comparisons}
+
+    def _metric_status(mk: str) -> CheckpointStatus:
+        m = metrics.get(mk)
+        if (not ev.is_complete_delivery) or m is None or m.suppressed or m.value is None:
+            return "not_visible"
+        if mk in limiter_keys:
+            return "focus"
+        if mk in watch_keys:
+            return "watch"
+        if mk in strength_keys:
+            return "strong"
+        return "on_track"
+
+    def _checkpoint_status(primary_k: str, cue_keys: Set[str]) -> CheckpointStatus:
+        pm = metrics.get(primary_k)
+        if (not ev.is_complete_delivery) or pm is None or pm.suppressed or pm.value is None:
+            return "not_visible"
+        active_cues = {
+            k for k in cue_keys
+            if k in metrics and (not metrics[k].suppressed) and metrics[k].value is not None
+        }
+        if active_cues & limiter_keys:
+            return "focus"
+        if active_cues & watch_keys:
+            return "watch"
+        if active_cues & strength_keys:
+            return "strong"
+        return "on_track"
+
+    def _supporting_items(keys: List[str]) -> List[SupportingMetricItem]:
+        items: List[SupportingMetricItem] = []
+        for sk in keys:
+            sm = metrics.get(sk)
+            if sm is None:
+                continue
+            vt, rt = format_metric_display(sm)
+            items.append(
+                SupportingMetricItem(
+                    metric_key=sk,
+                    label_plain=_PLAIN_METRIC_LABELS.get(sk, sm.label),
+                    value_text=vt,
+                    range_text=rt,
+                    suppressed=bool(sm.suppressed or sm.value is None or (not ev.is_complete_delivery)),
+                )
+            )
+        return items
+
+    bfc_idx = int(ev.bfc.frame_idx) if ev.is_complete_delivery else None
+    ffc_idx = int(ev.ffc.frame_idx) if ev.is_complete_delivery else None
+    br_idx = int(ev.br.frame_idx) if ev.is_complete_delivery else None
+
+    # Resolve Checkpoint 5 primary key fallback (`stride_length_pct_stature` -> `runup_speed_mps` if stride suppressed & speed measured)
+    stride_m = metrics.get("stride_length_pct_stature")
+    speed_m = metrics.get("runup_speed_mps")
+    if (
+        ev.is_complete_delivery
+        and (stride_m is None or stride_m.suppressed or stride_m.value is None)
+        and speed_m is not None
+        and (not speed_m.suppressed)
+        and speed_m.value is not None
+    ):
+        cp5_primary = "runup_speed_mps"
+        cp5_supporting = ["stride_length_pct_stature", "follow_through_drift_deg"]
+    else:
+        cp5_primary = "stride_length_pct_stature"
+        cp5_supporting = ["runup_speed_mps", "follow_through_drift_deg"]
+
+    cp_specs: List[Tuple[CheckpointId, BodyZone, str, Optional[MomentId], str, Optional[int], str, Set[str], str, List[str], Optional[Tuple[str, str, str]], List[str], str]] = [
+        (
+            "front_leg_brace",
+            "knee",
+            "Front-Leg Brace",
+            "ball_release" if ev.is_complete_delivery else None,
+            "At ball release",
+            br_idx,
+            "front_knee_br_deg",
+            {"front_knee_br_deg", "front_knee_change_deg"},
+            "sagittal",
+            [f_hip, f_kne, f_ank],
+            (f_hip, f_kne, f_ank),
+            ["front_knee_ffc_deg", "front_knee_change_deg"],
+            "A firm front leg acts as a brake so run-up momentum whips up into your chest and bowling arm.",
+        ),
+        (
+            "trunk_whip",
+            "trunk",
+            "Trunk Whip",
+            "ball_release" if ev.is_complete_delivery else None,
+            "Front foot plants → ball release",
+            br_idx,
+            "trunk_flexion_delta_deg",
+            {"trunk_flexion_delta_deg", "delayed_arm_ffc_deg"},
+            "sagittal",
+            ["pelv", "spi2", "neck", b_sho, b_elb],
+            ("neck", "pelv", f_hip),
+            ["trunk_flexion_br_deg", "delayed_arm_ffc_deg"],
+            "Driving your chest forward over a planted front foot transfers momentum into release speed.",
+        ),
+        (
+            "side_bend",
+            "spine",
+            "Side-Bend Load",
+            "ball_release" if ev.is_complete_delivery else None,
+            "At ball release",
+            br_idx,
+            "thorax_lat_flex_br_deg",
+            {"thorax_lat_flex_br_deg", "pelvic_drop_ffc_deg"},
+            "coronal",
+            ["lhip", "rhip", "pelv", "spi2", "neck", "head"],
+            ("neck", "pelv", f_hip),
+            ["pelvic_drop_ffc_deg"],
+            "Fast bowlers naturally tilt sideways to get a high release, while excessive tilt with high weekly bowling volume increases trunk load.",
+        ),
+        (
+            "shoulder_alignment",
+            "shoulders",
+            "Shoulder Alignment",
+            "back_foot_land" if ev.is_complete_delivery else None,
+            "Back foot → front foot",
+            bfc_idx,
+            "shoulder_counter_rotation_deg",
+            {"shoulder_counter_rotation_deg"},
+            "transverse",
+            ["lsho", "rsho", "lhip", "rhip"],
+            None,
+            ["shoulder_alignment_bfc_deg", "pelvis_alignment_bfc_deg", "hip_shoulder_sep_bfc_deg", "max_hip_shoulder_sep_deg"],
+            "Keeping hips and shoulders moving in a matched plane avoids abrupt upper-body twist during the delivery stride.",
+        ),
+        (
+            "runup_stride",
+            "approach",
+            "Run-Up & Stride",
+            "front_foot_plant" if ev.is_complete_delivery else None,
+            "At front foot plant",
+            ffc_idx,
+            cp5_primary,
+            {"stride_length_pct_stature", "runup_speed_mps", "follow_through_drift_deg"},
+            "metric_scale",
+            [r_ank, f_ank, "pelv", r_toe, f_toe],
+            None,
+            cp5_supporting,
+            "Smooth approach speed paired with a balanced stride lets your front foot plant without sinking or over-reaching.",
+        ),
+    ]
+
+    checkpoints: List[BodyCheckpoint] = []
+    cannot_see: List[CannotSeeItem] = []
+    can_see: List[CheckpointId] = []
+
+    for cid, zone, title, mom_id, mom_lbl, f_idx, p_key, cue_set, plane_hint, hl_joints, ang_joints, sup_keys, why_txt in cp_specs:
+        pm = metrics.get(p_key)
+        st = _checkpoint_status(p_key, cue_set)
+        if st == "not_visible" or pm is None or pm.value is None or pm.ci_low is None or pm.ci_high is None:
+            ureason, uplain, how_txt = _classify_unlock_reason(pm, plane_hint, audit, ev)
+            s_lbl = _status_label_for("not_visible", ureason)
+            cannot_see.append(CannotSeeItem(checkpoint_id=cid, reason=ureason, reason_plain=uplain))
+            checkpoints.append(
+                BodyCheckpoint(
+                    id=cid,
+                    body_zone=zone,
+                    title=title,
+                    moment_id=mom_id,
+                    moment_label=mom_lbl,
+                    frame_idx=f_idx,
+                    status="not_visible",
+                    status_label=s_lbl,
+                    unlock_reason=ureason,
+                    metric_key=p_key,
+                    value=None,
+                    ci_low=None,
+                    ci_high=None,
+                    unit=pm.unit if pm is not None else "deg",
+                    view_clarity=None,
+                    value_text=None,
+                    range_text=None,
+                    reference=None,
+                    plain_meaning=f"Withheld on this clip: {uplain}",
+                    why_it_matters=why_txt,
+                    how_to_unlock=how_txt,
+                    highlight_joints=hl_joints,
+                    angle_joints=ang_joints,
+                    supporting=_supporting_items(sup_keys),
+                )
+            )
+            continue
+
+        can_see.append(cid)
+        vt, rt = format_metric_display(pm)
+        s_lbl = _status_label_for(st, None)
+        ref_obj = _format_cohort_reference(cohort_by_key.get(p_key))
+        plain_m = _build_checkpoint_plain_meaning(cid, st, vt or "", rt or "")
+        checkpoints.append(
+            BodyCheckpoint(
+                id=cid,
+                body_zone=zone,
+                title=title,
+                moment_id=mom_id,
+                moment_label=mom_lbl,
+                frame_idx=f_idx,
+                status=st,
+                status_label=s_lbl,
+                unlock_reason=None,
+                metric_key=p_key,
+                value=pm.value,
+                ci_low=pm.ci_low,
+                ci_high=pm.ci_high,
+                unit=pm.unit,
+                view_clarity=_view_clarity_for(pm.observability),
+                value_text=vt,
+                range_text=rt,
+                reference=ref_obj,
+                plain_meaning=plain_m,
+                why_it_matters=why_txt,
+                how_to_unlock=None,
+                highlight_joints=hl_joints,
+                angle_joints=ang_joints,
+                supporting=_supporting_items(sup_keys),
+            )
+        )
+
+    # Capture quality summary
+    measured_22 = sum(
+        1
+        for k in _CANONICAL_22_KEYS
+        if ev.is_complete_delivery and k in metrics and (not metrics[k].suppressed) and metrics[k].value is not None
+    )
+    view_kind, view_lbl = _map_capture_view(cal)
+    fps_lbl = _format_fps_label(audit.fps, audit.timebase_unreliable)
+    if not ev.is_complete_delivery:
+        cap_grade: CaptureGrade = "unusable"
+        cap_lbl = "Couldn't analyse"
+        cap_sum = "No complete overhead bowling release was visible, so body measurements were safely withheld."
+    elif audit.timebase_unreliable or measured_22 <= 5:
+        cap_grade = "limited"
+        cap_lbl = "Limited view"
+        cap_sum = (
+            f"{view_lbl} clip measured {measured_22} of 22 checks, while timing or framing limits hid the rest."
+        )
+    elif measured_22 >= 14 and audit.fps >= 100.0:
+        cap_grade = "great"
+        cap_lbl = "Great view"
+        if cannot_see:
+            cap_sum = f"Crisp {fps_lbl} {view_lbl.lower()} view measured {measured_22} of 22 checks clearly."
+        else:
+            cap_sum = f"Crisp {fps_lbl} {view_lbl.lower()} view unlocked all 5 body checkpoints."
+    else:
+        cap_grade = "partial"
+        cap_lbl = "Partial view"
+        seen_names = ", ".join(cp.title.lower() for cp in checkpoints if cp.status != "not_visible") or "limited checks"
+        cap_sum = f"{view_lbl} view captured {seen_names}, while out-of-plane checks need another camera angle."
+
+    next_tip: Optional[str] = None
+    if fs.capture_upgrades:
+        next_tip = _humanize_coaching_copy(fs.capture_upgrades[0].actionable_recommendation)
+
+    capture = CaptureQuality(
+        grade=cap_grade,
+        label=cap_lbl,
+        summary=cap_sum,
+        view=view_kind,
+        view_label=view_lbl,
+        camera_azimuth_deg=round(float(cal.azimuth_deg), 1) if ev.is_complete_delivery else None,
+        fps=round(float(audit.fps), 1),
+        fps_label=fps_lbl,
+        measured_count=measured_22,
+        total_count=22,
+        can_see=can_see,
+        cannot_see=cannot_see,
+        next_clip_tip=next_tip,
+    )
+
+    # Drills (mapped strictly 1:1 from interval-cleared `corrective_drills`)
+    drills: List[DrillCard] = []
+    cp_by_id: Dict[CheckpointId, BodyCheckpoint] = {cp.id: cp for cp in checkpoints}
+    for dr in fs.corrective_drills[:2]:
+        grp = _METRIC_GROUP_MAP.get(dr.target_limiter_metric, "other")
+        for_cp: Optional[CheckpointId] = grp if grp != "other" else None  # type: ignore[assignment]
+        cp_match = cp_by_id.get(for_cp) if for_cp else None
+        why_txt = cp_match.plain_meaning if cp_match else "Targeted drill for a confirmed movement limiter."
+        drills.append(
+            DrillCard(
+                id=dr.id,
+                title=_humanize_coaching_copy(dr.title),
+                for_checkpoint_id=for_cp,
+                why_plain=why_txt,
+                cue=_humanize_coaching_copy(dr.cue_focus),
+                steps=[_humanize_coaching_copy(s) for s in dr.setup_steps],
+                caution=_humanize_coaching_copy(dr.caution_note),
+                source=dr.literature_basis,
+                moment_id=cp_match.moment_id if cp_match else None,
+                frame_idx=cp_match.frame_idx if cp_match else None,
+            )
+        )
+
+    # Top Takeaway & Headline (strictly following locked priority: focus -> watch -> capture -> strong -> all_clear)
+    headline, takeaway = _build_headline_and_takeaway(checkpoints, drills, capture, ev)
+
+    # Key Moments (`[]` when incomplete delivery)
+    key_moments: List[KeyMoment] = []
+    if ev.is_complete_delivery:
+        thumb_prefix = f"/api/deliveries/{delivery_id}/frame" if delivery_id else None
+        key_moments.append(
+            KeyMoment(
+                id="back_foot_land",
+                label="Back foot lands",
+                frame_idx=int(ev.bfc.frame_idx),
+                source_frame_idx=int(ev.bfc.source_frame_idx if ev.bfc.source_frame_idx is not None else ev.bfc.frame_idx),
+                time_s=round(float(ev.bfc.timestamp_s), 3),
+                timing_uncertainty_ms=round(float(ev.bfc.timing_uncertainty_ms), 1),
+                plain_tip="Back foot lands — do hips and shoulders stay in one matched plane?",
+                what_to_look_for="Tall posture over the back leg with hips and shoulders aligned smoothly.",
+                checkpoint_ids=["shoulder_alignment"],
+                thumbnail_url=f"{thumb_prefix}/{int(ev.bfc.frame_idx)}.jpg?w=480" if thumb_prefix else None,
+            )
+        )
+        key_moments.append(
+            KeyMoment(
+                id="front_foot_plant",
+                label="Front foot plants",
+                frame_idx=int(ev.ffc.frame_idx),
+                source_frame_idx=int(ev.ffc.source_frame_idx if ev.ffc.source_frame_idx is not None else ev.ffc.frame_idx),
+                time_s=round(float(ev.ffc.timestamp_s), 3),
+                timing_uncertainty_ms=round(float(ev.ffc.timing_uncertainty_ms), 1),
+                plain_tip="Front foot plants — firm heel strike with bowling hand still delayed behind the hip.",
+                what_to_look_for="Balanced stride length, level hips, and firm lead-leg landing.",
+                checkpoint_ids=["runup_stride"],
+                thumbnail_url=f"{thumb_prefix}/{int(ev.ffc.frame_idx)}.jpg?w=480" if thumb_prefix else None,
+            )
+        )
+        if ev.uah is not None:
+            key_moments.append(
+                KeyMoment(
+                    id="arm_horizontal",
+                    label="Arm level",
+                    frame_idx=int(ev.uah.frame_idx),
+                    source_frame_idx=int(ev.uah.source_frame_idx if ev.uah.source_frame_idx is not None else ev.uah.frame_idx),
+                    time_s=round(float(ev.uah.timestamp_s), 3),
+                    timing_uncertainty_ms=round(float(ev.uah.timing_uncertainty_ms), 1),
+                    plain_tip="Arm reaches shoulder height — chest begins whipping forward over the front knee.",
+                    what_to_look_for="Front leg stays firm while the chest drives toward the batter.",
+                    checkpoint_ids=["trunk_whip"],
+                    thumbnail_url=f"{thumb_prefix}/{int(ev.uah.frame_idx)}.jpg?w=480" if thumb_prefix else None,
+                )
+            )
+        key_moments.append(
+            KeyMoment(
+                id="ball_release",
+                label="Ball release",
+                frame_idx=int(ev.br.frame_idx),
+                source_frame_idx=int(ev.br.source_frame_idx if ev.br.source_frame_idx is not None else ev.br.frame_idx),
+                time_s=round(float(ev.br.timestamp_s), 3),
+                timing_uncertainty_ms=round(float(ev.br.timing_uncertainty_ms), 1),
+                plain_tip="Ball release — tall release over a braced front leg with controlled side-bend.",
+                what_to_look_for="Straightened or firm front knee and controlled sideways trunk tilt.",
+                checkpoint_ids=["front_leg_brace", "trunk_whip", "side_bend"],
+                thumbnail_url=f"{thumb_prefix}/{int(ev.br.frame_idx)}.jpg?w=480" if thumb_prefix else None,
+            )
+        )
+
+    # Headline stats (ball speed & release height ONLY when measured & non-suppressed)
+    headline_stats: List[HeadlineStat] = []
+    for hk, hlbl in [
+        ("ball_release_speed_kph", "Release speed"),
+        ("release_height_m", "Release height"),
+    ]:
+        hm = metrics.get(hk)
+        if ev.is_complete_delivery and hm is not None and (not hm.suppressed) and hm.value is not None:
+            hvt, hrt = format_metric_display(hm)
+            hcl = _view_clarity_for(hm.observability) or "rough"
+            if hvt and hrt:
+                headline_stats.append(
+                    HeadlineStat(
+                        metric_key=hk,
+                        label=hlbl,
+                        value_text=hvt,
+                        range_text=hrt,
+                        view_clarity=hcl,
+                    )
+                )
+
+    # All-22 Detail Rows (plus ball speed if present)
+    detail_keys = list(_CANONICAL_22_KEYS)
+    if "ball_release_speed_kph" in metrics:
+        detail_keys.append("ball_release_speed_kph")
+    detail_rows: List[StoryMetricRow] = []
+    for dk in detail_keys:
+        dm = metrics.get(dk)
+        if dm is None:
+            continue
+        grp_name = _METRIC_GROUP_MAP.get(dk, "other")
+        dst = _metric_status(dk)
+        if dst == "not_visible":
+            plane_h = "coronal" if grp_name == "side_bend" else ("transverse" if grp_name == "shoulder_alignment" else ("metric_scale" if grp_name == "runup_stride" else "sagittal"))
+            ur, u_plain, _ = _classify_unlock_reason(dm, plane_h, audit, ev)
+            dsl = _status_label_for("not_visible", ur)
+            detail_rows.append(
+                StoryMetricRow(
+                    metric_key=dk,
+                    group=grp_name,  # type: ignore[arg-type]
+                    label_plain=_PLAIN_METRIC_LABELS.get(dk, dm.label),
+                    value_text=None,
+                    range_text=None,
+                    view_clarity=None,
+                    status="not_visible",
+                    status_label=dsl,
+                    suppressed=True,
+                    suppression_plain=u_plain,
+                    plain_note=u_plain,
+                    definition_note=_humanize_coaching_copy(dm.definition_note),
+                    literature_source=dm.literature_source,
+                )
+            )
+        else:
+            dvt, drt = format_metric_display(dm)
+            dsl = _status_label_for(dst, None)
+            note_map = {
+                "strong": f"Measured at {dvt} (likely {drt}) — clear strength on this delivery.",
+                "on_track": f"Measured at {dvt} (likely {drt}) — within normal fast-bowling range.",
+                "watch": f"Measured at {dvt} (likely {drt}) — range crosses the coaching threshold, so treat as borderline.",
+                "focus": f"Measured at {dvt} (likely {drt}) — entire range clears the coaching threshold.",
+            }
+            detail_rows.append(
+                StoryMetricRow(
+                    metric_key=dk,
+                    group=grp_name,  # type: ignore[arg-type]
+                    label_plain=_PLAIN_METRIC_LABELS.get(dk, dm.label),
+                    value_text=dvt,
+                    range_text=drt,
+                    view_clarity=_view_clarity_for(dm.observability),
+                    status=dst,
+                    status_label=dsl,
+                    suppressed=False,
+                    suppression_plain=None,
+                    plain_note=note_map.get(dst, f"Measured at {dvt} (likely {drt})."),
+                    definition_note=_humanize_coaching_copy(dm.definition_note),
+                    literature_source=dm.literature_source,
+                )
+            )
+
+    # Permanent non-truncating notices + extra plain-English capture caveats
+    extra_notices: List[StoryNotice] = []
+    if audit.timebase_unreliable:
+        extra_notices.append(
+            StoryNotice(
+                id="timing_caveat",
+                title="Edited or repeated video frames detected",
+                body="This clip contains repeated or retimed frames, so speed-sensitive checks were safely withheld. Export original camera-roll slow-motion for full timing accuracy.",
+            )
+        )
+    if cal.is_panning_camera and ev.is_complete_delivery:
+        extra_notices.append(
+            StoryNotice(
+                id="panning_caveat",
+                title="Handheld camera movement detected",
+                body="Because the camera panned during the run-up, ground-travel checks (approach speed, stride length, and follow-through line) were withheld rather than guessed.",
+            )
+        )
+
+    notices = StoryNotices(
+        icc=StoryNotice(
+            id="icc",
+            title="Elbow legality (ICC 15° rule) — never judged from video",
+            body=(
+                "This app permanently refuses to give a verdict on elbow straightening against the ICC 15° limit, "
+                "because accredited testing requires high-speed (>=250 Hz) 3D laboratory motion capture that phone "
+                "or multi-camera video cannot provide."
+            ),
+        ),
+        medical=StoryNotice(
+            id="medical",
+            title="Not medical advice",
+            body=(
+                "These are movement measurements from a single delivery, not a clinical injury diagnosis. "
+                "Injury risk also depends strongly on weekly bowling workload, age and skeletal growth, "
+                "recovery, and physical conditioning. Speak to a qualified physiotherapist or doctor if pain is present."
+            ),
+        ),
+        extra=extra_notices,
+    )
+
+    arm_lbl = "Right-arm" if is_right else "Left-arm"
+    subhead = f"{arm_lbl} · {view_lbl} · {fps_lbl}"
+    s_kind: Optional[str] = sample_kind if sample_kind in ("real", "synthetic") else None
+
+    return CoachingStory(
+        schema_version="coaching_story/1",
+        delivery_id=delivery_id,
+        headline=headline[:120],
+        subhead=subhead,
+        is_complete_delivery=bool(ev.is_complete_delivery),
+        is_sample=bool(is_sample),
+        sample_kind=s_kind,  # type: ignore[arg-type]
+        action_style=_build_action_style(fs.action_class),
+        capture=capture,
+        top_takeaway=takeaway,
+        checkpoints=checkpoints,
+        key_moments=key_moments,
+        headline_stats=headline_stats,
+        drills=drills,
+        detail_rows=detail_rows,
+        notices=notices,
+    )
+
+
+def _build_checkpoint_plain_meaning(cid: CheckpointId, status: CheckpointStatus, vt: str, rt: str) -> str:
+    if cid == "front_leg_brace":
+        if status == "strong":
+            return f"Your front knee stays firm at {vt} (likely {rt}) at ball release, giving a solid block to whip over."
+        if status == "focus":
+            return f"Your front knee bends to {vt} (likely {rt}) by ball release, softening the block as you let the ball go."
+        if status == "watch":
+            return f"Your front knee measured {vt} (likely {rt}) — the uncertainty range crosses the yielding line, so film in crisp slow-mo before changing technique."
+        return f"Your front knee measured {vt} (likely {rt}) at ball release — steady braking support."
+    if cid == "trunk_whip":
+        if status == "strong":
+            return f"Your chest whips forward by {vt} (likely {rt}) after front-foot plant, converting run-up momentum cleanly."
+        if status == "focus":
+            return f"Forward chest drive measured {vt} (likely {rt}) after front-foot plant, leaving extra whip on the table."
+        if status == "watch":
+            return f"Forward chest drive measured {vt} (likely {rt}) — the range crosses the coaching threshold, so confirm on slow-mo video."
+        return f"Your chest drives forward by {vt} (likely {rt}) from front-foot plant to ball release."
+    if cid == "side_bend":
+        if status == "focus":
+            return f"Sideways trunk tilt reached {vt} (likely {rt}) at release — build lateral trunk strength and monitor weekly ball counts rather than forcing a rigid upright spine."
+        if status == "watch":
+            return f"Sideways trunk tilt measured {vt} (likely {rt}) — borderline against adolescent screening norms, so track alongside weekly workload."
+        return f"Sideways trunk tilt at release is {vt} (likely {rt}), within typical fast-bowling posture."
+    if cid == "shoulder_alignment":
+        if status == "focus":
+            return f"Your shoulders twist back by {vt} (likely {rt}) after back-foot landing — keeping hips and shoulders aligned reduces abrupt trunk recoil."
+        if status == "watch":
+            return f"Shoulder twist measured {vt} (likely {rt}) — the range straddles the mixed-action line, so film at 120–240 fps to confirm before adjusting your action."
+        if status == "strong":
+            return f"Your shoulders twist back by only {vt} (likely {rt}), keeping hips and chest moving smoothly together."
+        return f"Backward shoulder twist after back-foot landing measured {vt} (likely {rt})."
+    # runup_stride
+    return f"Measured at {vt} (likely {rt}) entering front-foot plant."
+
+
+def _build_headline_and_takeaway(
+    checkpoints: List[BodyCheckpoint],
+    drills: List[DrillCard],
+    capture: CaptureQuality,
+    events: DeliveryEvents,
+) -> Tuple[str, StoryTakeaway]:
+    if not events.is_complete_delivery:
+        return (
+            "We couldn't find a complete bowling action in this clip.",
+            StoryTakeaway(
+                kind="capture",
+                title="Film the full delivery through follow-through",
+                plain_explanation=(
+                    "This video ended, froze, or cut away before an overhead ball release could be confirmed, "
+                    "so body measurements were safely withheld."
+                ),
+                what_to_try="Record one unedited clip starting three steps before the crease through follow-through.",
+                checkpoint_id=None,
+                moment_id=None,
+                frame_idx=None,
+                linked_drill_id=None,
+            ),
+        )
+
+    focus_cps = [c for c in checkpoints if c.status == "focus"]
+    watch_cps = [c for c in checkpoints if c.status == "watch"]
+    strong_cps = [c for c in checkpoints if c.status == "strong"]
+    on_track_cps = [c for c in checkpoints if c.status == "on_track"]
+    drill_by_cp = {d.for_checkpoint_id: d for d in drills if d.for_checkpoint_id is not None}
+
+    if focus_cps:
+        fc = focus_cps[0]
+        dr = drill_by_cp.get(fc.id) or (drills[0] if drills else None)
+        if strong_cps:
+            hl = f"Strong {strong_cps[0].title.lower()}, with {fc.title.lower()} as your main focus."
+        else:
+            hl = f"{fc.title} is your clearest area to work on from this ball."
+        return (
+            hl,
+            StoryTakeaway(
+                kind="focus",
+                title=f"Focus on {fc.title.lower()}",
+                plain_explanation=fc.plain_meaning,
+                what_to_try=dr.cue if dr is not None else "Work gradually on controlled posture from a shorter run-up.",
+                checkpoint_id=fc.id,
+                moment_id=fc.moment_id,
+                frame_idx=fc.frame_idx,
+                linked_drill_id=dr.id if dr is not None else None,
+            ),
+        )
+
+    if watch_cps:
+        wc = watch_cps[0]
+        good = strong_cps[0] if strong_cps else (on_track_cps[0] if on_track_cps else None)
+        if good is not None:
+            hl = f"{good.title} is steady — {wc.title.lower()} is borderline on this clip."
+        else:
+            hl = f"{wc.title} sits near the coaching line and needs a clearer clip."
+        return (
+            hl,
+            StoryTakeaway(
+                kind="watch",
+                title=f"{wc.title} is borderline",
+                plain_explanation=wc.plain_meaning,
+                what_to_try=capture.next_clip_tip or "Film in 120–240 fps slow-motion from a steady tripod before changing your action.",
+                checkpoint_id=wc.id,
+                moment_id=wc.moment_id,
+                frame_idx=wc.frame_idx,
+                linked_drill_id=None,
+            ),
+        )
+
+    angle_blocked = [item for item in capture.cannot_see if item.reason in ("angle", "frame_rate")]
+    if (capture.measured_count / max(capture.total_count, 1) < 0.4) or (angle_blocked and not strong_cps):
+        hl = (
+            f"{on_track_cps[0].title} looks steady — add another camera angle to see the full picture."
+            if on_track_cps
+            else "This camera setup only captured part of your bowling action."
+        )
+        return (
+            hl,
+            StoryTakeaway(
+                kind="capture",
+                title="Unlock your remaining body checkpoints",
+                plain_explanation=capture.summary,
+                what_to_try=capture.next_clip_tip or "Film from side-on or behind on a steady tripod in 120–240 fps slow-motion.",
+                checkpoint_id=angle_blocked[0].checkpoint_id if angle_blocked else None,
+                moment_id=None,
+                frame_idx=None,
+                linked_drill_id=None,
+            ),
+        )
+
+    if strong_cps:
+        sc = strong_cps[0]
+        if len(strong_cps) >= 2:
+            hl = f"Strong {sc.title.lower()} and {strong_cps[1].title.lower()} through ball release."
+        else:
+            hl = f"Strong {sc.title.lower()} with clean mechanics across visible checks."
+        return (
+            hl,
+            StoryTakeaway(
+                kind="strength",
+                title=f"{sc.title} is a clear strength",
+                plain_explanation=sc.plain_meaning,
+                what_to_try=capture.next_clip_tip or "Keep this repeatable rhythm across a full multi-ball spell.",
+                checkpoint_id=sc.id,
+                moment_id=sc.moment_id,
+                frame_idx=sc.frame_idx,
+                linked_drill_id=None,
+            ),
+        )
+
+    return (
+        "All visible body checkpoints are on track in this delivery.",
+        StoryTakeaway(
+            kind="all_clear",
+            title="Steady posture across visible checks",
+            plain_explanation="None of the visible body checkpoints crossed a coaching limiter threshold.",
+            what_to_try=capture.next_clip_tip or "Compare another ball from your spell to check repeatability.",
+            checkpoint_id=on_track_cps[0].id if on_track_cps else None,
+            moment_id=on_track_cps[0].moment_id if on_track_cps else None,
+            frame_idx=on_track_cps[0].frame_idx if on_track_cps else None,
+            linked_drill_id=None,
+        ),
+    )
+
+
+def hydrate_coaching_story(
+    fs: BiomechanicalFactSheet,
+    delivery_id: str,
+    is_sample: bool = False,
+    sample_kind: Optional[str] = None,
+) -> CoachingStory:
+    """Ensure `CoachingStory` carries runtime `delivery_id`, `thumbnail_url`s, and sample flags."""
+    return build_coaching_story(
+        fs,
+        delivery_id=delivery_id,
+        is_sample=is_sample,
+        sample_kind=sample_kind,
+    )
+
+
+def build_compare_story(
+    card_a: DeliveryCardSummary,
+    fs_a: BiomechanicalFactSheet,
+    story_a: CoachingStory,
+    card_b: DeliveryCardSummary,
+    fs_b: BiomechanicalFactSheet,
+    story_b: CoachingStory,
+) -> CompareStory:
+    """Compare two deliveries checkpoint-by-checkpoint using strict non-overlapping uncertainty intervals."""
+    sync_a = int(fs_a.events.ffc.frame_idx) if fs_a.events.is_complete_delivery else None
+    sync_b = int(fs_b.events.ffc.frame_idx) if fs_b.events.is_complete_delivery else None
+
+    cp_map_a = {c.id: c for c in story_a.checkpoints}
+    cp_map_b = {c.id: c for c in story_b.checkpoints}
+    rows: List[CompareCheckpointRow] = []
+    comparable_count = 0
+    clear_changes: List[str] = []
+
+    for cid in ("front_leg_brace", "trunk_whip", "side_bend", "shoulder_alignment", "runup_stride"):
+        ca = cp_map_a[cid]
+        cb = cp_map_b[cid]
+        cell_a = CompareSideCell(status=ca.status, status_label=ca.status_label, value_text=ca.value_text, range_text=ca.range_text)
+        cell_b = CompareSideCell(status=cb.status, status_label=cb.status_label, value_text=cb.value_text, range_text=cb.range_text)
+
+        if (
+            ca.status == "not_visible"
+            or cb.status == "not_visible"
+            or ca.ci_low is None
+            or ca.ci_high is None
+            or cb.ci_low is None
+            or cb.ci_high is None
+            or ca.metric_key != cb.metric_key
+        ):
+            rows.append(
+                CompareCheckpointRow(
+                    checkpoint_id=cid,  # type: ignore[arg-type]
+                    title=ca.title,
+                    a=cell_a,
+                    b=cell_b,
+                    difference="not_comparable",
+                    difference_plain="Can't compare (not visible in both clips)",
+                )
+            )
+            continue
+
+        comparable_count += 1
+        if cb.ci_low > ca.ci_high:
+            diff_kind = "clearly_higher"
+            diff_txt = f"Clearly higher in second ball ({ca.value_text} → {cb.value_text})"
+            clear_changes.append(f"{ca.title.lower()} increased ({ca.value_text} → {cb.value_text})")
+        elif cb.ci_high < ca.ci_low:
+            diff_kind = "clearly_lower"
+            diff_txt = f"Clearly lower in second ball ({ca.value_text} → {cb.value_text})"
+            clear_changes.append(f"{ca.title.lower()} decreased ({ca.value_text} → {cb.value_text})")
+        else:
+            diff_kind = "within_noise"
+            diff_txt = "Within measurement noise (ranges overlap)"
+
+        rows.append(
+            CompareCheckpointRow(
+                checkpoint_id=cid,  # type: ignore[arg-type]
+                title=ca.title,
+                a=cell_a,
+                b=cell_b,
+                difference=diff_kind,  # type: ignore[arg-type]
+                difference_plain=diff_txt,
+            )
+        )
+
+    caveats: List[str] = []
+    if not fs_a.events.is_complete_delivery or not fs_b.events.is_complete_delivery:
+        caveats.append("At least one clip did not contain a complete overhead release.")
+    elif story_a.capture.view != story_b.capture.view:
+        caveats.append(
+            f"First clip was {story_a.capture.view_label.lower()} while second clip was {story_b.capture.view_label.lower()}, "
+            f"so {comparable_count} of 5 checkpoints could be compared directly."
+        )
+    elif abs(story_a.capture.fps - story_b.capture.fps) >= 45.0:
+        caveats.append(
+            f"Frame rates differ ({story_a.capture.fps_label} vs {story_b.capture.fps_label}), widening uncertainty on the slower clip."
+        )
+
+    if comparable_count == 0:
+        summary = "These two clips do not share any visible body checkpoints from matching camera angles."
+    elif clear_changes:
+        summary = "Clear shift beyond measurement ranges: " + "; ".join(clear_changes) + "."
+    else:
+        summary = f"Across {comparable_count} comparable checkpoints, differences stay within measurement ranges."
+
+    return CompareStory(
+        a=card_a,
+        b=card_b,
+        sync_moment="front_foot_plant",
+        sync_frames={"a": sync_a, "b": sync_b},
+        comparable=comparable_count > 0,
+        summary=summary,
+        caveat_plain=" ".join(caveats) if caveats else None,
+        rows=rows,
     )

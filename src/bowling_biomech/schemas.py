@@ -7,7 +7,7 @@ definition-matched literature reporting structurally across every stage.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -263,6 +263,255 @@ class WorkloadContext(BaseModel):
     known_pace_kph: Optional[float] = None
 
 
+CheckpointId = Literal[
+    "front_leg_brace",
+    "trunk_whip",
+    "side_bend",
+    "shoulder_alignment",
+    "runup_stride",
+]
+BodyZone = Literal["knee", "trunk", "spine", "shoulders", "approach"]
+CheckpointStatus = Literal["strong", "on_track", "watch", "focus", "not_visible"]
+CheckpointStatusLabel = Literal[
+    "Strong",
+    "On Track",
+    "Borderline",
+    "Needs Focus",
+    "Needs Better Angle",
+    "Not Visible",
+]
+UnlockReason = Literal[
+    "angle",
+    "frame_rate",
+    "out_of_frame",
+    "incomplete_delivery",
+    "timing_unreliable",
+    "calibration",
+]
+MomentId = Literal[
+    "back_foot_land",
+    "front_foot_plant",
+    "arm_horizontal",
+    "ball_release",
+]
+CaptureGrade = Literal["great", "partial", "limited", "unusable"]
+CaptureViewKind = Literal["side_on", "rear_on", "front_on", "oblique", "dual_fused", "unknown"]
+ViewClarity = Literal["clear", "fair", "rough"]
+
+
+class CannotSeeItem(BaseModel):
+    checkpoint_id: CheckpointId
+    reason: UnlockReason
+    reason_plain: str
+
+
+class CaptureQuality(BaseModel):
+    grade: CaptureGrade
+    label: str
+    summary: str
+    view: CaptureViewKind
+    view_label: str
+    camera_azimuth_deg: Optional[float] = None
+    fps: float
+    fps_label: str
+    measured_count: int
+    total_count: int = 22
+    can_see: List[CheckpointId] = Field(default_factory=list)
+    cannot_see: List[CannotSeeItem] = Field(default_factory=list)
+    next_clip_tip: Optional[str] = None
+
+
+class StoryTakeaway(BaseModel):
+    kind: Literal["focus", "watch", "strength", "capture", "all_clear"]
+    title: str
+    plain_explanation: str
+    what_to_try: str
+    checkpoint_id: Optional[CheckpointId] = None
+    moment_id: Optional[MomentId] = None
+    frame_idx: Optional[int] = None
+    linked_drill_id: Optional[str] = None
+
+
+class CheckpointReference(BaseModel):
+    text: str
+    source: str
+    definition_match: str
+
+
+class SupportingMetricItem(BaseModel):
+    metric_key: str
+    label_plain: str
+    value_text: Optional[str] = None
+    range_text: Optional[str] = None
+    suppressed: bool = False
+
+
+class BodyCheckpoint(BaseModel):
+    id: CheckpointId
+    body_zone: BodyZone
+    title: str
+    moment_id: Optional[MomentId] = None
+    moment_label: str
+    frame_idx: Optional[int] = None
+    status: CheckpointStatus
+    status_label: CheckpointStatusLabel
+    unlock_reason: Optional[UnlockReason] = None
+    metric_key: str
+    value: Optional[float] = None
+    ci_low: Optional[float] = None
+    ci_high: Optional[float] = None
+    unit: str
+    view_clarity: Optional[ViewClarity] = None
+    value_text: Optional[str] = None
+    range_text: Optional[str] = None
+    reference: Optional[CheckpointReference] = None
+    plain_meaning: str
+    why_it_matters: str
+    how_to_unlock: Optional[str] = None
+    highlight_joints: List[str] = Field(default_factory=list)
+    angle_joints: Optional[Tuple[str, str, str]] = None
+    supporting: List[SupportingMetricItem] = Field(default_factory=list)
+
+
+class KeyMoment(BaseModel):
+    id: MomentId
+    label: str
+    frame_idx: int
+    source_frame_idx: int
+    time_s: float
+    timing_uncertainty_ms: float
+    plain_tip: str
+    what_to_look_for: str
+    checkpoint_ids: List[CheckpointId] = Field(default_factory=list)
+    thumbnail_url: Optional[str] = None
+
+
+class HeadlineStat(BaseModel):
+    metric_key: str
+    label: str
+    value_text: str
+    range_text: str
+    view_clarity: ViewClarity
+
+
+class DrillCard(BaseModel):
+    id: str
+    title: str
+    for_checkpoint_id: Optional[CheckpointId] = None
+    why_plain: str
+    cue: str
+    steps: List[str] = Field(default_factory=list)
+    caution: str
+    source: str
+    moment_id: Optional[MomentId] = None
+    frame_idx: Optional[int] = None
+
+
+class StoryMetricRow(BaseModel):
+    metric_key: str
+    group: Literal[
+        "front_leg_brace",
+        "trunk_whip",
+        "side_bend",
+        "shoulder_alignment",
+        "runup_stride",
+        "other",
+    ]
+    label_plain: str
+    value_text: Optional[str] = None
+    range_text: Optional[str] = None
+    view_clarity: Optional[ViewClarity] = None
+    status: CheckpointStatus
+    status_label: CheckpointStatusLabel
+    suppressed: bool
+    suppression_plain: Optional[str] = None
+    plain_note: str
+    definition_note: str
+    literature_source: str
+
+
+class ActionStyleSummary(BaseModel):
+    code: str
+    label: str
+    plain_summary: str
+
+
+class StoryNotice(BaseModel):
+    id: str
+    title: str
+    body: str
+
+
+class StoryNotices(BaseModel):
+    icc: StoryNotice
+    medical: StoryNotice
+    extra: List[StoryNotice] = Field(default_factory=list)
+
+
+class CoachingStory(BaseModel):
+    """Deterministic, jargon-free consumer coaching layer derived strictly from verified FactSheet intervals."""
+
+    schema_version: Literal["coaching_story/1"] = "coaching_story/1"
+    delivery_id: str = ""
+    headline: str
+    subhead: str
+    is_complete_delivery: bool
+    is_sample: bool = False
+    sample_kind: Optional[Literal["real", "synthetic"]] = None
+    action_style: Optional[ActionStyleSummary] = None
+    capture: CaptureQuality
+    top_takeaway: StoryTakeaway
+    checkpoints: List[BodyCheckpoint] = Field(default_factory=list)
+    key_moments: List[KeyMoment] = Field(default_factory=list)
+    headline_stats: List[HeadlineStat] = Field(default_factory=list)
+    drills: List[DrillCard] = Field(default_factory=list)
+    detail_rows: List[StoryMetricRow] = Field(default_factory=list)
+    notices: StoryNotices
+
+
+class DeliveryCardSummary(BaseModel):
+    id: str
+    session_id: str
+    bowler_id: str
+    bowler_name: str
+    label: str
+    created_at: str
+    thumbnail_url: Optional[str] = None
+    kind: Literal["upload", "sample_real", "sample_demo", "fused_3d"]
+    headline: str
+    top_takeaway_title: str
+    capture_grade: CaptureGrade
+    view_label: str
+    checkpoint_statuses: Dict[CheckpointId, CheckpointStatus]
+
+
+class CompareSideCell(BaseModel):
+    status: CheckpointStatus
+    status_label: CheckpointStatusLabel
+    value_text: Optional[str] = None
+    range_text: Optional[str] = None
+
+
+class CompareCheckpointRow(BaseModel):
+    checkpoint_id: CheckpointId
+    title: str
+    a: CompareSideCell
+    b: CompareSideCell
+    difference: Literal["clearly_higher", "clearly_lower", "within_noise", "not_comparable"]
+    difference_plain: str
+
+
+class CompareStory(BaseModel):
+    a: DeliveryCardSummary
+    b: DeliveryCardSummary
+    sync_moment: Literal["front_foot_plant"] = "front_foot_plant"
+    sync_frames: Dict[str, Optional[int]]
+    comparable: bool
+    summary: str
+    caveat_plain: Optional[str] = None
+    rows: List[CompareCheckpointRow] = Field(default_factory=list)
+
+
 class BiomechanicalFactSheet(BaseModel):
     """Strict neuro-symbolic contract between deterministic biomechanics engine and coaching narrator."""
 
@@ -289,6 +538,7 @@ class BiomechanicalFactSheet(BaseModel):
     inconclusive_observations: List[PrioritizedCue] = Field(default_factory=list)
     capture_upgrades: List[PrioritizedCue] = Field(default_factory=list)
     corrective_drills: List[CorrectiveDrill] = Field(default_factory=list)
+    coaching_story: Optional[CoachingStory] = None
     hard_guardrails: List[str] = Field(
         default_factory=lambda: [
             "ICC 15-degree elbow legality CANNOT be adjudicated from monocular or casual 2D/3D video; accredited >=250 Hz 3D optical lab testing is required.",

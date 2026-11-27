@@ -137,10 +137,50 @@ class StudioDatabase:
             rows = con.execute("SELECT * FROM bowlers ORDER BY created_at DESC").fetchall()
             return [dict(r) for r in rows]
 
+    def list_bowlers_with_stats(self) -> List[Dict[str, Any]]:
+        with self._conn() as con:
+            rows = con.execute(
+                """
+                SELECT b.*,
+                       (
+                           SELECT COUNT(*)
+                           FROM deliveries d
+                           JOIN sessions s ON s.id = d.session_id
+                           WHERE s.bowler_id = b.id
+                       ) AS delivery_count,
+                       (
+                           SELECT MAX(d.created_at)
+                           FROM deliveries d
+                           JOIN sessions s ON s.id = d.session_id
+                           WHERE s.bowler_id = b.id
+                       ) AS last_delivery_at
+                FROM bowlers b
+                ORDER BY b.created_at DESC
+                """
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def get_bowler(self, bowler_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as con:
             r = con.execute("SELECT * FROM bowlers WHERE id = ?", (bowler_id,)).fetchone()
             return dict(r) if r else None
+
+    def get_or_create_dated_session(self, bowler_id: str, session_date: Optional[str] = None) -> Dict[str, Any]:
+        """Auto-group bowler uploads by date under the hood so consumer flows never expose session IDs."""
+        day_str = session_date or datetime.now(timezone.utc).date().isoformat()
+        title = f"Net Analysis — {day_str}"
+        with self._conn() as con:
+            r = con.execute(
+                """
+                SELECT * FROM sessions
+                WHERE bowler_id = ? AND id != 'ses_demo' AND title = ?
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (bowler_id, title),
+            ).fetchone()
+            if r:
+                return dict(r)
+        return self.create_session(bowler_id=bowler_id, title=title, notes="Auto-created bowler session")
 
     def create_session(self, bowler_id: str, title: str, notes: str = "", session_id: Optional[str] = None) -> Dict[str, Any]:
         sid = session_id or f"ses_{uuid.uuid4().hex[:10]}"
@@ -264,6 +304,83 @@ class StudioDatabase:
                 d["pan_summary"] = json.loads(d.pop("pan_summary_json")) if d.get("pan_summary_json") else None
                 out.append(d)
             return out
+
+    def list_all_deliveries(self, bowler_id: Optional[str] = None, limit: int = 60, ascending: bool = False) -> List[Dict[str, Any]]:
+        order_dir = "ASC" if ascending else "DESC"
+        with self._conn() as con:
+            if bowler_id:
+                rows = con.execute(
+                    f"""
+                    SELECT d.*, s.bowler_id, s.title AS session_title,
+                           b.name AS bowler_name, b.bowling_arm, b.age_band
+                    FROM deliveries d
+                    JOIN sessions s ON s.id = d.session_id
+                    JOIN bowlers b ON b.id = s.bowler_id
+                    WHERE s.bowler_id = ?
+                    ORDER BY d.created_at {order_dir}
+                    LIMIT ?
+                    """,
+                    (bowler_id, int(limit)),
+                ).fetchall()
+            else:
+                rows = con.execute(
+                    f"""
+                    SELECT d.*, s.bowler_id, s.title AS session_title,
+                           b.name AS bowler_name, b.bowling_arm, b.age_band
+                    FROM deliveries d
+                    JOIN sessions s ON s.id = d.session_id
+                    JOIN bowlers b ON b.id = s.bowler_id
+                    ORDER BY d.created_at {order_dir}
+                    LIMIT ?
+                    """,
+                    (int(limit),),
+                ).fetchall()
+            out: List[Dict[str, Any]] = []
+            for r in rows:
+                d = dict(r)
+                d["overrides"] = json.loads(d.pop("overrides_json") or "{}")
+                d["isb_summary"] = json.loads(d.pop("isb_summary_json")) if d.get("isb_summary_json") else None
+                d["pan_summary"] = json.loads(d.pop("pan_summary_json")) if d.get("pan_summary_json") else None
+                out.append(d)
+            return out
+
+    def get_delivery_with_bowler(self, delivery_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as con:
+            r = con.execute(
+                """
+                SELECT d.*, s.bowler_id, s.title AS session_title,
+                       b.name AS bowler_name, b.bowling_arm, b.age_band
+                FROM deliveries d
+                JOIN sessions s ON s.id = d.session_id
+                JOIN bowlers b ON b.id = s.bowler_id
+                WHERE d.id = ?
+                """,
+                (delivery_id,),
+            ).fetchone()
+            if not r:
+                return None
+            d = dict(r)
+            d["overrides"] = json.loads(d.pop("overrides_json") or "{}")
+            d["isb_summary"] = json.loads(d.pop("isb_summary_json")) if d.get("isb_summary_json") else None
+            d["pan_summary"] = json.loads(d.pop("pan_summary_json")) if d.get("pan_summary_json") else None
+            return d
+
+    def rename_delivery(self, delivery_id: str, label: str, fact_sheet_json: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        now = _utc_now()
+        with self._conn() as con:
+            if fact_sheet_json is not None:
+                cur = con.execute(
+                    "UPDATE deliveries SET label = ?, fact_sheet_json = ?, updated_at = ? WHERE id = ?",
+                    (label, fact_sheet_json, now, delivery_id),
+                )
+            else:
+                cur = con.execute(
+                    "UPDATE deliveries SET label = ?, updated_at = ? WHERE id = ?",
+                    (label, now, delivery_id),
+                )
+            if cur.rowcount == 0:
+                return None
+        return self.get_delivery_with_bowler(delivery_id)
 
     def save_calibration_profile(
         self,

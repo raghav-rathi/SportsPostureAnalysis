@@ -1,4 +1,11 @@
 import type {
+  CompareStory,
+  CoachingStory,
+  DeliveryCard,
+  JobStatus,
+  OverviewResponse,
+  ProgressResponse,
+  ScanCandidate,
   BowlerSummary,
   CoachNote,
   DeliveryDetailResponse,
@@ -160,4 +167,51 @@ export const api = {
       `/api/sessions/${sessionId}/deliveries/upload`,
       { method: "POST", body: fd }
     ),
+
+  // ── Studio v4 consumer endpoints ───────────────────────────────────────────
+  overview: () => jsonReq<OverviewResponse>("/api/overview"),
+  frameUrl: (deliveryId: string, frameIdx: number, w = 480) =>
+    `${BASE}/api/deliveries/${deliveryId}/frame/${Math.max(0, Math.round(frameIdx))}.jpg?w=${w}`,
+  patchDelivery: (id: string, body: { label?: string }) =>
+    jsonReq<{ delivery: DeliveryCard; story?: CoachingStory }>(`/api/deliveries/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  compare: (a: string, b: string) =>
+    jsonReq<CompareStory>(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
+  progress: (bowlerId: string) => jsonReq<ProgressResponse>(`/api/bowlers/${bowlerId}/progress`),
+  createBowler: (body: { name: string; bowling_arm: "right" | "left"; age_band: string }) =>
+    jsonReq<{ bowler: BowlerSummary }>("/api/bowlers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  bowlerScanVideo: (bowlerId: string, file: File) => {
+    const fd = new FormData();
+    fd.append("video", file);
+    return jsonReq<{ scan_id: string; session_id: string; video_meta: any; candidates: ScanCandidate[] }>(
+      `/api/bowlers/${bowlerId}/scan-video`,
+      { method: "POST", body: fd }
+    );
+  },
+  bowlerImportFromScan: (
+    bowlerId: string,
+    payload: {
+      scan_id: string;
+      clips: Array<{ start_frame: number; end_frame?: number | null; label: string }>;
+      bowling_arm?: string | null;
+      capture_fps_override?: number | null;
+    }
+  ) =>
+    jsonReq<{ scan_id: string; session_id?: string; job_id?: string | null; deliveries: Array<{ delivery_id: string; label: string }> }>(
+      `/api/bowlers/${bowlerId}/deliveries/from-scan`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+    ),
+  bowlerUploadDelivery: (bowlerId: string, fd: FormData) =>
+    jsonReq<{ delivery_id: string; session_id?: string; job_id?: string | null; story?: CoachingStory | null }>(
+      `/api/bowlers/${bowlerId}/deliveries/upload`,
+      { method: "POST", body: fd }
+    ),
+  job: (jobId: string) => jsonReq<JobStatus>(`/api/jobs/${jobId}`),
 };

@@ -739,3 +739,206 @@ def test_studio_v3_analysis_fixes_drills_notes_annotations_and_bowlers(tmp_path:
     del_r = client.delete("/api/deliveries/del_demo_side_b2")
     assert del_r.status_code == 200 and del_r.json()["deleted"] is True
     assert client.get("/api/deliveries/del_demo_side_b2").status_code == 404
+
+
+def test_studio_v4_coaching_story_contract_jargon_free_and_verifier_clean(tmp_path: Path):
+    """Studio v4 Gate: CoachingStory 1:1 contract, zero consumer jargon, 100% verify_coach_response pass."""
+    import re
+    from bowling_biomech.schemas import BiomechanicalFactSheet, CoachingStory
+    from bowling_biomech.stage3_kinematics import extract_fast_bowling_kinematics
+    from bowling_biomech.stage4_uncertainty import quantify_and_gate_metrics
+    from bowling_biomech.stage5_evaluator import build_coaching_story, build_fact_sheet
+
+    app = create_app(data_root=tmp_path, seed_demo=True)
+    client = TestClient(app)
+
+    # 1. Overview endpoint & Dale Steyn #1 featured sample
+    ov = client.get("/api/overview")
+    assert ov.status_code == 200
+    ov_json = ov.json()
+    assert ov_json["is_first_run"] is True
+    assert ov_json["samples"][0]["delivery_id"] == "del_real_steyn"
+    real_steyn_clip = Path(__file__).resolve().parents[1] / "data" / "public_clips" / "uiZN5FHWjJk.mp4"
+    if real_steyn_clip.exists():
+        assert ov_json["samples"][0]["kind"] == "real"
+    assert len(ov_json["recent_deliveries"]) >= 5
+
+    # 2. Check Steyn, Side-240, Rear-240, McGrath, and Dual-Fused stories
+    fuse_r = client.post(
+        "/api/sessions/ses_demo/fuse-dual",
+        json={"delivery_id_a": "del_demo_side_240", "delivery_id_b": "del_demo_rear_240", "label": "Dual 3D Ball"},
+    )
+    assert fuse_r.status_code == 200
+    fused_story = CoachingStory.model_validate(fuse_r.json()["story"])
+    assert fused_story.capture.view == "dual_fused"
+    assert fused_story.capture.view_label == "Dual-camera 3D"
+
+    steyn_det = client.get("/api/deliveries/del_real_steyn").json()
+    st_story = CoachingStory.model_validate(steyn_det["story"])
+    assert st_story.schema_version == "coaching_story/1"
+    assert [c.id for c in st_story.checkpoints] == [
+        "front_leg_brace", "trunk_whip", "side_bend", "shoulder_alignment", "runup_stride"
+    ]
+    cp_st = {c.id: c for c in st_story.checkpoints}
+    assert cp_st["shoulder_alignment"].status == "watch"
+    assert cp_st["shoulder_alignment"].status_label == "Borderline"
+    assert cp_st["front_leg_brace"].status == "not_visible"
+    assert cp_st["front_leg_brace"].status_label == "Needs Better Angle"
+    assert st_story.drills == []
+    assert st_story.action_style is not None and st_story.action_style.code == "mixed"
+
+    side_det = client.get("/api/deliveries/del_demo_side_240").json()
+    side_story = CoachingStory.model_validate(side_det["story"])
+    cp_side = {c.id: c for c in side_story.checkpoints}
+    assert cp_side["front_leg_brace"].status == "strong"
+    sup_keys_whip = [s.metric_key for s in cp_side["trunk_whip"].supporting]
+    assert "trunk_flexion_br_deg" in sup_keys_whip and "delayed_arm_ffc_deg" in sup_keys_whip
+    assert len(side_story.detail_rows) >= 22
+
+    mc_det = client.get("/api/deliveries/del_real_mcgrath").json()
+    mc_story = CoachingStory.model_validate(mc_det["story"])
+    assert mc_story.is_complete_delivery is False
+    assert mc_story.key_moments == []
+    assert mc_story.action_style is None
+    assert mc_story.capture.grade == "unusable"
+
+    # 3. Verify runup_stride fallback to runup_speed_mps when stride is suppressed
+    side_fs = BiomechanicalFactSheet.model_validate(side_det["fact_sheet"])
+    mod_metrics = dict(side_fs.metrics)
+    mod_metrics["stride_length_pct_stature"] = mod_metrics["stride_length_pct_stature"].model_copy(
+        update={"value": None, "ci_low": None, "ci_high": None, "suppressed": True, "suppression_reason": "Ankle cropped out of frame."}
+    )
+    fb_story = build_coaching_story(side_fs.model_copy(update={"metrics": mod_metrics}), delivery_id="fb_test")
+    cp_fb = {c.id: c for c in fb_story.checkpoints}["runup_stride"]
+    assert cp_fb.metric_key == "runup_speed_mps"
+    assert cp_fb.status != "not_visible"
+    assert any(s.metric_key == "stride_length_pct_stature" and s.suppressed for s in cp_fb.supporting)
+
+    # 4. Limiter delivery with drills + 100% Jargon-Free & Numeric-Verifier audit across ALL stories
+    p_lim = SyntheticDeliveryParams(fps=240.0, front_knee_ffc_deg=160.0, front_knee_br_deg=134.0)
+    jw_lim, _ = generate_synthetic_delivery(p_lim)
+    ev_lim = detect_delivery_events(jw_lim, fps=240.0)
+    lm_keys = ["bowling_crease_off", "bowling_crease_leg", "popping_crease_off", "popping_crease_leg", "stump_middle_base", "stump_middle_top"]
+    Ks, Rs, ts_v, _ = make_virtual_camera(azimuth_deg=90.0, elevation_deg=5.0)
+    cal_lim = calibrate_from_mcc_landmarks(project_mcc_landmarks(Ks, Rs, ts_v, lm_keys), 1280, 720, K=Ks)
+    kin_lim = extract_fast_bowling_kinematics(jw_lim, ev_lim, fps=240.0, camera_R_w2c=Rs, debias_near_straight=False)
+    met_lim = quantify_and_gate_metrics(kin_lim, _dummy_audit(240.0, len(jw_lim)), cal_lim, events=ev_lim)
+    fs_lim = build_fact_sheet("LimiterBall", BowlingArm.RIGHT, kin_lim.action_class, "test", _dummy_audit(240.0, len(jw_lim)), cal_lim, ev_lim, met_lim)
+    assert fs_lim.coaching_story is not None
+    assert fs_lim.coaching_story.top_takeaway.kind == "focus"
+    assert len(fs_lim.coaching_story.drills) >= 1
+
+    banned_acronym_re = re.compile(r"\b(?:BFC|FFC|UAH|BR|SCR)\b")
+    all_pairs = [
+        (BiomechanicalFactSheet.model_validate(steyn_det["fact_sheet"]), st_story),
+        (side_fs, side_story),
+        (BiomechanicalFactSheet.model_validate(client.get("/api/deliveries/del_demo_rear_240").json()["fact_sheet"]),
+         CoachingStory.model_validate(client.get("/api/deliveries/del_demo_rear_240").json()["story"])),
+        (BiomechanicalFactSheet.model_validate(mc_det["fact_sheet"]), mc_story),
+        (BiomechanicalFactSheet.model_validate(fuse_r.json()["fact_sheet"]), fused_story),
+        (fs_lim, fs_lim.coaching_story),
+    ]
+    for fs_item, st_item in all_pairs:
+        prose_chunks = [
+            st_item.headline,
+            st_item.subhead,
+            st_item.capture.summary,
+            st_item.capture.next_clip_tip or "",
+            st_item.top_takeaway.title,
+            st_item.top_takeaway.plain_explanation,
+            st_item.top_takeaway.what_to_try,
+            st_item.notices.icc.title,
+            st_item.notices.icc.body,
+            st_item.notices.medical.body,
+        ]
+        if st_item.action_style:
+            prose_chunks.append(st_item.action_style.plain_summary)
+        for cp in st_item.checkpoints:
+            prose_chunks.extend([cp.plain_meaning, cp.why_it_matters, cp.how_to_unlock or ""])
+            if cp.reference:
+                prose_chunks.append(cp.reference.text)
+        for km in st_item.key_moments:
+            prose_chunks.extend([km.label, km.plain_tip, km.what_to_look_for])
+        for dr in st_item.drills:
+            prose_chunks.extend([dr.title, dr.why_plain, dr.cue, dr.caution, *dr.steps])
+
+        joined_consumer = "\n".join(p for p in prose_chunks if p)
+        assert not banned_acronym_re.search(joined_consumer), f"Banned acronym leaked into consumer story: {joined_consumer}"
+        ok_v, viols_v = verify_coach_response(joined_consumer, fs_item)
+        assert ok_v is True, f"CoachingStory failed verify_coach_response ({fs_item.bowler_id}): {viols_v}"
+
+
+def test_studio_v4_endpoints_frames_patch_compare_progress_and_bowler_flows(tmp_path: Path):
+    """Studio v4 API Gate: Frame JPEGs, PATCH rename, CompareStory, Progress, Bowler-first scan/upload, DB migration."""
+    app = create_app(data_root=tmp_path, seed_demo=True)
+    client = TestClient(app)
+
+    # 1. Frame JPEG extraction + cache hit
+    fr_resp = client.get("/api/deliveries/del_demo_side_240/frame/173.jpg?w=480")
+    assert fr_resp.status_code == 200
+    assert fr_resp.headers["content-type"] == "image/jpeg"
+    img_dec = cv2.imdecode(np.frombuffer(fr_resp.content, dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert img_dec is not None and img_dec.shape[1] == 480
+
+    # 2. PATCH delivery rename -> returns {delivery: DeliveryCard, story: CoachingStory}
+    patch_r = client.patch("/api/deliveries/del_demo_side_b2", json={"label": "Friday Spell — Ball 2"})
+    assert patch_r.status_code == 200
+    assert patch_r.json()["delivery"]["label"] == "Friday Spell — Ball 2"
+    assert client.get("/api/deliveries/del_demo_side_b2").json()["delivery"]["label"] == "Friday Spell — Ball 2"
+
+    # 3. Compare 2 Balls (same view vs cross-view)
+    comp_same = client.get("/api/compare?a=del_demo_side_240&b=del_demo_side_b2")
+    assert comp_same.status_code == 200
+    cs_json = comp_same.json()
+    assert cs_json["comparable"] is True
+    assert cs_json["sync_moment"] == "front_foot_plant"
+    assert len(cs_json["rows"]) == 5
+    assert sum(r["difference"] != "not_comparable" for r in cs_json["rows"]) >= 3
+    sb_row = next(r for r in cs_json["rows"] if r["checkpoint_id"] == "side_bend")
+    assert sb_row["difference"] == "not_comparable"
+
+    comp_cross = client.get("/api/compare?a=del_demo_side_240&b=del_real_steyn").json()
+    assert comp_cross["caveat_plain"] is not None
+    fk_row = next(r for r in comp_cross["rows"] if r["checkpoint_id"] == "front_leg_brace")
+    assert fk_row["difference"] == "not_comparable"
+
+    # 4. Bowler Progress endpoint
+    prog = client.get("/api/bowlers/bwl_demo/progress")
+    assert prog.status_code == 200
+    prog_json = prog.json()
+    assert len(prog_json["series"]) == 5
+    assert prog_json["workload"] is not None
+    assert len(prog_json["deliveries"]) >= 4
+
+    # 5. Create bowler + bowler-first scan + cross-bowler security + friendly job failure when offline
+    b_new = client.post("/api/bowlers", json={"name": "Club Quick", "bowling_arm": "left", "age_band": "u17"})
+    assert b_new.status_code == 200
+    bid = b_new.json()["bowler"]["id"]
+    assert b_new.json()["bowler"]["bowling_arm"] == "left"
+
+    mini_vid = tmp_path / "bowler_net.mp4"
+    vw = cv2.VideoWriter(str(mini_vid), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (320, 240))
+    for i in range(40):
+        vw.write(np.full((240, 320, 3), 50 + (i % 8) * 18, dtype=np.uint8))
+    vw.release()
+
+    with mini_vid.open("rb") as f:
+        b_scan = client.post(f"/api/bowlers/{bid}/scan-video", files={"video": ("bowler_net.mp4", f, "video/mp4")})
+    assert b_scan.status_code == 200
+    b_scan_id = b_scan.json()["scan_id"]
+    assert b_scan.json()["session_id"] != "ses_demo"
+
+    # Cross-bowler access to scan_id must be rejected with 403
+    cross_b = client.post(
+        "/api/bowlers/bwl_demo/deliveries/from-scan",
+        json={"scan_id": b_scan_id, "clips": [{"start_frame": 0, "end_frame": 12, "label": "hijack"}]},
+    )
+    assert cross_b.status_code == 403
+
+    # Pre-v4 DB migration: removing `.demo_seed_version` triggers clean idempotent re-seed on boot
+    marker = tmp_path / "sessions" / "ses_demo" / ".demo_seed_version"
+    assert marker.exists()
+    marker.write_text("3.0", encoding="utf-8")
+    app_re = create_app(data_root=tmp_path, seed_demo=True)
+    assert marker.read_text(encoding="utf-8").strip() == "4.0"
+    assert TestClient(app_re).get("/api/overview").status_code == 200

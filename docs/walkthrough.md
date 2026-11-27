@@ -101,3 +101,22 @@ Following live real-world usability review, Studio v3.0 resolved **12 root-cause
 
 ![SportsPostureAnalysis Studio v3.0 — Coach Summary](figures/studio_v3_preview.png)
 ![SportsPostureAnalysis Studio v3.0 — Compare & Spell](figures/studio_v3_compare.png)
+
+---
+
+## Studio v4 (`v7` / `EXP-011`): Consumer-First User Journey, Deterministic `CoachingStory` & Multi-Model Swarm Revamp
+
+To make the studio effortless for everyday club bowlers and coaches (zero confusion in the first 3 seconds), an autonomous multi-model swarm (**Claude Opus 5.5 High** UX/frontend + **Gemini 4 Carbon High** backend intelligence) redesigned the entire user journey while retaining 100% of our v3 biomechanist tools behind a 1-click **Pro Lab** toggle:
+
+1. **Calm 3-Item IA & Guided Journey (`Home · Deliveries · Progress` + `How to film` + `+ New analysis`):**
+   - **Home** welcomes new users with *"See what your bowling action is really doing."*, a 1-click real Dale Steyn cricket net video sample, a 3-step visual guide, and 4 symmetric sample cards.
+   - **Delivery › Story** presents real video + subtle skeleton, human key-moment chips (`Back foot lands → Front foot plants → Arm level → Ball release`), **Camera Angle Coach** (mini top-down pitch diagram), **Your #1 Takeaway**, and an interactive clickable **Body Map** + 5 everyday checkpoints (`Front-Leg Brace`, `Trunk Whip`, `Side-Bend Load`, `Shoulder Alignment`, `Run-Up & Stride`) with Terminal Green joint highlights & dashed angle arcs.
+   - Zero developer acronyms (`BFC`/`FFC`/`UAH`/`BR`/`σ`/frame counters) appear outside **Pro Lab**.
+2. **Deterministic Backend `CoachingStory` (`coaching_story/1`) & Bowler-First APIs:**
+   - Added `build_coaching_story`, `hydrate_coaching_story`, and `build_compare_story` in `stage5_evaluator.py`, backed by `GET /api/overview`, `GET /api/deliveries/{id}/frame/{idx}.jpg`, `PATCH /api/deliveries/{id}`, `GET /api/compare?a=&b=`, `GET /api/bowlers/{id}/progress`, `POST /api/bowlers`, bowler-first upload/scan/jobs, real Dale Steyn video proxy seeding (`uiZN5FHWjJk.mp4` when locally present), and full-scale shaded anatomical silhouettes for offline demos.
+   - Lazy code-splitting cut the initial JS bundle `4.2×` (`1.30 MB` -> `308 kB`) with an `ErrorBoundary` guard.
+3. **End-to-End Verification:** **30 / 30 `pytest` passing** on macOS and RTX 4090 Linux, **96.4%** zero-regression synthetic benchmark across all 22 metrics, **0 TypeScript errors**, **0 browser console errors / failed network requests** across `1440×900` and `375×812` mobile, and live Warm RTX 4090 GPU Worker (`:8090`) connected for instant raw-video uploads.
+
+![SportsPostureAnalysis Studio v4 — Home Hub](figures/studio_v4_home.png)
+![SportsPostureAnalysis Studio v4 — Dale Steyn Real Video Story](figures/studio_v4_steyn_story.png)
+![SportsPostureAnalysis Studio v4 — Ball 1 Story & Body Map](figures/studio_v4_ball1_story.png)

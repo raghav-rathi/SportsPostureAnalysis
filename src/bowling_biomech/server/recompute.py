@@ -46,7 +46,7 @@ from ..stage2_event_spotting import detect_delivery_events
 from ..stage2_isb_anatomy import extract_isb_anatomy_kinematics
 from ..stage3_kinematics import extract_fast_bowling_kinematics
 from ..stage4_uncertainty import METRIC_SPECS, _clamp_ci, quantify_and_gate_metrics
-from ..stage5_evaluator import build_fact_sheet, evaluate_repeatability
+from ..stage5_evaluator import build_fact_sheet, evaluate_repeatability, hydrate_coaching_story
 from ..stage6_coach_llm import generate_grounded_report, render_report_markdown
 from ..synthetic_ground_truth import (
     SyntheticDeliveryParams,
@@ -56,7 +56,20 @@ from ..synthetic_ground_truth import (
     project_world_points,
 )
 from .db import StudioDatabase
-from .video_proxy import render_synthetic_proxy_video
+from .video_proxy import build_all_intra_scrub_proxy, render_synthetic_proxy_video
+
+_DEMO_SEED_VERSION = "4.0"
+
+# Exact 63 pulldown-deduped frame indices in `uiZN5FHWjJk.mp4` matching `tests/fixtures/steyn_nlf_fixture.npz`
+_STEYN_SOURCE_FRAME_INDICES: List[int] = [
+    25, 26, 27, 28, 29, 31, 32, 33, 34, 35,
+    37, 38, 39, 40, 41, 43, 44, 45, 46, 47,
+    49, 50, 51, 52, 53, 55, 56, 57, 58, 59,
+    61, 62, 63, 64, 65, 67, 68, 69, 70, 71,
+    73, 74, 75, 76, 77, 79, 80, 81, 82, 83,
+    85, 86, 87, 88, 89, 91, 92, 93, 94, 95,
+    97, 98, 99,
+]
 
 
 def project_mcc_wireframe_2d(cal: PitchCalibration) -> Dict[str, List[float]]:
@@ -538,6 +551,15 @@ def recompute_delivery_cpu(
         metrics=metrics,
         workload=workload_ctx,
     )
+    has_real_vid = bool(base_meta.get("has_real_video", False))
+    s_kind = "real" if (is_synthetic_proxy and has_real_vid) else ("synthetic" if is_synthetic_proxy else None)
+    story = hydrate_coaching_story(
+        fs,
+        delivery_id=ddir.name,
+        is_sample=bool(is_synthetic_proxy),
+        sample_kind=s_kind,
+    )
+    fs = fs.model_copy(update={"coaching_story": story})
     report = generate_grounded_report(fs)
     report_md = render_report_markdown(fs, report)
 
@@ -565,6 +587,7 @@ def recompute_delivery_cpu(
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
     return {
         "fact_sheet": fs,
+        "story": story,
         "report": report,
         "report_markdown": report_md,
         "telemetry": telemetry,
@@ -662,24 +685,52 @@ def compute_session_comparison(deliveries: List[Dict[str, Any]]) -> Dict[str, An
     }
 
 
-def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Optional[Path] = None) -> str:
-    """Seed an immediately usable offline demo session (240 fps Dual-View Synthetic + Cached Real Steyn & McGrath)."""
+def seed_demo_session(
+    db: StudioDatabase,
+    sessions_root: Path,
+    fixtures_dir: Optional[Path] = None,
+    public_clips_dir: Optional[Path] = None,
+) -> str:
+    """Seed an immediately usable offline demo session (Real Dale Steyn clip when present + 240 fps Dual-View Synthetic)."""
     existing = db.list_sessions()
-    if any(int(s.get("delivery_count", 0)) > 0 for s in existing):
-        return existing[0]["id"]
+    demo_ses_dir = sessions_root / "ses_demo"
+    marker_file = demo_ses_dir / ".demo_seed_version"
+    has_demo_ses = any(s.get("id") == "ses_demo" for s in existing)
+    any_deliveries = any(int(s.get("delivery_count", 0)) > 0 for s in existing)
 
-    bowler = db.create_bowler("Demo Pace Bowler (Studio Showcase)", bowling_arm="right", age_band="adult", bowler_id="bwl_demo")
-    session = db.create_session(
-        bowler_id=bowler["id"],
-        title="Phase 2 Showcase — Calibrated 240 fps Spell & Real-Clip Fixtures",
-        notes="Includes MCC-calibrated 240 fps Side-On & Rear-On views for Dual-Phone 3D Fusion plus verified v4 real-clip fixtures.",
-        session_id="ses_demo",
-    )
+    if any_deliveries:
+        if not has_demo_ses:
+            return existing[0]["id"]
+        if marker_file.exists() and marker_file.read_text(encoding="utf-8").strip() == _DEMO_SEED_VERSION:
+            return existing[0]["id"]
+        # Existing pre-v4 `ses_demo` detected -> upgrade built-in demo proxies & CoachingStory in place!
+
+    if not db.get_bowler("bwl_demo"):
+        bowler = db.create_bowler("Demo Pace Bowler (Studio Showcase)", bowling_arm="right", age_band="adult", bowler_id="bwl_demo")
+    else:
+        bowler = db.get_bowler("bwl_demo") or {"id": "bwl_demo"}
+
+    if not db.get_session("ses_demo"):
+        session = db.create_session(
+            bowler_id=bowler["id"],
+            title="Phase 2 Showcase — Calibrated 240 fps Spell & Real-Clip Fixtures",
+            notes="Includes MCC-calibrated 240 fps Side-On & Rear-On views for Dual-Phone 3D Fusion plus verified v4 real-clip fixtures.",
+            session_id="ses_demo",
+        )
+    else:
+        session = db.get_session("ses_demo") or {"id": "ses_demo"}
+
     if not db.list_workload_logs(bowler["id"]):
         today = datetime.now(timezone.utc).date()
         db.add_workload_log(bowler["id"], (today - timedelta(days=5)).isoformat(), 36, "net", "High-intensity target bowling")
         db.add_workload_log(bowler["id"], (today - timedelta(days=3)).isoformat(), 42, "match", "Club 7-over spell")
         db.add_workload_log(bowler["id"], (today - timedelta(days=1)).isoformat(), 24, "net", "Technical front-leg brace drill")
+
+    clips_root = (
+        Path(public_clips_dir)
+        if public_clips_dir is not None
+        else (Path(__file__).resolve().parents[3] / "data" / "public_clips")
+    )
 
     lm_keys = [
         "bowling_crease_off", "bowling_crease_leg", "popping_crease_off",
@@ -701,12 +752,13 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
             shoulder_counter_rot_deg=scr,
         )
         jw, _ = generate_synthetic_delivery(params)
-        K, R, t, _ = make_virtual_camera(azimuth_deg=az, elevation_deg=el, distance_m=12.0, fov_deg=55.0)
+        K, R, t, _ = make_virtual_camera(azimuth_deg=az, elevation_deg=el, distance_m=9.8, fov_deg=46.0)
         j2d, j_cam = project_world_points(jw, K, R, t)
         lm_px = project_mcc_landmarks(K, R, t, lm_keys, noise_px=0.5)
         cal = calibrate_from_mcc_landmarks(lm_px, 1280, 720, K=K)
 
         n = jw.shape[0]
+        j_in_arr = np.ones((n, 24), dtype=np.bool_)
         audit = VideoAudit(
             video_path=f"demo:{did}",
             width=1280,
@@ -730,7 +782,7 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
             joints3d_cam_m=j_cam.astype(np.float32),
             joints2d_px=j2d.astype(np.float32),
             joint_uncertainties_m=np.full((n, 24), 0.025, dtype=np.float32),
-            joint_in_frame=np.ones((n, 24), dtype=np.bool_),
+            joint_in_frame=j_in_arr,
             valid_mask=np.ones(n, dtype=np.bool_),
         )
         (ddir / "audit.json").write_text(audit.model_dump_json(indent=2), encoding="utf-8")
@@ -743,14 +795,29 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
                     "nlf_fx_used": float(K[0, 0]),
                     "unc_scale_factor": 1.0,
                     "is_noiseless_synthetic": True,
+                    "has_real_video": False,
                 }
             ),
             encoding="utf-8",
         )
-        proxy_mp4 = render_synthetic_proxy_video(
-            j2d, 1280, 720, ddir / "scrub_proxy.mp4", proxy_fps=30.0, title=lbl, mcc_wireframe_2d=project_mcc_wireframe_2d(cal)
-        )
         res = recompute_delivery_cpu(ddir, bowler_id=lbl, proxy_fps=30.0)
+        proxy_mp4 = render_synthetic_proxy_video(
+            j2d,
+            1280,
+            720,
+            ddir / "scrub_proxy.mp4",
+            proxy_fps=30.0,
+            title=lbl,
+            mcc_wireframe_2d=project_mcc_wireframe_2d(cal),
+            joint_in_frame=j_in_arr,
+            bowling_arm="right",
+            br_frame_idx=int(res["fact_sheet"].events.br.frame_idx),
+        )
+        # Clear any stale cached frame thumbnails if upgrading demo proxy
+        frames_cache = ddir / "frames"
+        if frames_cache.exists():
+            for fp_old in frames_cache.glob("*.jpg"):
+                fp_old.unlink(missing_ok=True)
         db.upsert_delivery(
             delivery_id=did,
             session_id=session["id"],
@@ -766,11 +833,11 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
             overrides={"mcc_landmarks_px": {k: [round(v[0], 1), round(v[1], 1)] for k, v in lm_px.items()}},
         )
 
-    # Also seed real-clip fixtures (`steyn` and `mcgrath`) if tests/fixtures/*.npz are present
+    # Also seed real-clip fixtures (`steyn` and `mcgrath`) — using REAL `uiZN5FHWjJk.mp4` frames for Steyn when present!
     if fixtures_dir and fixtures_dir.exists():
         for fname, did, lbl in [
-            ("steyn_nlf_fixture.npz", "del_real_steyn", "Real Clip — Dale Steyn Net (25.2 fps Two-Wicket)"),
-            ("mcgrath_nlf_fixture.npz", "del_real_mcgrath", "Real Clip — Glenn McGrath Reel (Incomplete Gate Demo)"),
+            ("steyn_nlf_fixture.npz", "del_real_steyn", "Dale Steyn — Real Net Video"),
+            ("mcgrath_nlf_fixture.npz", "del_real_mcgrath", "Glenn McGrath — Incomplete Clip Example"),
         ]:
             fp = fixtures_dir / fname
             if not fp.exists():
@@ -787,6 +854,16 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
             j2d = np.einsum("ij,tkj->tki", K, j_cam)[:, :, :2] / z_safe
             n = j_cam.shape[0]
             fps = float(meta["fps"])
+            j_in_fix = z["joint_in_frame"].astype(np.bool_)
+
+            real_steyn_mp4 = clips_root / "uiZN5FHWjJk.mp4" if did == "del_real_steyn" else None
+            use_real_mp4 = bool(
+                real_steyn_mp4 is not None
+                and real_steyn_mp4.exists()
+                and len(_STEYN_SOURCE_FRAME_INDICES) == n
+            )
+            src_indices = list(_STEYN_SOURCE_FRAME_INDICES) if use_real_mp4 else list(range(n))
+
             audit = VideoAudit(
                 video_path=f"fixture:{fname}",
                 width=int(meta["width"]),
@@ -794,7 +871,7 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
                 fps=fps,
                 container_fps=float(meta["container_fps"]),
                 num_frames=n,
-                raw_num_frames=n,
+                raw_num_frames=75 if use_real_mp4 else n,
                 duration_s=round(n / max(fps, 1.0), 3),
                 median_laplacian_var=433.7 if "steyn" in fname else 209.2,
                 blur_grade="crisp",
@@ -806,14 +883,14 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
                 timebase_unreliable=bool(meta["timebase_unreliable"]),
                 held_frame_ratio=float(meta["held_frame_ratio"]),
                 longest_held_run_frames=int(meta["longest_held_run_frames"]),
-                source_frame_indices=list(range(n)),
+                source_frame_indices=src_indices,
             )
             np.savez_compressed(
                 ddir / "raw_nlf.npz",
                 joints3d_cam_m=j_cam.astype(np.float32),
                 joints2d_px=j2d.astype(np.float32),
                 joint_uncertainties_m=z["joint_uncertainties_m"].astype(np.float32),
-                joint_in_frame=z["joint_in_frame"].astype(np.bool_),
+                joint_in_frame=j_in_fix,
                 valid_mask=z["valid_mask"].astype(np.bool_),
             )
             (ddir / "audit.json").write_text(audit.model_dump_json(indent=2), encoding="utf-8")
@@ -826,18 +903,55 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
                         "nlf_fx_used": float(K[0, 0]),
                         "unc_scale_factor": 0.35,
                         "is_noiseless_synthetic": False,
+                        "has_real_video": use_real_mp4,
                     }
                 ),
                 encoding="utf-8",
             )
-            proxy_mp4 = render_synthetic_proxy_video(j2d, int(meta["width"]), int(meta["height"]), ddir / "scrub_proxy.mp4", proxy_fps=25.0, title=lbl)
             res = recompute_delivery_cpu(ddir, bowler_id=meta["bowler_id"], proxy_fps=25.0)
+            if use_real_mp4 and real_steyn_mp4 is not None:
+                try:
+                    proxy_mp4 = build_all_intra_scrub_proxy(
+                        real_steyn_mp4,
+                        ddir / "scrub_proxy.mp4",
+                        source_frame_indices=src_indices,
+                        proxy_fps=25.0,
+                    )
+                except Exception:
+                    use_real_mp4 = False
+                    proxy_mp4 = render_synthetic_proxy_video(
+                        j2d,
+                        int(meta["width"]),
+                        int(meta["height"]),
+                        ddir / "scrub_proxy.mp4",
+                        proxy_fps=25.0,
+                        title=lbl,
+                        joint_in_frame=j_in_fix,
+                        bowling_arm=str(meta["bowling_arm"]),
+                        br_frame_idx=int(res["fact_sheet"].events.br.frame_idx) if res["fact_sheet"].events.is_complete_delivery else None,
+                    )
+            else:
+                proxy_mp4 = render_synthetic_proxy_video(
+                    j2d,
+                    int(meta["width"]),
+                    int(meta["height"]),
+                    ddir / "scrub_proxy.mp4",
+                    proxy_fps=25.0,
+                    title=lbl,
+                    joint_in_frame=j_in_fix,
+                    bowling_arm=str(meta["bowling_arm"]),
+                    br_frame_idx=int(res["fact_sheet"].events.br.frame_idx) if res["fact_sheet"].events.is_complete_delivery else None,
+                )
+            frames_cache = ddir / "frames"
+            if frames_cache.exists():
+                for fp_old in frames_cache.glob("*.jpg"):
+                    fp_old.unlink(missing_ok=True)
             db.upsert_delivery(
                 delivery_id=did,
                 session_id=session["id"],
                 label=lbl,
                 data_dir=ddir,
-                video_path=str(proxy_mp4),
+                video_path=str(real_steyn_mp4) if (use_real_mp4 and real_steyn_mp4 is not None) else str(proxy_mp4),
                 proxy_path=str(proxy_mp4),
                 pipeline_mode="real_clip_fixture",
                 start_frame=0,
@@ -846,4 +960,6 @@ def seed_demo_session(db: StudioDatabase, sessions_root: Path, fixtures_dir: Opt
                 fact_sheet_json=res["fact_sheet"].model_dump_json(),
             )
 
+    demo_ses_dir.mkdir(parents=True, exist_ok=True)
+    marker_file.write_text(_DEMO_SEED_VERSION, encoding="utf-8")
     return session["id"]

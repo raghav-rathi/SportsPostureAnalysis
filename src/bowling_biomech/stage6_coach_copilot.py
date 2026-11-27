@@ -47,6 +47,8 @@ _CONTEXTUAL_CONSTANTS_RE = [
     re.compile(r"\b9\s*:\s*16\b"),                                                    # 9:16 vertical aspect ratio
     re.compile(r"\b3[\s-]*dof\b|\b6[\s-]*dof\b|\b3d\b|\b2d\b", re.I),                 # DOF / 2D / 3D
     re.compile(r"\b0\s*[-–—]\s*100\b"),                                               # referencing retired "0-100" scale
+    re.compile(r"\b\d+\s+of\s+22\s+checks\b", re.I),                                  # CoachingStory capture count summary
+    re.compile(r"\b5\s+body\s+checkpoints\b", re.I),                                  # CoachingStory 5 checkpoints summary
 ]
 
 # Sentences resurrecting retired 0-100 composite scores are permanently blocked
@@ -57,9 +59,9 @@ _COMPOSITE_SCORE_PATTERNS = [
 ]
 
 # Explicit refusal / suppression vocabulary
-_REFUSAL_WORDS_RE = re.compile(r"\b(?:permanently\s+)?refused\b", re.I)
+_REFUSAL_WORDS_RE = re.compile(r"\b(?:permanently\s+)?refus(?:ed|es)\b", re.I)
 _SUPPRESSION_WORDS_RE = re.compile(
-    r"\b(?:suppressed|withheld|refused|unmeasurable|cannot be measured|not measured|gated|unavailable|missing|unreliable|omitted)\b",
+    r"\b(?:suppressed|withheld|refused|refuses|unmeasurable|cannot be measured|not measured|not visible|gated|unavailable|missing|unreliable|omitted)\b",
     re.I,
 )
 
@@ -151,13 +153,29 @@ def _build_allowed_numbers(fact_sheet: BiomechanicalFactSheet) -> Set[float]:
         if (not m.suppressed) and m.value is not None:
             for v in (m.value, m.ci_low, m.ci_high, m.sigma_total):
                 if v is not None:
-                    allowed.add(float(v))
-                    allowed.add(abs(float(v)))
+                    fv = float(v)
+                    allowed.add(fv)
+                    allowed.add(abs(fv))
+                    # Allow canonical CoachingStory display rounding for non-suppressed metrics only
+                    if m.unit in ("deg", "kph", "km/h", "% stature"):
+                        allowed.add(float(round(fv)))
+                        allowed.add(abs(float(round(fv))))
+                    elif m.unit == "deg/s":
+                        allowed.add(float(round(fv, -1)))
+                        allowed.add(abs(float(round(fv, -1))))
+                    elif m.unit == "m/s":
+                        allowed.add(float(round(fv, 1)))
+                    elif m.unit == "m":
+                        allowed.add(float(round(fv, 2)))
 
     for comp in fact_sheet.cohort_comparisons:
         for v in (comp.value, comp.ci_low, comp.ci_high, comp.cohort_mean, comp.cohort_sd, comp.z_score):
-            allowed.add(float(v))
-            allowed.add(abs(float(v)))
+            fv = float(v)
+            allowed.add(fv)
+            allowed.add(abs(fv))
+            if comp.unit in ("deg", "kph", "km/h", "% stature"):
+                allowed.add(float(round(fv)))
+                allowed.add(abs(float(round(fv))))
 
     if fact_sheet.workload_guidance is not None:
         wg = fact_sheet.workload_guidance
@@ -233,7 +251,11 @@ def verify_coach_response(
             violations.append(f"Blocked ICC legality/elbow verdict: '{sent[:120]}' (permanently REFUSED on monocular/casual video).")
             continue
         if _ICC_SUBJECT_RE.search(sent) and _ICC_VERDICT_RE.search(sent):
-            if _REFUSAL_WORDS_RE.search(sent) or re.search(r"\bno\s+elbow\s+extension\s+measurement\b|\bcannot\s+(?:issue|judge|determine)\b", sent, re.I):
+            if _REFUSAL_WORDS_RE.search(sent) or re.search(
+                r"\bno\s+elbow\s+extension\s+measurement\b|\bcannot\s+(?:issue|judge|determine|assess|measure)\b|\bnever\s+(?:judged|assessed)\b",
+                sent,
+                re.I,
+            ):
                 icc_refusal_sentences.append(sent)
             else:
                 violations.append(f"Blocked ICC legality claim without explicit refusal: '{sent[:120]}'")
@@ -265,7 +287,7 @@ def verify_coach_response(
         cleaned = re.sub(rf"\bframe\s+{int(fi)}\b", "FRAME", cleaned, flags=re.I)
     # Allow `15` ONLY inside verified ICC refusal sentences (never in affirmative verdict sentences)
     for ref_s in icc_refusal_sentences:
-        ref_clean = re.sub(r"\b15\s*(?:°|[\s-]*deg(?:ree)?s?)\b", "ICC_LIMIT", ref_s, flags=re.I)
+        ref_clean = re.sub(r"\b15\s*(?:°|[\s-]*deg(?:ree)?s?\b)", "ICC_LIMIT", ref_s, flags=re.I)
         cleaned = cleaned.replace(ref_s, ref_clean)
     # Strip exact verbatim FactSheet diagnostic prose (suppression reasons, workload note, capture upgrades)
     # ONLY in Step 3 (after Step 1 ICC/composite & Step 2 suppressed-clause checks already passed!)
