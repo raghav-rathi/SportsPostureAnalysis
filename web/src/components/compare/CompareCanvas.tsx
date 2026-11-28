@@ -95,21 +95,122 @@ function drawSkeleton(
   ctx.restore();
 }
 
-function useSeek(ref: React.RefObject<HTMLVideoElement>, frame: number, t: TelemetryV2 | null, onReady: () => void) {
+function frameOfVideoTime(v: HTMLVideoElement, t: TelemetryV2): number {
+  const n = Math.max(1, t.num_frames || t.joints2d_px?.length || 1);
+  const fps = proxyFps(t);
+  const pts = t.frame_pts_ms;
+  if (pts && pts.length === n) {
+    const tMs = v.currentTime * 1000 + 0.1;
+    if (tMs <= pts[0]) return 0;
+    if (tMs >= pts[n - 1]) return n - 1;
+    let lo = 0;
+    let hi = n - 1;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pts[mid] <= tMs) lo = mid;
+      else hi = mid;
+    }
+    return lo;
+  }
+  return Math.min(n - 1, Math.max(0, Math.floor(v.currentTime * fps + 1e-4)));
+}
+
+function targetTimeOfFrame(fi: number, t: TelemetryV2): number {
+  const fps = proxyFps(t);
+  const pts = t.frame_pts_ms?.[fi];
+  return (Number.isFinite(pts) ? (pts as number) / 1000 : fi / fps) + 0.25 / fps;
+}
+
+/** Coalesced seek controller: never queues overlapping seeks onto an H.264 decoder and tracks the decoded frame. */
+function useCoalescedSeek(
+  ref: React.RefObject<HTMLVideoElement>,
+  videoUrl: string | null | undefined,
+  frame: number,
+  t: TelemetryV2 | null,
+  onReady: () => void
+) {
+  const seekingRef = useRef(false);
+  const pendingSeekRef = useRef<number | null>(null);
+  const lastDecodedFrameRef = useRef<number>(frame);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const tRef = useRef(t);
+  tRef.current = t;
+  const frameRef = useRef(frame);
+  frameRef.current = frame;
+
   useEffect(() => {
-    const v = ref.current;
-    if (!v || !t) return;
-    const target = (frame + 0.5) / proxyFps(t);
-    if (v.readyState >= 1 && Math.abs(v.currentTime - target) > 0.5 / proxyFps(t)) {
+    seekingRef.current = false;
+    pendingSeekRef.current = null;
+    lastDecodedFrameRef.current = frameRef.current;
+  }, [videoUrl]);
+
+  const requestSeek = useCallback(
+    (fi: number) => {
+      const v = ref.current;
+      const tel = tRef.current;
+      if (!v || !tel) return;
+      if (v.readyState < 1) {
+        pendingSeekRef.current = fi;
+        return;
+      }
+      const curF = frameOfVideoTime(v, tel);
+      const target = targetTimeOfFrame(fi, tel);
+      if (!seekingRef.current && !v.seeking && curF === fi && Math.abs(v.currentTime - target) < 0.45 / proxyFps(tel)) {
+        lastDecodedFrameRef.current = curF;
+        onReadyRef.current();
+        return;
+      }
+      if (seekingRef.current || v.seeking) {
+        pendingSeekRef.current = fi;
+        return;
+      }
+      seekingRef.current = true;
+      pendingSeekRef.current = null;
       try {
         v.currentTime = target;
       } catch {
-        /* ignore */
+        seekingRef.current = false;
       }
-    } else {
-      onReady();
+    },
+    [ref]
+  );
+
+  useEffect(() => {
+    requestSeek(frame);
+  }, [frame, t, requestSeek]);
+
+  const onSeeked = useCallback(() => {
+    seekingRef.current = false;
+    const v = ref.current;
+    const tel = tRef.current;
+    if (v && tel && v.readyState >= 2) {
+      lastDecodedFrameRef.current = frameOfVideoTime(v, tel);
     }
-  }, [ref, frame, t, onReady]);
+    onReadyRef.current();
+    const pending = pendingSeekRef.current;
+    if (pending !== null) {
+      pendingSeekRef.current = null;
+      if (pending !== lastDecodedFrameRef.current) {
+        requestSeek(pending);
+      }
+    }
+  }, [ref, requestSeek]);
+
+  const onLoaded = useCallback(() => {
+    seekingRef.current = false;
+    const v = ref.current;
+    const tel = tRef.current;
+    if (v && tel && v.readyState >= 2) {
+      lastDecodedFrameRef.current = frameOfVideoTime(v, tel);
+    }
+    const want = pendingSeekRef.current ?? frameRef.current;
+    pendingSeekRef.current = null;
+    requestSeek(want);
+    onReadyRef.current();
+  }, [ref, requestSeek]);
+
+  return { seekingRef, lastDecodedFrameRef, onSeeked, onLoaded };
 }
 
 export const CompareCanvas: React.FC<CompareCanvasProps> = ({
@@ -139,6 +240,17 @@ export const CompareCanvas: React.FC<CompareCanvasProps> = ({
     return () => ro.disconnect();
   }, []);
 
+  const drawRef = useRef<() => void>(() => {});
+  const stableDraw = useCallback(() => drawRef.current(), []);
+  const seekA = useCoalescedSeek(vA, primary.videoUrl, primary.frame, primary.telemetry, stableDraw);
+  const seekB = useCoalescedSeek(
+    vB,
+    overlay?.showVideo ? overlay.videoUrl : null,
+    overlay?.frame ?? 0,
+    overlay?.showVideo ? overlay.telemetry : null,
+    stableDraw
+  );
+
   const draw = useCallback(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -167,8 +279,15 @@ export const CompareCanvas: React.FC<CompareCanvasProps> = ({
       ctx.scale(-1, 1);
     }
     const va = vA.current;
+    let frameA = primary.frame;
     if (va && va.readyState >= 2) {
       ctx.drawImage(va, rA.ox, rA.oy, rA.dw, rA.dh);
+      if (!va.seeking && !seekA.seekingRef.current) {
+        frameA = frameOfVideoTime(va, tA);
+        seekA.lastDecodedFrameRef.current = frameA;
+      } else {
+        frameA = seekA.lastDecodedFrameRef.current;
+      }
     } else {
       ctx.fillStyle = "#efefee";
       ctx.fillRect(rA.ox, rA.oy, rA.dw, rA.dh);
@@ -176,6 +295,7 @@ export const CompareCanvas: React.FC<CompareCanvasProps> = ({
 
     // ── overlay (blend) ──
     let mapB: MapFn | null = null;
+    let frameB = overlay?.frame ?? 0;
     if (overlay) {
       const tB = overlay.telemetry;
       const bfA = bodyFrameOf(tA, overlay.syncFramePrimary);
@@ -204,19 +324,27 @@ export const CompareCanvas: React.FC<CompareCanvasProps> = ({
       const m: MapFn = (p) => [ax + nx + mir * (p[0] - bcx) * s, ay + ny + (p[1] - bcy) * s];
       mapB = m;
       const vb = vB.current;
-      if (overlay.showVideo && vb && vb.readyState >= 2 && overlay.opacity > 0.001) {
-        ctx.save();
-        ctx.globalAlpha = Math.min(1, Math.max(0, overlay.opacity));
-        ctx.translate(ax + nx, ay + ny);
-        ctx.scale(mir * s, s);
-        ctx.translate(-bcx, -bcy);
-        ctx.drawImage(vb, 0, 0, tB.width || vb.videoWidth, tB.height || vb.videoHeight);
-        ctx.restore();
+      if (overlay.showVideo && vb && vb.readyState >= 2) {
+        if (!vb.seeking && !seekB.seekingRef.current) {
+          frameB = frameOfVideoTime(vb, tB);
+          seekB.lastDecodedFrameRef.current = frameB;
+        } else {
+          frameB = seekB.lastDecodedFrameRef.current;
+        }
+        if (overlay.opacity > 0.001) {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, Math.max(0, overlay.opacity));
+          ctx.translate(ax + nx, ay + ny);
+          ctx.scale(mir * s, s);
+          ctx.translate(-bcx, -bcy);
+          ctx.drawImage(vb, 0, 0, tB.width || vb.videoWidth, tB.height || vb.videoHeight);
+          ctx.restore();
+        }
       }
     }
 
-    drawSkeleton(ctx, tA, primary.frame, primary.arm, mapA, !!primaryGhostStyle);
-    if (overlay && mapB) drawSkeleton(ctx, overlay.telemetry, overlay.frame, overlay.arm, mapB, true);
+    drawSkeleton(ctx, tA, frameA, primary.arm, mapA, !!primaryGhostStyle);
+    if (overlay && mapB) drawSkeleton(ctx, overlay.telemetry, frameB, overlay.arm, mapB, true);
     ctx.restore();
 
     // ── tag (never mirrored) ──
@@ -229,10 +357,9 @@ export const CompareCanvas: React.FC<CompareCanvasProps> = ({
     ctx.fill();
     ctx.fillStyle = SEG.ink;
     ctx.fillText(label, 18, 25);
-  }, [size, primary, overlay, mirrorPrimary, primaryGhostStyle, tag]);
+  }, [size, primary, overlay, mirrorPrimary, primaryGhostStyle, tag, seekA.seekingRef, seekA.lastDecodedFrameRef, seekB.seekingRef, seekB.lastDecodedFrameRef]);
 
-  useSeek(vA, primary.frame, primary.telemetry, draw);
-  useSeek(vB, overlay?.frame ?? 0, overlay ? overlay.telemetry : null, draw);
+  drawRef.current = draw;
   useEffect(() => {
     draw();
   }, [draw]);
@@ -250,12 +377,9 @@ export const CompareCanvas: React.FC<CompareCanvasProps> = ({
             preload="auto"
             crossOrigin="anonymous"
             className="hidden"
-            onLoadedData={draw}
-            onLoadedMetadata={(e) => {
-              const v = e.currentTarget;
-              v.currentTime = (primary.frame + 0.5) / proxyFps(primary.telemetry);
-            }}
-            onSeeked={draw}
+            onLoadedData={seekA.onLoaded}
+            onLoadedMetadata={seekA.onLoaded}
+            onSeeked={seekA.onSeeked}
             onError={() => setVideoError(true)}
           />
         )}
@@ -268,12 +392,9 @@ export const CompareCanvas: React.FC<CompareCanvasProps> = ({
             preload="auto"
             crossOrigin="anonymous"
             className="hidden"
-            onLoadedData={draw}
-            onLoadedMetadata={(e) => {
-              const v = e.currentTarget;
-              v.currentTime = (overlay.frame + 0.5) / proxyFps(overlay.telemetry);
-            }}
-            onSeeked={draw}
+            onLoadedData={seekB.onLoaded}
+            onLoadedMetadata={seekB.onLoaded}
+            onSeeked={seekB.onSeeked}
           />
         )}
         {(videoError || !primary.videoUrl) && (

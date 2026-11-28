@@ -297,10 +297,21 @@ export const VideoStage: React.FC<VideoStageProps> = ({
   const seekingRef = useRef(false);
   const pendingSeekRef = useRef<number | null>(null);
   const imgCacheRef = useRef<Map<number, HTMLImageElement>>(new Map());
-  const lastImgRef = useRef<HTMLImageElement | null>(null);
+  const lastImgRef = useRef<{ img: HTMLImageElement; frame: number } | null>(null);
 
   const n = Math.max(1, telemetry.num_frames || telemetry.joints2d_px.length || 1);
   const f = clamp(Math.round(frame), 0, n - 1);
+  const frameRef = useRef(f);
+  frameRef.current = f;
+  const lastDecodedVidFrameRef = useRef(f);
+  const lastSyncedVidFrameRef = useRef(-1);
+  const prevPlayheadFrameRef = useRef(f);
+  const nativeOkRef = useRef(false);
+  const phSetFrameRef = useRef(ph.setFrame);
+  phSetFrameRef.current = ph.setFrame;
+  const loopRangeRef = useRef(ph.loopRange);
+  loopRangeRef.current = ph.loopRange;
+
   const vw = Math.max(1, telemetry.width || 1280);
   const vh = Math.max(1, telemetry.height || 720);
   const proxyFps = Math.max(1, telemetry.proxy_fps || 30);
@@ -314,6 +325,27 @@ export const VideoStage: React.FC<VideoStageProps> = ({
       return t + 0.25 / proxyFps; // land inside the frame, not on its boundary
     },
     [telemetry.frame_pts_ms, proxyFps]
+  );
+
+  const frameOfVideoTime = useCallback(
+    (timeSec: number): number => {
+      const pts = telemetry.frame_pts_ms;
+      if (pts && pts.length === n) {
+        const tMs = timeSec * 1000 + 0.1;
+        if (tMs <= pts[0]) return 0;
+        if (tMs >= pts[n - 1]) return n - 1;
+        let lo = 0;
+        let hi = n - 1;
+        while (lo + 1 < hi) {
+          const mid = (lo + hi) >> 1;
+          if (pts[mid] <= tMs) lo = mid;
+          else hi = mid;
+        }
+        return lo;
+      }
+      return clamp(Math.floor(timeSec * proxyFps + 1e-4), 0, n - 1);
+    },
+    [telemetry.frame_pts_ms, n, proxyFps]
   );
 
   // ── Geometry: video px ↔ screen (CSS px) ─────────────────────────────────
@@ -497,17 +529,17 @@ export const VideoStage: React.FC<VideoStageProps> = ({
     [isMetric, telemetry, affineAt]
   );
 
-  // ── Frame image fallback (video loading / failed) ────────────────────────
+  // ── Frame image fallback (video loading / failed / exact cached seek frame) ──
   const drawRef = useRef<() => void>(() => {});
   const frameImage = useCallback(
-    (fi: number): HTMLImageElement | null => {
+    (fi: number): { img: HTMLImageElement; frame: number } | null => {
       const cache = imgCacheRef.current;
       let img = cache.get(fi);
       if (!img) {
         img = new Image();
         img.decoding = "async";
         img.onload = () => {
-          lastImgRef.current = img!;
+          lastImgRef.current = { img: img!, frame: fi };
           drawRef.current();
         };
         img.src = api.frameUrl(deliveryId, fi, 960);
@@ -518,8 +550,9 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         }
       }
       if (img.complete && img.naturalWidth > 0) {
-        lastImgRef.current = img;
-        return img;
+        const pair = { img, frame: fi };
+        lastImgRef.current = pair;
+        return pair;
       }
       return lastImgRef.current;
     },
@@ -545,12 +578,62 @@ export const VideoStage: React.FC<VideoStageProps> = ({
     ctx.fillStyle = "#f4f4f5";
     ctx.fillRect(0, 0, W, H);
 
-    // 1. Frame
+    // 1. Frame — lock displayed video/JPEG pixels and 2D skeleton/trails to the exact same frame `rf`.
     const [x0, y0] = g.toS(0, 0);
     const dw = vw * g.scale, dh = vh * g.scale;
     const vid = videoRef.current;
-    const src: CanvasImageSource | null =
-      vid && videoState === "ready" && vid.readyState >= 2 ? vid : frameImage(f);
+    let src: CanvasImageSource | null = null;
+    let rf = f;
+
+    if (vid && videoState === "ready" && vid.readyState >= 2) {
+      if (vid.seeking || seekingRef.current) {
+        // Never draw post-seek skeleton over pre-seek video pixels: use an already-cached exact JPEG or hold matched pair.
+        const exact = imgCacheRef.current.get(f);
+        if (exact && exact.complete && exact.naturalWidth > 0) {
+          src = exact;
+          rf = f;
+        } else {
+          src = vid;
+          rf = lastDecodedVidFrameRef.current;
+        }
+      } else {
+        const vidFrame = frameOfVideoTime(vid.currentTime);
+        lastDecodedVidFrameRef.current = vidFrame;
+        if (nativeOkRef.current) {
+          src = vid;
+          rf = vidFrame;
+          // Keep shared Playhead (3D pitch, timeline, waterfall) locked gently to the decoded video frame.
+          const lr = loopRangeRef.current;
+          const lo = lr ? lr[0] : 0;
+          const hi = lr ? lr[1] : n - 1;
+          if (vidFrame !== lastSyncedVidFrameRef.current) {
+            lastSyncedVidFrameRef.current = vidFrame;
+            if (vidFrame >= lo && vidFrame <= hi && vidFrame !== frameRef.current) {
+              phSetFrameRef.current(vidFrame);
+            }
+          }
+        } else if (vidFrame === f) {
+          src = vid;
+          rf = f;
+        } else {
+          const exact = imgCacheRef.current.get(f);
+          if (exact && exact.complete && exact.naturalWidth > 0) {
+            src = exact;
+            rf = f;
+          } else {
+            src = vid;
+            rf = vidFrame;
+          }
+        }
+      }
+    } else {
+      const fb = frameImage(f);
+      if (fb) {
+        src = fb.img;
+        rf = fb.frame;
+      }
+    }
+
     if (src) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
@@ -561,15 +644,15 @@ export const VideoStage: React.FC<VideoStageProps> = ({
       }
     }
 
-    const pts = telemetry.joints2d_px[f];
-    const inFr = telemetry.joint_in_frame?.[f];
+    const pts = telemetry.joints2d_px[rf];
+    const inFr = telemetry.joint_in_frame?.[rf];
     const ok = (i: number) => !!pts && isP2(pts[i]) && !(inFr && inFr[i] === false);
     const S = (i: number) => g.toS(pts![i][0], pts![i][1]);
 
     // 2. Trails (under the skeleton)
-    if (layers.trails.wrist && wristTrail) drawWristTrail(ctx, g.toS, wristTrail, f, Math.max(3, Math.round(0.6 * analysisFps)));
-    if (layers.trails.head && headTrail) drawHeadTrail(ctx, g.toS, headTrail, f);
-    if (layers.trails.com && comTrail) drawComTrail(ctx, g.toS, comTrail, f);
+    if (layers.trails.wrist && wristTrail) drawWristTrail(ctx, g.toS, wristTrail, rf, Math.max(3, Math.round(0.6 * analysisFps)));
+    if (layers.trails.head && headTrail) drawHeadTrail(ctx, g.toS, headTrail, rf);
+    if (layers.trails.com && comTrail) drawComTrail(ctx, g.toS, comTrail, rf);
 
     // 3. Skeleton (segment colour + 2 px white halo)
     if (layers.skeleton && pts) {
@@ -634,12 +717,12 @@ export const VideoStage: React.FC<VideoStageProps> = ({
 
     // 5. Spotlights (dim everything outside the circle)
     if (layers.telestration) {
-      const spots = shapes.filter((s) => s.type === "spotlight" && (s.frame === f || s.pinned_all_frames) && s.points.length >= 2);
+      const spots = shapes.filter((s) => s.type === "spotlight" && (s.frame === rf || s.pinned_all_frames) && s.points.length >= 2);
       const draft = draftRef.current;
       const draftSpot = draft && draft.tool === "spotlight" && draft.pts.length >= 1 && hoverRef.current ? [draft.pts[0], hoverRef.current] : null;
       const circles: Array<[P2, number]> = [];
       for (const s of spots) {
-        const p = shapePoints(s, f);
+        const p = shapePoints(s, rf);
         const c = g.toS(p[0][0], p[0][1]);
         const e = g.toS(p[1][0], p[1][1]);
         circles.push([c, Math.hypot(e[0] - c[0], e[1] - c[1])]);
@@ -666,8 +749,8 @@ export const VideoStage: React.FC<VideoStageProps> = ({
     // 6. Telestration shapes + draft
     if (layers.telestration) {
       for (const sh of shapes) {
-        if (sh.frame !== f && !sh.pinned_all_frames) continue;
-        drawShape(ctx, sh.type, shapePoints(sh, f), sh, false);
+        if (sh.frame !== rf && !sh.pinned_all_frames) continue;
+        drawShape(ctx, sh.type, shapePoints(sh, rf), sh, false);
       }
       const d = draftRef.current;
       if (d && d.pts.length > 0) {
@@ -854,12 +937,12 @@ export const VideoStage: React.FC<VideoStageProps> = ({
               c.lineTo(q[0] + nx * 7, q[1] + ny * 7);
             }
           }, TELE, 2.2, dash);
-          const label = rulerLabel(ptsV.slice(0, 2), meta.snap_joints, f);
+          const label = rulerLabel(ptsV.slice(0, 2), meta.snap_joints, rf);
           chip((a[0] + b[0]) / 2 + 10, (a[1] + b[1]) / 2 - 8, [label]);
           break;
         }
         case "plumb": {
-          const vert = verticalAt(f);
+          const vert = verticalAt(rf);
           const p0 = P[0];
           // Image-space direction is the same in screen space (uniform zoom); extend across the frame.
           const ext = Math.max(W, H) * 1.5;
@@ -905,7 +988,7 @@ export const VideoStage: React.FC<VideoStageProps> = ({
             const lines = [`Drawn (2D) ${fmtDeg(d2, 1)}`];
             const sj = meta.snap_joints;
             if (sj && sj.length === 3 && sj.every((j) => j >= 0) && new Set(sj).size === 3) {
-              const a3 = angle3dAt(f, [sj[0], sj[1], sj[2]]);
+              const a3 = angle3dAt(rf, [sj[0], sj[1], sj[2]]);
               if (a3) lines.push(`Measured (3D) ${fmtDeg(a3.deg)}  likely ${a3.lo.toFixed(0)}–${a3.hi.toFixed(0)}°`);
               const bw = bowlingArm === "right" ? ["rsho", "relb", "rwri"] : ["lsho", "lelb", "lwri"];
               if (SMPL24_JOINTS[sj[1]] === bw[1]) lines.push("Visual trace only — not ICC legality");
@@ -935,11 +1018,13 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         return;
       }
       const t = videoTimeOf(fi);
-      if (Math.abs(v.currentTime - t) < 0.5 / proxyFps) {
+      const curF = frameOfVideoTime(v.currentTime);
+      if (!seekingRef.current && !v.seeking && curF === fi && Math.abs(v.currentTime - t) < 0.45 / proxyFps) {
+        lastDecodedVidFrameRef.current = curF;
         drawRef.current();
         return;
       }
-      if (seekingRef.current) {
+      if (seekingRef.current || v.seeking) {
         pendingSeekRef.current = fi;
         return;
       }
@@ -951,11 +1036,15 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         seekingRef.current = false;
       }
     },
-    [videoState, videoTimeOf, proxyFps]
+    [videoState, videoTimeOf, frameOfVideoTime, proxyFps]
   );
 
   const onSeeked = useCallback(() => {
     seekingRef.current = false;
+    const v = videoRef.current;
+    if (v && v.readyState >= 2) {
+      lastDecodedVidFrameRef.current = frameOfVideoTime(v.currentTime);
+    }
     const p = pendingSeekRef.current;
     if (p != null) {
       pendingSeekRef.current = null;
@@ -963,16 +1052,18 @@ export const VideoStage: React.FC<VideoStageProps> = ({
       return;
     }
     drawRef.current();
-  }, [requestSeek]);
+  }, [requestSeek, frameOfVideoTime]);
 
   useEffect(() => {
     seekingRef.current = false;
     pendingSeekRef.current = null;
+    lastSyncedVidFrameRef.current = -1;
     setVideoState("loading");
   }, [videoUrl]);
 
   const vRate = (fps * rate) / proxyFps;
   const nativeOk = playing && direction > 0 && vRate >= 0.0625 && vRate <= 16 && videoState === "ready";
+  nativeOkRef.current = nativeOk;
 
   // Native playback on/off
   useEffect(() => {
@@ -980,28 +1071,40 @@ export const VideoStage: React.FC<VideoStageProps> = ({
     if (!v) return;
     if (nativeOk) {
       v.playbackRate = vRate;
-      const target = videoTimeOf(f);
-      if (Math.abs(v.currentTime - target) > 1.5 / proxyFps) v.currentTime = target;
+      lastSyncedVidFrameRef.current = -1;
+      const target = videoTimeOf(frameRef.current);
+      if (frameOfVideoTime(v.currentTime) !== frameRef.current && Math.abs(v.currentTime - target) > 0.45 / proxyFps) {
+        seekingRef.current = true;
+        try {
+          v.currentTime = target;
+        } catch {
+          seekingRef.current = false;
+        }
+      }
       v.play().catch(() => {
         /* autoplay blocked: fall back to per-frame seeks */
       });
-    } else if (!v.paused) {
-      v.pause();
+    } else {
+      if (!v.paused) v.pause();
+      // Snap video cleanly to the paused playhead frame if needed.
+      if (videoState === "ready") requestSeek(frameRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nativeOk, vRate]);
 
-  // Every playhead change: seek (paused / reverse) or correct drift (native).
+  // Every playhead change: seek (paused / reverse) or handle discontinuous jumps / loop wraps (native).
   useEffect(() => {
+    const prev = prevPlayheadFrameRef.current;
+    prevPlayheadFrameRef.current = f;
     const v = videoRef.current;
     if (nativeOk && v) {
       const target = videoTimeOf(f);
-      if (!seekingRef.current && Math.abs(v.currentTime - target) > 1.5 / proxyFps) {
-        try {
-          v.currentTime = target;
-        } catch {
-          /* ignore */
-        }
+      const jumped = f < prev || Math.abs(f - prev) > 2;
+      if (jumped || (!seekingRef.current && !v.seeking && Math.abs(v.currentTime - target) > 3 / proxyFps)) {
+        requestSeek(f);
+      }
+      if (v.ended) {
+        v.play().catch(() => undefined);
       }
     } else {
       requestSeek(f);
@@ -1301,6 +1404,20 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none", left: 0, top: 0 }}
         onLoadedData={() => {
           setVideoState("ready");
+          const v = videoRef.current;
+          if (v && v.readyState >= 1) {
+            const target = videoTimeOf(frameRef.current);
+            if (frameOfVideoTime(v.currentTime) !== frameRef.current) {
+              seekingRef.current = true;
+              try {
+                v.currentTime = target;
+              } catch {
+                seekingRef.current = false;
+              }
+            } else {
+              lastDecodedVidFrameRef.current = frameRef.current;
+            }
+          }
           requestAnimationFrame(() => drawRef.current());
         }}
         onError={() => setVideoState("error")}

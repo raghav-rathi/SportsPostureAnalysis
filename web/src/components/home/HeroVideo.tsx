@@ -33,6 +33,7 @@ export const HeroVideo: React.FC<{
   const posterImgRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const lastDecodedFrameRef = useRef<number>(0);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [ready, setReady] = useState(false);
@@ -82,7 +83,7 @@ export const HeroVideo: React.FC<{
       const dpr = window.devicePixelRatio || 1;
       const cw = canvas.width;
       const ch = canvas.height;
-      const scale = Math.max(cw / vw, ch / vh); // cover
+      const scale = Math.min(cw / vw, ch / vh); // contain — never crop feet, creases, or high release hand
       const dw = vw * scale;
       const dh = vh * scale;
       const ox = (cw - dw) / 2;
@@ -190,6 +191,7 @@ export const HeroVideo: React.FC<{
     img.onload = () => {
       posterImgRef.current = img;
       if (!videoRef.current || videoRef.current.readyState < 2) {
+        lastDecodedFrameRef.current = posterFrame;
         playhead.current.frame = posterFrame;
         setFrame(posterFrame);
         onFrameChange?.(posterFrame);
@@ -210,11 +212,17 @@ export const HeroVideo: React.FC<{
     let lastUi = -1;
     const tick = () => {
       if (vid.readyState >= 2) {
-        let f = clamp(Math.round(vid.currentTime * proxyFps), 0, nFrames - 1);
-        if (!vid.paused && (f >= loopRange[1] || vid.ended)) {
-          vid.currentTime = loopRange[0] / proxyFps + 0.001;
-          f = loopRange[0];
-          if (vid.ended) void vid.play().catch(() => undefined);
+        let f: number;
+        if (vid.seeking) {
+          // Hold the last decoded frame until seeked fires so video pixels & skeleton stay 100% locked across loop wraps.
+          f = lastDecodedFrameRef.current;
+        } else {
+          f = clamp(Math.floor(vid.currentTime * proxyFps + 1e-4), 0, nFrames - 1);
+          lastDecodedFrameRef.current = f;
+          if (!vid.paused && (f >= loopRange[1] || vid.ended)) {
+            vid.currentTime = (loopRange[0] + 0.25) / proxyFps;
+            if (vid.ended) void vid.play().catch(() => undefined);
+          }
         }
         playhead.current.frame = f;
         draw(f);
@@ -243,15 +251,27 @@ export const HeroVideo: React.FC<{
   const onLoaded = () => {
     const vid = videoRef.current;
     if (!vid) return;
-    vid.currentTime = loopRange[0] / proxyFps + 0.001;
+    lastDecodedFrameRef.current = loopRange[0];
+    vid.currentTime = (loopRange[0] + 0.25) / proxyFps;
     setReady(true);
+  };
+
+  const onSeeked = () => {
+    const vid = videoRef.current;
+    if (!vid || vid.readyState < 2) return;
+    const f = clamp(Math.floor(vid.currentTime * proxyFps + 1e-4), 0, nFrames - 1);
+    lastDecodedFrameRef.current = f;
+    playhead.current.frame = f;
+    setFrame(f);
+    onFrameChange?.(f);
+    draw(f);
   };
 
   const seek = (f: number) => {
     const vid = videoRef.current;
     if (!vid) return;
     setPlaying(false);
-    vid.currentTime = clamp(f, 0, nFrames - 1) / proxyFps + 0.001;
+    vid.currentTime = (clamp(f, 0, nFrames - 1) + 0.25) / proxyFps;
   };
 
   const activeEvent = events.find((e) => Math.abs(frame - e.frame) <= Math.max(2, Math.round(analysisFps * 0.06)));
@@ -274,6 +294,7 @@ export const HeroVideo: React.FC<{
           preload="auto"
           crossOrigin="anonymous"
           onLoadedData={onLoaded}
+          onSeeked={onSeeked}
           className="absolute w-px h-px opacity-0 pointer-events-none"
         />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />

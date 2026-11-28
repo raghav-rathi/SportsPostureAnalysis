@@ -2,7 +2,7 @@
 
 A scientifically grounded, pitch-calibrated, uncertainty-gated 3D sports biomechanics engine and interactive Coaching Studio.
 
-> **Living Project Ledger:** See **[AGENTS.md](AGENTS.md)** for the global engineering rules, scientific guardrails, and chronological **Experiment & Modification Ledger** (`EXP-001`–`EXP-012`) updated after every experiment, audit, and modification.
+> **Living Project Ledger:** See **[AGENTS.md](AGENTS.md)** for the global engineering rules, scientific guardrails, and chronological **Experiment & Modification Ledger** (`EXP-001`–`EXP-013`) updated after every experiment, audit, and modification.
 
 ---
 
@@ -43,12 +43,12 @@ Designed from an exhaustive 30-product cross-sport teardown ([docs/research_app_
 
 ---
 
-## Verified Baseline Results (`v8`, Studio v5 + Zero-Regression `v4`–`v7` Metrology)
+## Verified Baseline Results (`v8.2`, Studio v5.2 + Carbon AI Crease/Sync Hardening)
 
-- **Automated Regression Suite (`pytest -v`):** **36 / 36 passed** (`161.95 s`), covering 18 core/real-clip fixture tests + 12 Studio v2–v4 tests + 6 comprehensive Studio v5 non-circular right/left-arm kinematics, de Leva COM, stroboscopic JPEG, 4 Pro Archetypes, ACWR/EWMA, Release Bullseye/Spell Drift, and verifier tests; `cd web && npm run build` passes with **0 TypeScript errors** (`237.61 kB` initial bundle, **0 browser console errors**, **0 failed network requests**).
-- **Canonical 22-Metric + Studio v5 Deep-Module AR(1) Benchmarks:**
-  - **Canonical 22 / 22 metrics (`docs/results/v4/synthetic_benchmark_results.json`):** **Exact `96.4%`** pooled coverage (`3,003` observable AR(1) evaluations, per-metric `91.1%–100.0%`, `rmse/sigma` in `[0.71, 1.21]`, **`0 / 240`** false incomplete trials, `0.00%` regression).
-  - **Studio v5 Deep Modules (`docs/results/v5/v5_modules_benchmark.json`):** **`96.9%`** pooled 95% CI coverage across **`2,596` observable AR(1) evaluations** (96 deliveries, `0°/45°/90°`, `120/240 fps`, right & left arm).
+- **Automated Regression Suite (`pytest -v`):** **37 / 37 passed** (`172.6 s`), covering 18 core/real-clip fixture tests + 12 Studio v2–v4 tests + 7 Studio v5.2 tests (non-circular right/left-arm kinematics, de Leva COM, stroboscopic JPEG, 4 Pro Archetypes, ACWR/EWMA, Release Bullseye/Spell Drift, verifier, and stationary legal crease plant + uncalibrated grounding); `cd web && npm run build` passes with **0 TypeScript errors** (`238.37 kB` initial bundle, **0 browser console errors**, **0 HTTP errors**).
+- **Canonical 22-Metric + Studio v5.2 Deep-Module AR(1) Benchmarks:**
+  - **Canonical 22 / 22 metrics (`validation/run_synthetic_benchmark.py`):** **`97.1%`** pooled 95% CI coverage (`3,062` observable AR(1) evaluations, per-metric `90.0%–100.0%`, `rmse/sigma` in `[0.57, 1.16]`).
+  - **Studio v5.2 Deep Modules (`docs/results/v5/v5_modules_benchmark.json`):** **`97.6%`** pooled 95% CI coverage across **`2,598` observable AR(1) evaluations** (96 deliveries, `0°/45°/90°`, `120/240 fps`, right & left arm).
   - **Unmodified `EXP-007` S1–S9 (`docs/results/v4/synthetic_diagnostics.json`):** `S1` 91.7%–100.0% (pooled 97.1%), `S6` 100.0% release-height coverage across 15 lean/approach scenarios, `S8a` `+6.0°`, `S8b` 4/4 pan/tilt/zoom detected, `S9` 100.0% (`34 / 34`) cue precision & recall.
 - **RTX 4090 GPU 1 Phase II Verification (`docs/results/v5/phase2_gpu_verification.json`, Dale Steyn net clip):**
   - **Warm GPU Worker (`nlf_l_multi.torchscript`):** Lifespan JIT warmup `26.6 s`, steady-state SMPL-24 + `bml_movi_87` inference **`6.83 s`** (63 frames, 6 tracks), SHA-256 cache hit **`7.84 ms`**, Law-8 `two_wicket_geometry` (`fx = 10,207.6 px`, cam `24.7 m` back) preserved via `auto_cal_json`.

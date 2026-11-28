@@ -877,9 +877,15 @@ def extract_and_quantify_v5_biomechanics(
     g_pl = _fd_grad(_fn_plant, np.stack([com_pt_ffc, f_ank_pt_ffc], axis=0))
     sig_pl_pose = math.sqrt(max(float(g_pl[0] @ c_com_ffc @ g_pl[0] + g_pl[1] @ _cov(f_ank_i, ffc_f) @ g_pl[1]), 0.0))
     sig_pl_epi = math.sqrt(max(float(g_pl[0] @ c_com_ffc_epi @ g_pl[0] + g_pl[1] @ _cov_epi(f_ank_i, ffc_f) @ g_pl[1]), 0.0))
+    plant_ang_series = np.degrees(
+        np.arctan2(j[:, f_ank_i, 0] - com_sm[:, 0], np.maximum(com_sm[:, 1] - j[:, f_ank_i, 1], 0.25))
+    )
+    d_plant_arr = np.abs(np.gradient(plant_ang_series, 1.0 / max(fps, 1.0))) if n >= 3 else np.array([320.0])
+    d_plant_dps = float(np.max(d_plant_arr[max(0, i_ffc - 2) : min(n, i_ffc + 3)]))
+    sig_pl_temp = max(d_plant_dps, 300.0) * (math.hypot(float(events.ffc.timing_uncertainty_ms), 8.5) / 1000.0)
     me_plant_ang = _make_est(
         "front_leg_plant_angle_ffc_deg", "Front-Leg Sagittal Plant Angle at FFC", "deg", plant_angle_deg,
-        sig_pl_pose, sig_pl_epi, 1.8 * (events.ffc.timing_uncertainty_ms / 10.0), cal.gravity_sigma_deg, 0.0,
+        sig_pl_pose, sig_pl_epi, sig_pl_temp, cal.gravity_sigma_deg, 0.0,
         "sagittal", 11.5,
         "Sagittal angle of COM-to-front-ankle braking strut relative to vertical at FFC (King et al., 2016).",
         "Elite fast-bowling plant angle: ~28-38 deg (>42 deg = over-striding; <20 deg = landing on top of foot).",

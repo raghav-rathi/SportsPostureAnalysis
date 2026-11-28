@@ -17,12 +17,20 @@ export { useOverview, DeliveryCardTile };
 const PitchStage3D = lazy(() => import("../workbench/Stage/PitchStage3D"));
 
 /** Preferred hero sources, in order. Only those present in /api/overview samples are offered. */
-const HERO_SOURCES: Array<{ id: string; label: string; sub: string }> = [
-  { id: "del_real_steyn", label: "Dale Steyn", sub: "Real net video · behind" },
-  { id: "del_real_indoor", label: "Indoor nets", sub: "Real slow-mo · front-on" },
-  { id: "del_demo_dual_240", label: "Dual-Phone 240 fps", sub: "Full 3D sequence · 4 lanes" },
-  { id: "del_demo_side_240", label: "Side-on 240 fps", sub: "Studio demo · calibrated" },
+const HERO_SOURCES: Array<{ id: string; label: string; sub: string; defaultCam: VirtualCameraPreset }> = [
+  { id: "del_real_steyn", label: "Dale Steyn", sub: "Real net video · behind", defaultCam: "behind" },
+  { id: "del_real_indoor", label: "Indoor nets", sub: "Real slow-mo · front-on", defaultCam: "behind" },
+  { id: "del_demo_dual_240", label: "Dual-Phone 240 fps", sub: "Full 3D sequence · 4 lanes", defaultCam: "side" },
+  { id: "del_demo_side_240", label: "Side-on 240 fps", sub: "Studio demo · calibrated", defaultCam: "side" },
 ];
+
+function defaultCamForHero(id: string | null, detail?: DeliveryDetailResponse | null): VirtualCameraPreset {
+  const known = HERO_SOURCES.find((s) => s.id === id);
+  if (known) return known.defaultCam;
+  const view = detail?.fact_sheet?.calibration?.view_class;
+  if (view === "rear_on" || view === "front_on") return "behind";
+  return "side";
+}
 
 function useSnapshot(overview: OverviewResponse | null, bowlerId: string | null) {
   const [workload, setWorkload] = useState<WorkloadResponse | null>(null);
@@ -138,7 +146,24 @@ export const HomeView: React.FC<{ onOpenFilmGuide: () => void }> = ({ onOpenFilm
   const heroReady = hero && hero.delivery.id === activeHeroId ? hero : null;
   const playhead = useRef<Playhead>({ frame: 0 });
   const [heroFrame, setHeroFrame] = useState(0);
-  const [cam, setCam] = useState<VirtualCameraPreset>("side");
+  const [cam, setCam] = useState<VirtualCameraPreset>(() => defaultCamForHero(activeHeroId));
+  const [userPickedCam, setUserPickedCam] = useState(false);
+
+  useEffect(() => {
+    setUserPickedCam(false);
+    setCam(defaultCamForHero(activeHeroId));
+  }, [activeHeroId]);
+
+  useEffect(() => {
+    if (heroReady && !userPickedCam) {
+      setCam(defaultCamForHero(heroReady.delivery.id, heroReady));
+    }
+  }, [heroReady, userPickedCam]);
+
+  const pickHomeCam = (p: VirtualCameraPreset) => {
+    setUserPickedCam(true);
+    setCam(p);
+  };
 
   const { workload, spell } = useSnapshot(data, bowlerId);
 
@@ -252,7 +277,7 @@ export const HomeView: React.FC<{ onOpenFilmGuide: () => void }> = ({ onOpenFilm
                   ["match", "Match"],
                   ["top", "Top"],
                 ] as Array<[VirtualCameraPreset, string]>).map(([p, lbl]) => (
-                  <button key={p} aria-pressed={cam === p} onClick={() => setCam(p)}>
+                  <button key={p} aria-pressed={cam === p} onClick={() => pickHomeCam(p)}>
                     {lbl}
                   </button>
                 ))}
@@ -273,7 +298,7 @@ export const HomeView: React.FC<{ onOpenFilmGuide: () => void }> = ({ onOpenFilm
                     bowlingArm={heroReady.fact_sheet.bowling_arm}
                     frame={heroFrame}
                     preset={cam}
-                    onPresetChange={setCam}
+                    onPresetChange={pickHomeCam}
                     showTrails={{ wrist: true, head: false, com: false }}
                     eventFrames={{
                       bfc: ev?.bfc?.frame_idx ?? null,
@@ -282,7 +307,7 @@ export const HomeView: React.FC<{ onOpenFilmGuide: () => void }> = ({ onOpenFilm
                       br: ev?.br?.frame_idx ?? null,
                       ft: ev?.ft_peak?.frame_idx ?? null,
                     }}
-                    idleOrbit
+                    idleOrbit={!userPickedCam}
                     compact
                     heightClass="h-full"
                   />

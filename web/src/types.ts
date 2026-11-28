@@ -196,6 +196,8 @@ export interface TelemetryV2 {
   trails?: TelemetryTrails | null;
   sequence_series?: SequenceSeries | null;
   camera_poses_per_frame?: any;
+  is_crease_calibrated?: boolean;
+  pitch_display_mode?: "calibrated_mcc" | "bowler_centered";
 }
 
 /** Precomputed multi-joint trails over [BFC − 0.15 s, BR + 0.18 s]. Arrays index-aligned with `frame_indices`. */

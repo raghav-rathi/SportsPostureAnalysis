@@ -252,7 +252,15 @@ def get_reference_archetypes(arm: BowlingArm = BowlingArm.RIGHT) -> List[Dict[st
         )
         v5_bundle = extract_and_quantify_v5_biomechanics(kin, audit, cal, ev)
 
-        y_ground = float(np.percentile(jw[:, [JOINT_IDX["lank"], JOINT_IDX["rank"]], 1], 8))
+        foot_idxs = [JOINT_IDX["lank"], JOINT_IDX["rank"], JOINT_IDX["ltoe"], JOINT_IDX["rtoe"]]
+        i_bfc = int(np.clip(ev.bfc.frame_idx, 0, max(n - 1, 0)))
+        i_br = int(np.clip(ev.br.frame_idx, 0, max(n - 1, 0)))
+        stance_feet_y = (
+            np.nanmin(jw[i_bfc : i_br + 1, foot_idxs, 1], axis=1)
+            if (n > 0 and i_br >= i_bfc)
+            else np.nanmin(jw[:, foot_idxs, 1], axis=1)
+        )
+        y_ground = float(np.nanpercentile(stance_feet_y, 5) - 0.028)
         jw_render = jw.copy()
         jw_render[:, :, 1] -= y_ground
         com_render = compute_3d_com_trajectory(jw_render)

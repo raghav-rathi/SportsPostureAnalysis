@@ -285,14 +285,28 @@ def solve_two_wicket_calibration(
     if not from_front:
         # Behind bowler: X_w -> +Z_c, Y_w -> -Y_c, Z_w -> +X_c
         R_base = np.array([[0.0, 0.0, 1.0], [0.0, -1.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float64)
-        cam_pos_world = np.array([-z_near, cam_h, 0.0], dtype=np.float64)
     else:
         # Behind batter looking toward bowler (-X): X_w -> -Z_c, Y_w -> -Y_c, Z_w -> -X_c
         R_base = np.array([[0.0, 0.0, -1.0], [0.0, -1.0, 0.0], [-1.0, 0.0, 0.0]], dtype=np.float64)
-        cam_pos_world = np.array([MCC_PITCH_LENGTH_M + z_near, cam_h, 0.0], dtype=np.float64)
 
     R = R_roll @ R_pitch @ R_yaw @ R_base
-    tvec = (-R @ cam_pos_world).reshape(3)
+    if near_x_px is not None:
+        # Anchor near wicket base explicitly to its detected pixel ray so horizontal yaw never shifts
+        # the bowler's wicket laterally off Z = 0, while keeping `cam_pos_world == -R.T @ t` exact (EXP-007 B15).
+        tx_cam = (float(near_x_px) - cx) * z_near / max(focal, 1.0)
+        ty_cam = (float(base_near_y_px) - cy) * z_near / max(focal, 1.0)
+        p_near_cam = np.array([tx_cam, ty_cam, z_near], dtype=np.float64)
+        if not from_front:
+            tvec = p_near_cam
+        else:
+            tvec = (p_near_cam - R @ np.array([MCC_PITCH_LENGTH_M, 0.0, 0.0], dtype=np.float64)).reshape(3)
+        cam_pos_world = (-R.T @ tvec).reshape(3)
+    else:
+        if not from_front:
+            cam_pos_world = np.array([-z_near, cam_h, 0.0], dtype=np.float64)
+        else:
+            cam_pos_world = np.array([MCC_PITCH_LENGTH_M + z_near, cam_h, 0.0], dtype=np.float64)
+        tvec = (-R @ cam_pos_world).reshape(3)
 
     K = np.array([[focal, 0.0, cx], [0.0, focal, cy], [0.0, 0.0, 1.0]], dtype=np.float64)
     crease_pelvis_ref = np.array([0.61, 1.0, 0.0], dtype=np.float64)

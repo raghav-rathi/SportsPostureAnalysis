@@ -1902,9 +1902,22 @@ def create_app(
             raise HTTPException(status_code=404, detail="Workload log entry not found.")
         return {"deleted": True, "log_id": log_id}
 
-    # Serve compiled Vite frontend if `web/dist` exists
+    # Serve compiled Vite frontend if `web/dist` exists (disable HTML caching so rebuilds load immediately)
     web_dist = Path(__file__).resolve().parents[3] / "web" / "dist"
     if web_dist.exists():
+        index_html = web_dist / "index.html"
+        if index_html.exists():
+            @app.get("/", include_in_schema=False)
+            @app.get("/index.html", include_in_schema=False)
+            def serve_spa_index() -> FileResponse:
+                return FileResponse(
+                    index_html,
+                    media_type="text/html; charset=utf-8",
+                    headers={
+                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                        "Pragma": "no-cache",
+                    },
+                )
         app.mount("/", StaticFiles(directory=str(web_dist), html=True), name="studio_ui")
 
     return app

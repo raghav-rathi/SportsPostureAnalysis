@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+from scipy.ndimage import gaussian_filter1d, maximum_filter1d, minimum_filter1d
 
 from ..constants import JOINT_IDX, MCC_PITCH_LANDMARKS_M, SMPL24_JOINTS
 from ..schemas import (
@@ -188,16 +189,76 @@ def build_telemetry_v2(
     pts_ms = [round(i * 1000.0 / max(proxy_fps, 1.0), 3) for i in range(n)]
     t_rel_ffc_ms = [round((i - events.ffc.frame_float) * 1000.0 / max(audit.fps, 1.0), 2) for i in range(n)]
 
-    # Ground-zeroed 3D world skeleton for the Three.js Pitch Deck so bowler stands cleanly on Y=0
-    y_ground = float(np.percentile(joints_world_m[:, [JOINT_IDX["lank"], JOINT_IDX["rank"]], 1], 8)) if n > 0 else 0.0
-    jw_render = joints_world_m.copy()
-    jw_render[:, :, 1] -= y_ground
+    is_crease_calibrated = bool(
+        cal.method in ("mcc_law7_pnp", "dual_3d_ray_fusion_dual_mcc_pnp")
+        and cal.is_metric_calibrated
+        and (not cal.is_panning_camera)
+    )
+    pitch_display_mode = "calibrated_mcc" if is_crease_calibrated else "bowler_centered"
 
     com_raw = com_world_m if (com_world_m is not None and len(com_world_m) == n) else compute_3d_com_trajectory(joints_world_m)
-    com_render = com_raw.copy()
-    com_render[:, 1] -= y_ground
+    foot_idxs = [JOINT_IDX["lank"], JOINT_IDX["rank"], JOINT_IDX["ltoe"], JOINT_IDX["rtoe"]]
+    sole_r_m = 0.028
 
-    # Project 3D COM into 2D camera pixels
+    if n == 0:
+        y_ground = 0.0
+        jw_render = joints_world_m.copy()
+        com_render = com_raw.copy()
+        cam_pos_render = [round(float(x), 3) for x in cal.camera_position_world_m]
+    elif is_crease_calibrated:
+        # True MCC Law 7 crease-calibrated clip: preserve exact Pitch World (X, Z) so popping/return creases
+        # and stumps stay metrically truthful; zero only the static ground-sole plane over [BFC, BR].
+        i_bfc_g = int(np.clip(events.bfc.frame_idx, 0, n - 1))
+        i_br_g = int(np.clip(events.br.frame_idx, 0, n - 1))
+        stance_feet_y = (
+            np.nanmin(joints_world_m[i_bfc_g : i_br_g + 1, foot_idxs, 1], axis=1)
+            if i_br_g >= i_bfc_g
+            else np.nanmin(joints_world_m[:, foot_idxs, 1], axis=1)
+        )
+        y_ground = float(np.nanpercentile(stance_feet_y, 5) - sole_r_m)
+        jw_render = joints_world_m.copy()
+        jw_render[:, :, 1] -= y_ground
+        com_render = com_raw.copy()
+        com_render[:, 1] -= y_ground
+        cam_pos_render = [round(float(x), 3) for x in cal.camera_position_world_m]
+    else:
+        # Non-crease-calibrated clip (`two_wicket_geometry`, `self_calibrated`, or panning camera):
+        # Stage 3/4/5 scientific metrics are ALREADY computed on raw `joints_world_m`. For visual 3D display:
+        # 1) Track rolling lower-envelope ground under feet so grounded steps kiss Y=0 without flattening jumps.
+        # 2) Low-pass filter shared monocular root (X, Z) jitter and center FFC pelvis at (0, 0), applying the
+        #    EXACT same per-frame rigid translation `shift[t]` to all 24 joints & COM (100% angle-preserving!).
+        foot_min_y = np.nanmin(joints_world_m[:, foot_idxs, 1], axis=1)
+        win_jump = max(7, int(round(0.45 * max(float(audit.fps), 25.0))))
+        # 1D morphological opening (`max(min(y))`) strips airborne bound peaks (<0.45 s) with ZERO downward slope bias!
+        floor_open = maximum_filter1d(
+            minimum_filter1d(foot_min_y, size=win_jump, mode="nearest"),
+            size=win_jump,
+            mode="nearest",
+        )
+        floor_smooth = gaussian_filter1d(floor_open, sigma=max(1.5, 0.06 * max(float(audit.fps), 25.0)), mode="nearest")
+        dy_t = np.minimum(floor_smooth, foot_min_y) - sole_r_m
+
+        pelv_xz = joints_world_m[:, JOINT_IDX["pelv"], :][:, [0, 2]]
+        sig_root = max(2.2, 0.22 * max(float(audit.fps), 25.0))
+        pelv_xz_smooth = gaussian_filter1d(pelv_xz, sigma=sig_root, axis=0, mode="nearest")
+        i_anchor = int(np.clip(events.ffc.frame_idx if events.is_complete_delivery else n // 2, 0, n - 1))
+        pelv_xz_disp = pelv_xz_smooth - pelv_xz_smooth[i_anchor : i_anchor + 1, :]
+        dx_t = pelv_xz[:, 0] - pelv_xz_disp[:, 0]
+        dz_t = pelv_xz[:, 1] - pelv_xz_disp[:, 1]
+        shift_t = np.stack([dx_t, dy_t, dz_t], axis=1)
+
+        jw_render = joints_world_m - shift_t[:, None, :]
+        com_render = com_raw - shift_t
+        y_ground = float(dy_t[i_anchor])
+        dx_anc = float(pelv_xz_smooth[i_anchor, 0])
+        dz_anc = float(pelv_xz_smooth[i_anchor, 1])
+        cam_pos_render = [
+            round(float(cal.camera_position_world_m[0] - dx_anc), 3),
+            round(float(cal.camera_position_world_m[1]), 3),
+            round(float(cal.camera_position_world_m[2] - dz_anc), 3),
+        ]
+
+    # Project raw 3D COM into 2D camera pixels (camera extrinsics stay locked to raw Pitch World)
     K_mat = np.asarray(cal.camera_matrix_K, dtype=np.float64).reshape(3, 3)
     R_mat = np.asarray(cal.rotation_matrix_R, dtype=np.float64).reshape(3, 3)
     t_vec = np.asarray(cal.translation_t, dtype=np.float64).reshape(3)
@@ -220,6 +281,8 @@ def build_telemetry_v2(
     return {
         "schema_version": "2.0",
         "telemetry_minor_version": "2.1",
+        "is_crease_calibrated": is_crease_calibrated,
+        "pitch_display_mode": pitch_display_mode,
         "joint_names": list(SMPL24_JOINTS),
         "num_frames": n,
         "analysis_fps": audit.fps,
@@ -243,8 +306,8 @@ def build_telemetry_v2(
             else {}
         ),
         "trails": trails,
-        "mcc_wireframe_2d": project_mcc_wireframe_2d(cal) if cal.is_intrinsics_calibrated else {},
-        "camera_position_world_m": [round(float(x), 3) for x in cal.camera_position_world_m],
+        "mcc_wireframe_2d": project_mcc_wireframe_2d(cal) if is_crease_calibrated else {},
+        "camera_position_world_m": cam_pos_render,
         "camera_poses_per_frame": camera_poses_per_frame,
         "all_tracks": all_tracks or [],
         "isb_anatomy": isb_summary,
@@ -780,7 +843,7 @@ def seed_demo_session(
             marker_file.exists()
             and marker_file.read_text(encoding="utf-8").strip() == _DEMO_SEED_VERSION
             and v5_marker_file.exists()
-            and v5_marker_file.read_text(encoding="utf-8").strip() == "5.1"
+            and v5_marker_file.read_text(encoding="utf-8").strip() == "5.2"
         ):
             return existing[0]["id"]
         # Upgrade pre-v5 `ses_demo` in place while keeping `.demo_seed_version == "4.0"` backward compatibility!
@@ -1272,5 +1335,5 @@ def seed_demo_session(
 
     demo_ses_dir.mkdir(parents=True, exist_ok=True)
     marker_file.write_text(_DEMO_SEED_VERSION, encoding="utf-8")
-    v5_marker_file.write_text("5.1", encoding="utf-8")
+    v5_marker_file.write_text("5.2", encoding="utf-8")
     return session["id"]

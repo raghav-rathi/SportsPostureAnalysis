@@ -346,10 +346,18 @@ def render_synthetic_proxy_video(
     b_han = RHAN if is_right else LHAN
 
     n = len(joints2d_px)
-    # Estimate ground horizon line from ankles/crease so the athlete stands grounded on the pitch
+    # Estimate ground horizon line from MCC ground landmarks (if calibrated) or ankles so wickets & athlete sit on turf
     ank_ys = joints2d_px[:, [LANK, RANK], 1].reshape(-1) * sy
     valid_ank = ank_ys[np.isfinite(ank_ys) & (ank_ys > 0) & (ank_ys < h_out)]
     base_horizon_y = int(np.clip(np.percentile(valid_ank, 20) - 70.0, 0.42 * h_out, 0.62 * h_out)) if len(valid_ank) else int(0.52 * h_out)
+    if mcc_wireframe_2d:
+        ground_ys = [
+            float(pt[1]) * sy
+            for k, pt in mcc_wireframe_2d.items()
+            if "top" not in k and len(pt) >= 2 and np.isfinite(pt[1]) and 0.0 < float(pt[1]) * sy < h_out
+        ]
+        if ground_ys:
+            base_horizon_y = int(np.clip(min(float(base_horizon_y), min(ground_ys) - 16.0), 0.16 * h_out, 0.60 * h_out))
 
     # Precompute release ball velocity in 2D pixels if br_frame_idx is known
     ball_origin_px: Optional[np.ndarray] = None

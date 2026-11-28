@@ -519,3 +519,99 @@ def test_v5_studio_endpoints_strobe_archetypes_spell_workload_and_verifier(tmp_p
     steyn_fs = BiomechanicalFactSheet.model_validate(client.get("/api/deliveries/del_real_steyn").json()["fact_sheet"])
     adv_ok, adv_viols = verify_coach_response("Your front-heel popping-crease margin was +8.4 cm behind the line.", steyn_fs)
     assert not adv_ok and len(adv_viols) > 0
+
+
+def test_v5_stationary_crease_plant_and_uncalibrated_display_grounding(tmp_path: Path) -> None:
+    """Regression suite for Studio v5.2 3D grounding, stationary crease plant, and uncalibrated display honesty."""
+    from bowling_biomech.archetypes import get_reference_archetypes
+    from bowling_biomech.constants import JOINT_IDX, MCC_POPPING_CREASE_M
+    from bowling_biomech.stage1_pitch_calibration import solve_two_wicket_calibration
+    from bowling_biomech.synthetic_ground_truth import project_world_points
+
+    # 1. Two-Wicket closed-form calibration with `near_x_px` MUST anchor (0,0,0) on `near_x_px` AND keep `C == -R.T @ t`
+    cal_tw = solve_two_wicket_calibration(
+        h_near_px=292.0,
+        base_near_y_px=910.0,
+        h_far_px=161.0,
+        base_far_y_px=575.0,
+        width=1920,
+        height=1080,
+        near_x_px=892.0,
+        far_x_px=996.0,
+    )
+    assert cal_tw is not None
+    R_tw = np.asarray(cal_tw.rotation_matrix_R, dtype=np.float64).reshape(3, 3)
+    t_tw = np.asarray(cal_tw.translation_t, dtype=np.float64).reshape(3)
+    K_tw = np.asarray(cal_tw.camera_matrix_K, dtype=np.float64).reshape(3, 3)
+    cam_tw = np.asarray(cal_tw.camera_position_world_m, dtype=np.float64).reshape(3)
+    np.testing.assert_allclose(cam_tw, (-R_tw.T @ t_tw).reshape(3), atol=1e-5)
+    uv_near, _ = project_world_points(np.array([[0.0, 0.0, 0.0]], dtype=np.float64), K_tw, R_tw, t_tw)
+    assert abs(float(uv_near[0, 0]) - 892.0) < 0.5
+    assert abs(float(uv_near[0, 1]) - 910.0) < 0.5
+
+    # 2. All 4 3D Reference Archetypes MUST plant front foot stationary behind X = +1.22 m (zero foot-skate / no-ball!)
+    for arm_m in (BowlingArm.RIGHT, BowlingArm.LEFT):
+        f_ank_idx = JOINT_IDX["lank"] if arm_m == BowlingArm.RIGHT else JOINT_IDX["rank"]
+        for arch in get_reference_archetypes(arm=arm_m):
+            jw_a = np.asarray(arch["joints3d_world_m"], dtype=np.float64)
+            i_ffc_a = int(arch["events"]["ffc_frame"])
+            i_br_a = int(arch["events"]["br_frame"])
+            f_ank_stance = jw_a[i_ffc_a : i_br_a + 1, f_ank_idx]
+            f_ank_locked = jw_a[i_ffc_a + 1 : i_br_a + 1, f_ank_idx]
+            locked_drift_m = float(np.max(np.linalg.norm(f_ank_locked - f_ank_locked[0], axis=1)))
+            x_skate_m = abs(float(f_ank_stance[-1, 0] - f_ank_stance[0, 0]))
+            assert locked_drift_m < 0.002, f"Archetype {arch['id']} ({arm_m.value}) drifted {locked_drift_m:.4f} m in stance!"
+            assert x_skate_m < 0.010, f"Archetype {arch['id']} ({arm_m.value}) skated {x_skate_m:.4f} m in X across [FFC, BR]!"
+            assert float(f_ank_locked[0, 0]) < MCC_POPPING_CREASE_M - 0.05
+            assert 0.010 <= float(f_ank_locked[0, 1]) <= 0.045
+
+    # 3. Seeded Studio deliveries: calibrated clips keep MCC crease & legal stationary plant;
+    #    uncalibrated real clips (`del_real_steyn`, `del_real_indoor`) hide fake MCC wireframe, ground feet on Y=0,
+    #    eliminate telephoto backward root teleportation, and preserve 100% of internal 3D joint angles!
+    app = create_app(data_root=tmp_path / "studio_v52_grounding", seed_demo=True)
+    client = TestClient(app)
+
+    for did_cal in ("del_demo_side_240", "del_demo_dual_240"):
+        det_c = client.get(f"/api/deliveries/{did_cal}").json()
+        tel_c = det_c["telemetry"]
+        fs_c = BiomechanicalFactSheet.model_validate(det_c["fact_sheet"])
+        assert tel_c["is_crease_calibrated"] is True
+        assert tel_c["pitch_display_mode"] == "calibrated_mcc"
+        assert len(tel_c["mcc_wireframe_2d"]) > 0
+        assert not fs_c.v5_metrics["front_heel_crease_margin_cm"].suppressed
+        assert float(fs_c.v5_metrics["front_heel_crease_margin_cm"].value or 0.0) > 5.0
+        jw_c = np.asarray(tel_c["joints3d_world_m"], dtype=np.float64)
+        f_ffc = int(fs_c.events.ffc.frame_idx)
+        f_br = int(fs_c.events.br.frame_idx)
+        ank_stance_c = jw_c[f_ffc : f_br + 1, JOINT_IDX["lank"]]
+        # Noisy synthetic demo has ~1.5 cm camera-ray noise, NEVER the old +54 cm forward skate!
+        assert abs(float(ank_stance_c[-1, 0] - ank_stance_c[0, 0])) < 0.08
+        assert float(ank_stance_c[0, 0]) < MCC_POPPING_CREASE_M
+
+    for did_uncal in ("del_real_steyn", "del_real_indoor"):
+        det_u = client.get(f"/api/deliveries/{did_uncal}").json()
+        tel_u = det_u["telemetry"]
+        fs_u = BiomechanicalFactSheet.model_validate(det_u["fact_sheet"])
+        assert tel_u["is_crease_calibrated"] is False
+        assert tel_u["pitch_display_mode"] == "bowler_centered"
+        assert tel_u["mcc_wireframe_2d"] == {}
+        jw_u = np.asarray(tel_u["joints3d_world_m"], dtype=np.float64)
+        foot_idxs = [JOINT_IDX["lank"], JOINT_IDX["rank"], JOINT_IDX["ltoe"], JOINT_IDX["rtoe"]]
+        f_ffc_u = int(fs_u.events.ffc.frame_idx)
+        # No foot ever sinks underground, and planted foot at FFC stands right on Y=0 turf (zero 40 cm mid-air float!)
+        assert float(np.min(jw_u[:, foot_idxs, 1])) >= 0.015
+        assert float(np.min(jw_u[f_ffc_u, foot_idxs, 1])) <= 0.055
+        # Centered at FFC near (0, 0) in horizontal pitch plane
+        pelv_ffc_u = jw_u[f_ffc_u, JOINT_IDX["pelv"]]
+        assert abs(float(pelv_ffc_u[0])) < 0.30 and abs(float(pelv_ffc_u[2])) < 0.30
+        if did_uncal == "del_real_steyn":
+            # Telephoto 1.48 m / -1.20 m 4-frame pelvis root spike is completely stabilized in display coordinates
+            pelv_x_steps = np.abs(np.diff(jw_u[:, JOINT_IDX["pelv"], 0]))
+            assert float(np.max(pelv_x_steps)) < 0.35
+            # Internal 3D front-knee angle at FFC matches FactSheet kinematics (rigid per-frame shift preserves angles!)
+            v1 = jw_u[f_ffc_u, JOINT_IDX["lhip"]] - jw_u[f_ffc_u, JOINT_IDX["lkne"]]
+            v2 = jw_u[f_ffc_u, JOINT_IDX["lank"]] - jw_u[f_ffc_u, JOINT_IDX["lkne"]]
+            ang_deg = float(
+                np.degrees(np.arccos(float(np.clip(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)), -1.0, 1.0))))
+            )
+            assert abs(ang_deg - float(tel_u["kin_series"]["front_knee_deg"][f_ffc_u])) < 0.25

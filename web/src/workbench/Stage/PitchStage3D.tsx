@@ -99,6 +99,9 @@ const JOINT_RADII: Partial<Record<string, number>> = {
   spi1: 0.06, spi2: 0.06, spi3: 0.06, neck: 0.048, lcla: 0.045, rcla: 0.045, head: 0.0,
   lsho: 0.058, rsho: 0.058, lelb: 0.044, relb: 0.044, lwri: 0.033, rwri: 0.033, lhan: 0.027, rhan: 0.027,
 };
+/** Internal SMPL torso connectors & joint spheres already enclosed by the sculpted pelvis/abdomen/ribcage ellipsoids. */
+const HIDDEN_TORSO_BONE_CHILDREN = new Set(["lhip", "rhip", "spi1", "spi2", "spi3", "lcla", "rcla", "lsho", "rsho"]);
+const HIDDEN_TORSO_JOINTS = new Set(["pelv", "spi1", "spi2", "spi3", "lcla", "rcla"]);
 
 // ── Small math helpers (module-level scratch objects; render loop is single-threaded) ──
 const UP = new THREE.Vector3(0, 1, 0);
@@ -295,7 +298,7 @@ const Mannequin: React.FC<MannequinProps> = ({
   const translucent = opacity < 0.999;
   const bones = useMemo(
     () =>
-      SMPL24_BONES.map(([p, c]) => {
+      SMPL24_BONES.filter(([, c]) => !HIDDEN_TORSO_BONE_CHILDREN.has(SMPL24_JOINTS[c])).map(([p, c]) => {
         const name = SMPL24_JOINTS[c];
         const r = BONE_RADII[name] ?? [0.04, 0.04];
         const seg = boneSegment(p, c, arm);
@@ -307,7 +310,7 @@ const Mannequin: React.FC<MannequinProps> = ({
     () =>
       SMPL24_JOINTS.map((name, i) => ({
         i,
-        r: JOINT_RADII[name] ?? 0.04,
+        r: HIDDEN_TORSO_JOINTS.has(name) ? 0 : JOINT_RADII[name] ?? 0.04,
         color: tint ?? SEG_COLOR[jointSegment(i, arm)],
       })),
     [arm, tint]
@@ -391,11 +394,16 @@ const Mannequin: React.FC<MannequinProps> = ({
         orientBasis(ribRef.current, _a.set(nk[0] - s1[0], nk[1] - s1[1], nk[2] - s1[2]), _b.set(rs[0] - ls[0], rs[1] - ls[1], rs[2] - ls[2]));
         ribRef.current.scale.set(clamp(shW * 0.4, 0.11, 0.2), clamp(len * 0.62, 0.12, 0.26), 0.112);
       }
-      // Head + visor (visor faces the thorax-forward direction: forward = up × right)
+      // Head + visor (visor faces the thorax-forward direction: forward = up × right; blend upper-spine for 25 fps stability)
       if (headRef.current) {
-        _a.set(hd[0] - nk[0], hd[1] - nk[1], hd[2] - nk[2]);
-        const hl2 = _a.length() || 1;
-        headRef.current.position.set(hd[0] + (_a.x / hl2) * 0.055, hd[1] + (_a.y / hl2) * 0.055, hd[2] + (_a.z / hl2) * 0.055);
+        _a.set(
+          0.65 * (hd[0] - nk[0]) + 0.35 * (nk[0] - s2[0]),
+          0.65 * (hd[1] - nk[1]) + 0.35 * (nk[1] - s2[1]),
+          0.65 * (hd[2] - nk[2]) + 0.35 * (nk[2] - s2[2])
+        );
+        if (_a.lengthSq() < 1e-10) _a.set(0, 1, 0);
+        _a.normalize();
+        headRef.current.position.set(hd[0] + _a.x * 0.055, hd[1] + _a.y * 0.055, hd[2] + _a.z * 0.055);
         orientBasis(headRef.current, _a, _b.set(rs[0] - ls[0], rs[1] - ls[1], rs[2] - ls[2]));
       }
     }
@@ -435,7 +443,7 @@ const Mannequin: React.FC<MannequinProps> = ({
           <meshPhysicalMaterial {...matProps(b.color)} />
         </mesh>
       ))}
-      {joints.map((j) => (
+      {joints.filter((j) => j.r > 0).map((j) => (
         <mesh
           key={`j${j.i}`}
           ref={(el) => {
@@ -540,7 +548,7 @@ class IndexCurve extends THREE.Curve<THREE.Vector3> {
   private c: THREE.CatmullRomCurve3;
   constructor(points: THREE.Vector3[]) {
     super();
-    this.c = new THREE.CatmullRomCurve3(points, false, "catmullrom", 0.5);
+    this.c = new THREE.CatmullRomCurve3(points, false, "centripetal", 0.2);
   }
   getPoint(t: number, optionalTarget: THREE.Vector3 = new THREE.Vector3()): THREE.Vector3 {
     return this.c.getPoint(t, optionalTarget);
@@ -720,35 +728,62 @@ const Wicket: React.FC<{ x: number }> = ({ x }) => (
     {[-STUMP_Z, 0, STUMP_Z].map((z) => (
       <mesh key={z} position={[0, STUMP_H / 2, z]} castShadow raycast={noRaycast}>
         <cylinderGeometry args={[STUMP_R, STUMP_R * 1.04, STUMP_H, 18]} />
-        <meshPhysicalMaterial color="#1c1c1c" roughness={0.38} clearcoat={0.5} />
+        <meshPhysicalMaterial color="#c79a52" roughness={0.52} clearcoat={0.25} />
       </mesh>
     ))}
     {[-STUMP_Z / 2, STUMP_Z / 2].map((z) => (
       <mesh key={`bail${z}`} position={[0, STUMP_H + BAIL_R * 0.9, z]} rotation={[Math.PI / 2, 0, 0]} castShadow raycast={noRaycast}>
         <capsuleGeometry args={[BAIL_R, BAIL_LEN - 2 * BAIL_R, 4, 10]} />
-        <meshPhysicalMaterial color="#2a2a2a" roughness={0.35} clearcoat={0.5} />
+        <meshPhysicalMaterial color="#ae7d38" roughness={0.48} clearcoat={0.25} />
       </mesh>
     ))}
   </group>
 );
 
-const PitchScene: React.FC<{ showGrid: boolean; focus: THREE.Vector3 }> = ({ showGrid, focus }) => (
+const PitchScene: React.FC<{ showGrid: boolean; focus: THREE.Vector3; creaseCalibrated: boolean }> = ({
+  showGrid,
+  focus,
+  creaseCalibrated,
+}) => (
   <group>
     {/* Paper ground (unlit so it stays true paper) + shadow catcher */}
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -0.002, 0]} raycast={noRaycast}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[creaseCalibrated ? 10 : focus.x, -0.002, creaseCalibrated ? 0 : focus.z]} raycast={noRaycast}>
       <planeGeometry args={[160, 120]} />
       <meshBasicMaterial color="#f7f7f5" />
     </mesh>
-    <Strip x0={-4.5} x1={PITCH_LEN + 4.5} z0={-PITCH_HALF_WIDTH} z1={PITCH_HALF_WIDTH} color="#e7efe9" y={0.0008} />
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[focus.x, 0.004, focus.z]} receiveShadow raycast={noRaycast}>
-      <planeGeometry args={[30, 30]} />
-      <shadowMaterial transparent opacity={0.14} />
-    </mesh>
-    <Creases end="bowler" />
-    <Creases end="striker" />
-    <Wicket x={0} />
-    <Wicket x={PITCH_LEN} />
-    {showGrid && <gridHelper args={[48, 96, "#cfd6d1", "#e6e9e6"]} position={[PITCH_LEN / 2, 0.005, 0]} />}
+    {creaseCalibrated ? (
+      <>
+        <Strip x0={-4.5} x1={PITCH_LEN + 4.5} z0={-PITCH_HALF_WIDTH} z1={PITCH_HALF_WIDTH} color="#e7efe9" y={0.0008} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[focus.x, 0.004, focus.z]} receiveShadow raycast={noRaycast}>
+          <planeGeometry args={[30, 30]} />
+          <shadowMaterial transparent opacity={0.14} />
+        </mesh>
+        <Creases end="bowler" />
+        <Creases end="striker" />
+        <Wicket x={0} />
+        <Wicket x={PITCH_LEN} />
+        {showGrid && <gridHelper args={[48, 96, "#cfd6d1", "#e6e9e6"]} position={[PITCH_LEN / 2, 0.005, 0]} />}
+      </>
+    ) : (
+      <>
+        <Strip
+          x0={focus.x - 5.5}
+          x1={focus.x + 5.5}
+          z0={focus.z - PITCH_HALF_WIDTH}
+          z1={focus.z + PITCH_HALF_WIDTH}
+          color="#e7efe9"
+          y={0.0008}
+        />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[focus.x, 0.004, focus.z]} receiveShadow raycast={noRaycast}>
+          <planeGeometry args={[30, 30]} />
+          <shadowMaterial transparent opacity={0.14} />
+        </mesh>
+        <gridHelper
+          args={showGrid ? [24, 24, "#cfd6d1", "#e4e8e5"] : [16, 16, "#d5ddd8", "#e8ece9"]}
+          position={[focus.x, 0.005, focus.z]}
+        />
+      </>
+    )}
   </group>
 );
 
@@ -859,15 +894,26 @@ interface CamGoal {
 
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-const CameraRig: React.FC<{ goal: CamGoal; goalKey: string; reduced: boolean }> = ({ goal, goalKey, reduced }) => {
+const CameraRig: React.FC<{ goal: CamGoal; goalKey: string; reduced: boolean; cancelRef: React.MutableRefObject<number> }> = ({
+  goal,
+  goalKey,
+  reduced,
+  cancelRef,
+}) => {
   const anim = useRef<{ t0: number; from: CamGoal; to: CamGoal } | null>(null);
   const appliedKey = useRef<string>("");
+  const lastCancel = useRef<number>(cancelRef.current);
   const first = useRef(true);
 
   useFrame((state) => {
     const controls = state.controls as { target?: THREE.Vector3; update?: () => void } | null;
     if (!controls?.target) return;
     const camera = state.camera as THREE.PerspectiveCamera;
+
+    if (cancelRef.current !== lastCancel.current) {
+      lastCancel.current = cancelRef.current;
+      anim.current = null;
+    }
 
     if (appliedKey.current !== goalKey) {
       appliedKey.current = goalKey;
@@ -940,8 +986,11 @@ export const PitchStage3D: React.FC<PitchStage3DProps> = ({
   const reduced = usePrefersReducedMotion();
 
   const [presetState, setPresetState] = useState<VirtualCameraPreset>(presetProp ?? defaultPreset);
+  const [userPickedCamera, setUserPickedCamera] = useState(false);
+  const cancelAnimRef = useRef(0);
   const preset = presetProp ?? presetState;
   const setPreset = (p: VirtualCameraPreset) => {
+    setUserPickedCamera(true);
     setPresetState(p);
     onPresetChange?.(p);
     setNonce((x) => x + 1);
@@ -1147,6 +1196,14 @@ export const PitchStage3D: React.FC<PitchStage3DProps> = ({
 
   const hasCom = !!comTrail;
   const camMarker = camWorld && preset !== "match" && !compact ? camWorld : null;
+  const creaseCalibrated =
+    telemetry.is_crease_calibrated ??
+    (telemetry.pitch_display_mode === "calibrated_mcc"
+      ? true
+      : telemetry.pitch_display_mode === "bowler_centered"
+      ? false
+      : !!telemetry.mcc_wireframe_2d && Object.keys(telemetry.mcc_wireframe_2d).length > 0);
+  const shouldAutoRotate = idleOrbit && !reduced && !userPickedCamera && preset !== "top" && preset !== "match";
 
   return (
     <div className={`relative w-full overflow-hidden rounded-[6px] bg-[#fafaf9] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] flex flex-col ${heightClass ?? "h-[420px]"}`}>
@@ -1208,7 +1265,7 @@ export const PitchStage3D: React.FC<PitchStage3DProps> = ({
           >
             <color attach="background" args={["#fafaf9"]} />
             <StudioLights focus={focus} />
-            <PitchScene showGrid={preset === "top"} focus={focus} />
+            <PitchScene showGrid={preset === "top"} focus={focus} creaseCalibrated={creaseCalibrated} />
 
             {!strobeMode && (
               <>
@@ -1255,12 +1312,22 @@ export const PitchStage3D: React.FC<PitchStage3DProps> = ({
               minDistance={0.6}
               maxDistance={80}
               maxPolarAngle={Math.PI / 2 - 0.02}
-              autoRotate={idleOrbit && !reduced}
+              autoRotate={shouldAutoRotate}
               autoRotateSpeed={0.35}
+              onStart={() => {
+                setUserPickedCamera(true);
+                cancelAnimRef.current += 1;
+              }}
             />
-            <CameraRig goal={goal} goalKey={goalKey} reduced={reduced} />
+            <CameraRig goal={goal} goalKey={goalKey} reduced={reduced} cancelRef={cancelAnimRef} />
           </Canvas>
         </CanvasErrorBoundary>
+
+        {!creaseCalibrated && (
+          <div className="pointer-events-none absolute top-2 left-2 max-w-[calc(100%-1rem)] px-2 py-0.5 rounded-[5px] bg-white/90 shadow-[0_0_0_1px_#ebebeb] font-mono text-[10px] text-[#666666]">
+            Crease &amp; stumps hidden · clip not crease-calibrated (ground aligned to bowler)
+          </div>
+        )}
 
         {/* Legend (DOM, crisp at any DPR) */}
         {!compact && (

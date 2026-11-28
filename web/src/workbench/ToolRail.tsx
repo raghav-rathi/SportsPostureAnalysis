@@ -81,7 +81,7 @@ const ToolChip: React.FC<{
     disabled={disabled}
     onClick={onClick}
     className={`shrink-0 inline-flex items-center justify-center gap-1 h-7 ${
-      label ? "px-2" : "w-7"
+      label ? "px-1.5" : "w-7"
     } rounded-[6px] transition-[background-color,box-shadow,color] duration-150 ease-out disabled:opacity-35 disabled:cursor-not-allowed ${
       active
         ? "bg-[#171717] text-white shadow-[inset_0_-2px_0_0_#C026D3]"
@@ -90,14 +90,14 @@ const ToolChip: React.FC<{
   >
     {children}
     {label && (
-      <span className={`font-mono text-[10px] leading-none tracking-[0.02em] ${active ? "text-white" : "text-[#4d4d4d]"}`}>
+      <span className={`font-mono text-[10px] leading-none tracking-[0.01em] ${active ? "text-white" : "text-[#4d4d4d]"}`}>
         {label}
       </span>
     )}
   </button>
 );
 
-const Divider = () => <div className="shrink-0 bg-[#e5e5e5] w-px h-5 mx-0.5" />;
+const Divider = () => <div className="shrink-0 bg-[#e5e5e5] w-px h-5 mx-0" />;
 
 export const ToolRail: React.FC<ToolRailProps> = ({
   activeTool,
@@ -145,7 +145,7 @@ export const ToolRail: React.FC<ToolRailProps> = ({
       role="toolbar"
       aria-label="Telestration tools"
       aria-orientation="horizontal"
-      className="flex flex-row items-center gap-1 px-2 py-1.5 w-full overflow-x-auto rounded-[8px] bg-[#fafafa] shadow-[0_0_0_1px_#ebebeb] [scrollbar-width:none]"
+      className="flex flex-row flex-nowrap md:flex-wrap items-center gap-1 px-1.5 py-1.5 w-full overflow-x-auto md:overflow-x-visible rounded-[8px] bg-[#fafafa] shadow-[0_0_0_1px_#ebebeb] [scrollbar-width:none]"
     >
       <span
         className="shrink-0 inline-flex items-center gap-1 pr-1 font-mono text-[9.5px] tracking-[0.06em] uppercase text-[#8f8f8f]"
